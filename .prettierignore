@@ -1,0 +1,10 @@
+.agents/
+.codex/
+.git/
+.vscode/
+android/
+coverage/
+dist/
+node_modules/
+out-tsc/
+www/
