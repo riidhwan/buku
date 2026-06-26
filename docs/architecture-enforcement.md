@@ -10,6 +10,8 @@ Future agents must read `AGENTS.md` first. It points to the project structure do
 
 - `docs/project-structure.md` defines the target source layout.
 - `docs/scaffold-checklist.md` defines the scaffold and verification checklist.
+- `docs/architecture-glossary.md` defines binding engineering terms for code placement and dependency decisions.
+- `CONTEXT.md` defines product and domain language.
 - `docs/adr/` records architectural decisions and their rationale.
 
 If a future change conflicts with these documents, update the docs and add an ADR when the decision is hard to reverse, surprising without context, and based on a real trade-off.
@@ -22,6 +24,7 @@ The following rules are enforced by tooling:
 - strict Angular templates
 - ESLint with type-aware rules
 - ESLint boundaries for architectural imports
+- path-specific ESLint rules for domain, application, ports, infrastructure, presentation, core, and shared code
 - restricted feature, environment, Capacitor, and console imports
 - Stylelint for SCSS
 - Prettier formatting
