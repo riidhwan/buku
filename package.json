@@ -16,6 +16,7 @@
     "format:check": "prettier . --check",
     "cap:sync:android": "cap sync android",
     "android:build:debug": "cd android && ./gradlew assembleDebug",
+    "android:install:debug": "pnpm build && pnpm cap:sync:android && cd android && ./gradlew installDebug",
     "prepare": "husky >/dev/null 2>&1 || true"
   },
   "private": true,
