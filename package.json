@@ -8,7 +8,7 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test --watch=false --browsers=ChromeHeadless",
+    "test": "ng test --watch=false --browsers=ChromeHeadless --code-coverage",
     "test:watch": "ng test",
     "lint": "eslint . --max-warnings=0",
     "lint:styles": "stylelint \"src/**/*.scss\" --max-warnings=0",
