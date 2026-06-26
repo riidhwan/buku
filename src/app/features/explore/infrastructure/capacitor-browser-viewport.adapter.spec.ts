@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { BrowserViewportEvent } from '../application/ports/browser-viewport.port';
 import {
   EXPLORE_BROWSER_PLUGIN,
+  NativeArticleExtractionResult,
   ExploreBrowserPlugin,
   NativeBrowserCapabilityEvent,
   NativeBrowserLoadFailedEvent,
@@ -22,6 +23,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public shownRect: NativeBrowserViewportRect | null = null;
   public loadedUrl: string | null = null;
   public copiedUrl: string | null = null;
+  public readabilityScript: string | null = null;
+  public articleExtractionResult: NativeArticleExtractionResult = {
+    status: 'unavailable',
+  };
 
   public show(options: { readonly rect: NativeBrowserViewportRect }): Promise<void> {
     this.calls.push('show');
@@ -76,6 +81,14 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     return Promise.resolve();
   }
 
+  public extractArticle(options: {
+    readonly readabilityScript: string;
+  }): Promise<NativeArticleExtractionResult> {
+    this.calls.push('extractArticle');
+    this.readabilityScript = options.readabilityScript;
+    return Promise.resolve(this.articleExtractionResult);
+  }
+
   public addListener(
     eventName: 'navigationState',
     listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,
@@ -120,6 +133,7 @@ describe('CapacitorBrowserViewportAdapter', () => {
 
   beforeEach(async () => {
     plugin = new FakeExploreBrowserPlugin();
+    spyOn(window, 'fetch').and.resolveTo(new Response('readability script'));
     TestBed.configureTestingModule({
       providers: [
         CapacitorBrowserViewportAdapter,
@@ -162,6 +176,88 @@ describe('CapacitorBrowserViewportAdapter', () => {
     expect(plugin.shownRect).toEqual(rect);
     expect(plugin.loadedUrl).toBe('https://example.com/');
     expect(plugin.copiedUrl).toBe('https://example.com/');
+  });
+
+  it('loads Readability and maps successful article extraction', async () => {
+    plugin.articleExtractionResult = {
+      status: 'ok',
+      article: {
+        url: 'https://example.com/article',
+        title: 'Readable article',
+        byline: 'A Writer',
+        siteName: 'Example',
+        excerpt: 'A short summary.',
+        publishedTime: '2026-06-26',
+        contentHtml: '<p>Readable body.</p>',
+        textContent: 'Readable body.',
+        length: 14,
+      },
+    };
+
+    const result = await adapter.extractArticle();
+
+    expect(window.fetch).toHaveBeenCalledOnceWith('assets/readability/Readability.js');
+    expect(plugin.readabilityScript).toBe('readability script');
+    expect(result).toEqual(plugin.articleExtractionResult);
+  });
+
+  it('maps unavailable and failed article extraction results', async () => {
+    plugin.articleExtractionResult = {
+      status: 'unavailable',
+    };
+
+    expect(await adapter.extractArticle()).toEqual({
+      status: 'unavailable',
+    });
+
+    plugin.articleExtractionResult = {
+      status: 'failed',
+      message: 'Script failed',
+    };
+
+    expect(await adapter.extractArticle()).toEqual({
+      status: 'failed',
+      message: 'Script failed',
+    });
+    expect(window.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps Readability asset loading failures to failed extraction', async () => {
+    (window.fetch as jasmine.Spy).and.resolveTo(new Response('', { status: 404 }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        CapacitorBrowserViewportAdapter,
+        { provide: EXPLORE_BROWSER_PLUGIN, useValue: plugin },
+      ],
+    });
+    adapter = TestBed.inject(CapacitorBrowserViewportAdapter);
+
+    await Promise.resolve();
+
+    expect(await adapter.extractArticle()).toEqual({
+      status: 'failed',
+      message: 'Readability runner could not be loaded.',
+    });
+  });
+
+  it('maps non-error extraction failures to a generic failed extraction', async () => {
+    (window.fetch as jasmine.Spy).and.rejectWith('Fetch failed');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        CapacitorBrowserViewportAdapter,
+        { provide: EXPLORE_BROWSER_PLUGIN, useValue: plugin },
+      ],
+    });
+    adapter = TestBed.inject(CapacitorBrowserViewportAdapter);
+
+    await Promise.resolve();
+
+    expect(await adapter.extractArticle()).toEqual({
+      status: 'failed',
+      message: 'Article extraction failed.',
+    });
   });
 
   it('maps native events to application viewport events', () => {

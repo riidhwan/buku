@@ -4,6 +4,7 @@ import { BrowserUrlPolicy } from './browser-url-policy';
 import { ExploreBrowserFacade } from './explore-browser.facade';
 import { BROWSER_SESSION_STORE, BrowserSessionStorePort } from './ports/browser-session-store.port';
 import {
+  BrowserArticleExtractionResult,
   BROWSER_VIEWPORT,
   BrowserViewportEvent,
   BrowserViewportPort,
@@ -37,6 +38,10 @@ class FakeBrowserViewport implements BrowserViewportPort {
   public reloadCount = 0;
   public backCount = 0;
   public forwardCount = 0;
+  public articleExtractionResult: BrowserArticleExtractionResult = {
+    status: 'unavailable',
+  };
+  public extractCount = 0;
 
   public emit(event: BrowserViewportEvent): void {
     this.eventsSubject.next(event);
@@ -85,6 +90,11 @@ class FakeBrowserViewport implements BrowserViewportPort {
     this.copiedUrl = url;
     return Promise.resolve();
   }
+
+  public extractArticle(): Promise<BrowserArticleExtractionResult> {
+    this.extractCount += 1;
+    return Promise.resolve(this.articleExtractionResult);
+  }
 }
 
 class FakeExternalUrlOpener implements ExternalUrlOpenerPort {
@@ -95,6 +105,18 @@ class FakeExternalUrlOpener implements ExternalUrlOpenerPort {
     return Promise.resolve();
   }
 }
+
+const articleSnapshot = {
+  url: 'https://example.com/article',
+  title: 'Readable article',
+  byline: 'A Writer',
+  siteName: 'Example',
+  excerpt: 'A short summary.',
+  publishedTime: '2026-06-26',
+  contentHtml: '<p>Readable body.</p>',
+  textContent: 'Readable body.',
+  length: 14,
+};
 
 describe('ExploreBrowserFacade', () => {
   let facade: ExploreBrowserFacade;
@@ -329,6 +351,182 @@ describe('ExploreBrowserFacade', () => {
 
     expect(viewport.shownRect).toEqual(rect);
     expect(viewport.hideCount).toBe(2);
+  });
+
+  it('extracts an article, stores it in memory, and hides the native viewport', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+
+    const result = await facade.openReadingMode();
+
+    expect(result.ok).toBeTrue();
+    expect(facade.readingArticle()).toEqual(articleSnapshot);
+    expect(viewport.extractCount).toBe(1);
+    expect(viewport.hideCount).toBe(1);
+  });
+
+  it('does not try reading mode without a current URL or while loading', async () => {
+    expect((await facade.openReadingMode()).ok).toBeFalse();
+
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: true,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect((await facade.openReadingMode()).ok).toBeFalse();
+    expect(viewport.extractCount).toBe(0);
+  });
+
+  it('shows a notice when reading mode is unavailable', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'unavailable',
+    };
+
+    const result = await facade.openReadingMode();
+
+    expect(result.ok).toBeFalse();
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.notice()).toEqual({
+      kind: 'readingModeUnavailable',
+      message: 'Reading Mode is not available for this page.',
+      url: 'https://example.com/',
+    });
+  });
+
+  it('shows a notice when reading mode extraction fails', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'failed',
+      message: 'Script failed',
+    };
+
+    const result = await facade.openReadingMode();
+
+    expect(result.ok).toBeFalse();
+    expect(facade.notice()).toEqual({
+      kind: 'readingModeFailed',
+      message: 'Reading Mode failed: Script failed',
+      url: 'https://example.com/',
+    });
+  });
+
+  it('closes reading mode without destroying the browser session', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+
+    await facade.openReadingMode();
+    facade.closeReadingMode();
+
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.currentUrl()).toBe('https://example.com/article');
+  });
+
+  it('opens reader links through the Explore Browser session', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.openReadingModeLink('/next');
+
+    expect(result.ok).toBeTrue();
+    expect(facade.readingArticle()).toBeNull();
+    expect(viewport.loadedUrls).toEqual(['https://example.com/next']);
+  });
+
+  it('keeps the reader open when reader links use unsupported schemes', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.openReadingModeLink('mailto:reader@example.com');
+
+    expect(result.ok).toBeFalse();
+    expect(facade.readingArticle()).toEqual(articleSnapshot);
+    expect(facade.notice()).toEqual({
+      kind: 'unsupportedCapability',
+      message: 'Only HTTP and HTTPS links are supported.',
+      url: 'https://example.com/article',
+    });
+  });
+
+  it('ignores reader link navigation without an in-memory article', async () => {
+    const result = await facade.openReadingModeLink('https://example.com/next');
+
+    expect(result.ok).toBeFalse();
+    expect(viewport.loadedUrls).toEqual([]);
   });
 
   it('unsubscribes from viewport events when destroyed', () => {

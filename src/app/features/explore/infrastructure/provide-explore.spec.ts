@@ -9,6 +9,7 @@ import { CapacitorExternalUrlOpenerAdapter } from './capacitor-external-url-open
 import {
   EXPLORE_BROWSER_PLUGIN,
   ExploreBrowserPlugin,
+  NativeArticleExtractionResult,
   NativeBrowserCapabilityEvent,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
@@ -45,6 +46,12 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   }
   public openExternal(): Promise<void> {
     return Promise.resolve();
+  }
+
+  public extractArticle(): Promise<NativeArticleExtractionResult> {
+    return Promise.resolve({
+      status: 'unavailable',
+    });
   }
 
   public addListener(

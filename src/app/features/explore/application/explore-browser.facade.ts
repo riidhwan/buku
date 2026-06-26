@@ -1,5 +1,6 @@
 import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
+import { ReadingArticleSnapshot } from '../domain/reading-article';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { BROWSER_SESSION_STORE, BrowserSessionStorePort } from './ports/browser-session-store.port';
 import {
@@ -11,7 +12,12 @@ import {
 } from './ports/browser-viewport.port';
 import { EXTERNAL_URL_OPENER, ExternalUrlOpenerPort } from './ports/external-url-opener.port';
 
-export type BrowserNoticeKind = 'loadFailed' | 'unsupportedCapability' | 'copied';
+export type BrowserNoticeKind =
+  | 'loadFailed'
+  | 'unsupportedCapability'
+  | 'copied'
+  | 'readingModeUnavailable'
+  | 'readingModeFailed';
 
 export interface BrowserNotice {
   readonly kind: BrowserNoticeKind;
@@ -20,6 +26,10 @@ export interface BrowserNotice {
 }
 
 export interface BrowserOpenResult {
+  readonly ok: boolean;
+}
+
+export interface BrowserReadingModeResult {
   readonly ok: boolean;
 }
 
@@ -50,6 +60,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly canGoForwardSignal = signal(false);
   private readonly validationErrorSignal = signal<string | null>(null);
   private readonly noticeSignal = signal<BrowserNotice | null>(null);
+  private readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
 
   public readonly inputValue = this.inputValueSignal.asReadonly();
   public readonly currentUrl = this.currentUrlSignal.asReadonly();
@@ -59,6 +70,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   public readonly canGoForward = this.canGoForwardSignal.asReadonly();
   public readonly validationError = this.validationErrorSignal.asReadonly();
   public readonly notice = this.noticeSignal.asReadonly();
+  public readonly readingArticle = this.readingArticleSignal.asReadonly();
   public readonly isSecure = computed(
     () => this.currentUrlSignal()?.startsWith('https://') ?? false,
   );
@@ -119,6 +131,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async closeBrowser(): Promise<void> {
+    this.readingArticleSignal.set(null);
     await this.viewport.hide();
   }
 
@@ -167,6 +180,73 @@ export class ExploreBrowserFacade implements OnDestroy {
     await this.externalUrlOpener.open(currentUrl);
   }
 
+  public async openReadingMode(): Promise<BrowserReadingModeResult> {
+    const currentUrl = this.currentUrlSignal();
+    if (currentUrl === null || this.loadingSignal()) {
+      return { ok: false };
+    }
+
+    const result = await this.viewport.extractArticle();
+    switch (result.status) {
+      case 'ok':
+        this.readingArticleSignal.set(result.article);
+        this.noticeSignal.set(null);
+        await this.viewport.hide();
+        return { ok: true };
+      case 'unavailable':
+        this.noticeSignal.set({
+          kind: 'readingModeUnavailable',
+          message: 'Reading Mode is not available for this page.',
+          url: currentUrl,
+        });
+        return { ok: false };
+      case 'failed':
+        this.noticeSignal.set({
+          kind: 'readingModeFailed',
+          message: `Reading Mode failed: ${result.message}`,
+          url: currentUrl,
+        });
+        return { ok: false };
+    }
+  }
+
+  public closeReadingMode(): void {
+    this.readingArticleSignal.set(null);
+  }
+
+  public async openReadingModeLink(href: string): Promise<BrowserOpenResult> {
+    const article = this.readingArticleSignal();
+    if (article === null) {
+      return { ok: false };
+    }
+
+    let targetUrl: string;
+    try {
+      targetUrl = new URL(href, article.url).toString();
+    } catch (_error) {
+      this.noticeSignal.set({
+        kind: 'unsupportedCapability',
+        message: capabilityMessages.customScheme,
+        url: article.url,
+      });
+      return { ok: false };
+    }
+
+    const normalized = this.urlPolicy.normalize(targetUrl);
+    if (!normalized.ok) {
+      this.noticeSignal.set({
+        kind: 'unsupportedCapability',
+        message: normalized.message,
+        url: article.url,
+      });
+      return { ok: false };
+    }
+
+    this.readingArticleSignal.set(null);
+    await this.loadNormalizedUrl(normalized.url);
+    return { ok: true };
+  }
+
   public dismissNotice(): void {
     this.noticeSignal.set(null);
   }
@@ -180,11 +260,15 @@ export class ExploreBrowserFacade implements OnDestroy {
     }
 
     this.validationErrorSignal.set(null);
-    this.inputValueSignal.set(normalized.url);
-    this.currentUrlSignal.set(normalized.url);
-    this.loadingSignal.set(true);
-    await this.viewport.load(normalized.url);
+    await this.loadNormalizedUrl(normalized.url);
     return { ok: true };
+  }
+
+  private async loadNormalizedUrl(url: string): Promise<void> {
+    this.inputValueSignal.set(url);
+    this.currentUrlSignal.set(url);
+    this.loadingSignal.set(true);
+    await this.viewport.load(url);
   }
 
   private handleViewportEvent(event: BrowserViewportEvent): void {

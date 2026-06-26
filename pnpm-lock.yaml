@@ -46,6 +46,9 @@ importers:
       '@ionic/angular':
         specifier: ^8.0.0
         version: 8.8.12(5617e5c8610d1256638f1b6c4095b5e3)
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
       ionicons:
         specifier: ^7.0.0
         version: 7.4.0
@@ -2479,6 +2482,13 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@mozilla/readability@0.6.0':
+    resolution:
+      {
+        integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==,
+      }
+    engines: { node: '>=14.0.0' }
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     resolution:
@@ -11529,6 +11539,8 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.1.13)
     transitivePeerDependencies:
       - supports-color
+
+  '@mozilla/readability@0.6.0': {}
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     optional: true

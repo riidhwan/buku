@@ -1,0 +1,39 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button aria-label="Close reading mode" (click)="close()">
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (browser.readingArticle(); as article) {
+  <article class="reader-article">
+    <header class="reader-header">
+      <p class="reader-source">{{ article.siteName ?? article.url }}</p>
+      <h1>{{ article.title }}</h1>
+      @if (article.byline !== null || article.publishedTime !== null) {
+      <ion-text class="reader-meta">
+        @if (article.byline !== null) {
+        <span>{{ article.byline }}</span>
+        } @if (article.publishedTime !== null) {
+        <time [attr.datetime]="article.publishedTime"
+          >{{ formatPublishedTime(article.publishedTime) }}</time
+        >
+        }
+      </ion-text>
+      }
+    </header>
+
+    <div
+      class="reader-body"
+      tabindex="0"
+      [innerHTML]="article.contentHtml"
+      (click)="openReaderLink($event)"
+      (keydown.enter)="openReaderLink($event)"
+    ></div>
+  </article>
+  }
+</ion-content>

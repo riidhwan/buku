@@ -17,6 +17,11 @@ export const routes: Routes = [
             (module) => module.ExploreBrowserPage,
           ),
       },
+      {
+        path: 'reader',
+        loadComponent: () =>
+          import('./pages/reader/explore-reader.page').then((module) => module.ExploreReaderPage),
+      },
     ],
   },
 ];
