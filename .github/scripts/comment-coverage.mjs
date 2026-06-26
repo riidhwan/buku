@@ -72,8 +72,6 @@ const table =
 const body = `${marker}
 ## Test results
 
-Only files with at least one metric below 100% are shown.
-
 ${table}`;
 
 const request = async (path, options = {}) => {
