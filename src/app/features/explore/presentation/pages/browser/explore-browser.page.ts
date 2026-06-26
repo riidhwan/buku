@@ -85,6 +85,10 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     void this.updateViewportRect();
   }
 
+  public ionViewDidEnter(): void {
+    this.scheduleViewportRectUpdate();
+  }
+
   public ngOnDestroy(): void {
     window.removeEventListener('resize', this.resizeListener);
     if (this.viewportUpdateTimer !== null) {

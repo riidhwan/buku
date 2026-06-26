@@ -203,6 +203,15 @@ describe('ExploreBrowserPage', () => {
     expect(browser.showCount).toBeGreaterThan(initialShowCount);
   });
 
+  it('refreshes the native viewport after Ionic finishes entering the browser page', async () => {
+    const initialShowCount = browser.showCount;
+
+    fixture.componentInstance.ionViewDidEnter();
+    await waitForViewportTimer();
+
+    expect(browser.showCount).toBe(initialShowCount + 1);
+  });
+
   it('keeps only the latest pending viewport reposition timer', async () => {
     const initialShowCount = browser.showCount;
 

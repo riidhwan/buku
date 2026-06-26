@@ -61,6 +61,7 @@ public class ExploreBrowserPlugin extends Plugin {
                 browser.setLayoutParams(layoutParams);
             }
             browser.setVisibility(View.VISIBLE);
+            refreshVisibleWebView(browser);
             call.resolve();
         });
     }
@@ -257,6 +258,16 @@ public class ExploreBrowserPlugin extends Plugin {
         webView = null;
         currentUrl = null;
         loading = false;
+    }
+
+    private void refreshVisibleWebView(WebView browser) {
+        browser.bringToFront();
+        browser.requestLayout();
+        browser.invalidate();
+        browser.post(() -> {
+            browser.requestLayout();
+            browser.invalidate();
+        });
     }
 
     private void emitNavigationState(boolean committed) {
