@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   EXPLORE_BROWSER_PLUGIN,
   ExploreBrowserPlugin,
+  NativeArticleExtractionResult,
   NativeBrowserCapabilityEvent,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
@@ -42,6 +43,12 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public openExternal(options: { readonly url: string }): Promise<void> {
     this.openedUrl = options.url;
     return Promise.resolve();
+  }
+
+  public extractArticle(): Promise<NativeArticleExtractionResult> {
+    return Promise.resolve({
+      status: 'unavailable',
+    });
   }
 
   public addListener(

@@ -30,6 +30,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+
 @CapacitorPlugin(name = "ExploreBrowser")
 public class ExploreBrowserPlugin extends Plugin {
     private static final String HTTP_SCHEME = "http";
@@ -174,6 +178,31 @@ public class ExploreBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    @PluginMethod
+    public void extractArticle(PluginCall call) {
+        String readabilityScript = call.getString("readabilityScript");
+        if (readabilityScript == null || readabilityScript.length() == 0) {
+            call.reject("Missing Readability runner.");
+            return;
+        }
+
+        Activity activity = getActivity();
+        activity.runOnUiThread(() -> {
+            if (webView == null) {
+                call.resolve(articleStatus("failed", "Explore Browser is not open."));
+                return;
+            }
+
+            webView.evaluateJavascript(articleExtractionScript(readabilityScript), result -> {
+                try {
+                    call.resolve(toArticleExtractionPayload(result));
+                } catch (JSONException error) {
+                    call.resolve(articleStatus("failed", "Article extraction returned invalid data."));
+                }
+            });
+        });
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private WebView ensureWebView(Activity activity) {
         if (webView != null) {
@@ -256,6 +285,51 @@ public class ExploreBrowserPlugin extends Plugin {
         payload.put("capability", capability);
         payload.put("url", url);
         notifyListeners("capabilityUnsupported", payload);
+    }
+
+    private String articleExtractionScript(String readabilityScript) {
+        return "(function(){try{" +
+            readabilityScript +
+            ";var clonedDocument=document.cloneNode(true);" +
+            "var article=new Readability(clonedDocument).parse();" +
+            "if(!article||!article.content||!article.textContent||!article.textContent.trim()){" +
+            "return JSON.stringify({status:'unavailable'});" +
+            "}" +
+            "return JSON.stringify({status:'ok',article:{" +
+            "url:document.location.href," +
+            "title:article.title||document.title||document.location.href," +
+            "byline:article.byline||null," +
+            "siteName:article.siteName||null," +
+            "excerpt:article.excerpt||null," +
+            "publishedTime:article.publishedTime||null," +
+            "contentHtml:article.content||''," +
+            "textContent:article.textContent||''," +
+            "length:article.length||((article.textContent||'').length)" +
+            "}});" +
+            "}catch(error){" +
+            "return JSON.stringify({status:'failed',message:error&&error.message?error.message:'Article extraction failed.'});" +
+            "}})();";
+    }
+
+    private JSObject toArticleExtractionPayload(String result) throws JSONException {
+        Object decodedResult = new JSONTokener(result).nextValue();
+        if (!(decodedResult instanceof String)) {
+            return articleStatus("failed", "Article extraction returned invalid data.");
+        }
+
+        Object decodedPayload = new JSONTokener((String) decodedResult).nextValue();
+        if (!(decodedPayload instanceof JSONObject)) {
+            return articleStatus("failed", "Article extraction returned invalid data.");
+        }
+
+        return JSObject.fromJSONObject((JSONObject) decodedPayload);
+    }
+
+    private JSObject articleStatus(String status, String message) {
+        JSObject payload = new JSObject();
+        payload.put("status", status);
+        payload.put("message", message);
+        return payload;
     }
 
     private boolean isHttpUrl(String url) {

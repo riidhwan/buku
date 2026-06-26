@@ -1,12 +1,17 @@
 import { inject, Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import {
+  BrowserArticleExtractionResult,
   BrowserCapability,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
 } from '../application/ports/browser-viewport.port';
-import { EXPLORE_BROWSER_PLUGIN, NativeBrowserCapabilityEvent } from './capacitor-explore-browser';
+import {
+  EXPLORE_BROWSER_PLUGIN,
+  NativeArticleExtractionResult,
+  NativeBrowserCapabilityEvent,
+} from './capacitor-explore-browser';
 
 const browserCapabilities = new Set<BrowserCapability>([
   'camera',
@@ -23,6 +28,7 @@ const browserCapabilities = new Set<BrowserCapability>([
 export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
   private readonly eventsSubject = new Subject<BrowserViewportEvent>();
   private readonly plugin = inject(EXPLORE_BROWSER_PLUGIN);
+  private readabilityScriptPromise: Promise<string> | null = null;
 
   public readonly events$ = this.eventsSubject.asObservable();
 
@@ -66,6 +72,20 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
     await this.plugin.copyUrl({ url });
   }
 
+  public async extractArticle(): Promise<BrowserArticleExtractionResult> {
+    try {
+      const readabilityScript = await this.loadReadabilityScript();
+      return this.toArticleExtractionResult(
+        await this.plugin.extractArticle({ readabilityScript }),
+      );
+    } catch (error) {
+      return {
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'Article extraction failed.',
+      };
+    }
+  }
+
   private async registerListeners(): Promise<void> {
     await this.plugin.addListener('navigationState', (event) => {
       this.eventsSubject.next({
@@ -102,5 +122,40 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
     return browserCapabilities.has(event.capability as BrowserCapability)
       ? (event.capability as BrowserCapability)
       : 'unknown';
+  }
+
+  private loadReadabilityScript(): Promise<string> {
+    this.readabilityScriptPromise ??= fetch('assets/readability/Readability.js').then(
+      (response) => {
+        if (!response.ok) {
+          throw new Error('Readability runner could not be loaded.');
+        }
+
+        return response.text();
+      },
+    );
+
+    return this.readabilityScriptPromise;
+  }
+
+  private toArticleExtractionResult(
+    result: NativeArticleExtractionResult,
+  ): BrowserArticleExtractionResult {
+    switch (result.status) {
+      case 'ok':
+        return {
+          status: 'ok',
+          article: result.article,
+        };
+      case 'unavailable':
+        return {
+          status: 'unavailable',
+        };
+      case 'failed':
+        return {
+          status: 'failed',
+          message: result.message,
+        };
+    }
   }
 }

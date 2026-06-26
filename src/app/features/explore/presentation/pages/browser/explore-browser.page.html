@@ -58,6 +58,13 @@
         ></ion-icon>
       </ion-button>
       <ion-button
+        aria-label="Open reading mode"
+        [disabled]="browser.currentUrl() === null || browser.loading()"
+        (click)="openReadingMode()"
+      >
+        <ion-icon name="reader-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
         aria-label="Copy URL"
         [disabled]="browser.currentUrl() === null"
         (click)="browser.copyCurrentUrl()"

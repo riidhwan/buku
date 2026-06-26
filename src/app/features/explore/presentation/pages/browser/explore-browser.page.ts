@@ -28,6 +28,7 @@ import {
   ellipsisVerticalOutline,
   lockClosedOutline,
   openOutline,
+  readerOutline,
   refreshOutline,
   stopOutline,
   warningOutline,
@@ -58,6 +59,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
   private readonly router = inject(Router);
+  private viewportUpdateTimer: number | null = null;
   private readonly resizeListener = (): void => {
     void this.updateViewportRect();
   };
@@ -71,6 +73,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
       ellipsisVerticalOutline,
       lockClosedOutline,
       openOutline,
+      readerOutline,
       refreshOutline,
       stopOutline,
       warningOutline,
@@ -84,6 +87,9 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
 
   public ngOnDestroy(): void {
     window.removeEventListener('resize', this.resizeListener);
+    if (this.viewportUpdateTimer !== null) {
+      window.clearTimeout(this.viewportUpdateTimer);
+    }
     void this.browser.hideViewport();
   }
 
@@ -106,12 +112,32 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     this.browser.dismissNotice();
   }
 
+  protected async openReadingMode(): Promise<void> {
+    const result = await this.browser.openReadingMode();
+    this.closeActions();
+    if (result.ok) {
+      await this.router.navigate(['explore', 'reader']);
+    }
+  }
+
   public openActions(): void {
     this.actionsOpen.update((isOpen) => !isOpen);
+    this.scheduleViewportRectUpdate();
   }
 
   public closeActions(): void {
     this.actionsOpen.set(false);
+  }
+
+  private scheduleViewportRectUpdate(): void {
+    if (this.viewportUpdateTimer !== null) {
+      window.clearTimeout(this.viewportUpdateTimer);
+    }
+
+    this.viewportUpdateTimer = window.setTimeout(() => {
+      this.viewportUpdateTimer = null;
+      void this.updateViewportRect();
+    });
   }
 
   private async updateViewportRect(): Promise<void> {

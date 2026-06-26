@@ -17,6 +17,7 @@ class FakeExploreBrowserFacade {
     null,
   );
   public shownRect: BrowserViewportRect | null = null;
+  public showCount = 0;
   public hidden = 0;
   public openInputs = 0;
   public openedExternally = 0;
@@ -24,6 +25,8 @@ class FakeExploreBrowserFacade {
   public closed = 0;
   public copied = 0;
   public reloads = 0;
+  public readingModeOpens = 0;
+  public readingModeResult = true;
 
   public updateInputValue(value: string): void {
     this.inputValue.set(value);
@@ -35,6 +38,7 @@ class FakeExploreBrowserFacade {
   }
 
   public showViewport(rect: BrowserViewportRect): Promise<void> {
+    this.showCount += 1;
     this.shownRect = rect;
     return Promise.resolve();
   }
@@ -72,6 +76,11 @@ class FakeExploreBrowserFacade {
     return Promise.resolve();
   }
 
+  public openReadingMode(): Promise<{ readonly ok: boolean }> {
+    this.readingModeOpens += 1;
+    return Promise.resolve({ ok: this.readingModeResult });
+  }
+
   public dismissNotice(): void {
     this.dismissed += 1;
   }
@@ -84,6 +93,19 @@ class FakeRouter {
     this.navigations.push(commands);
     return Promise.resolve(true);
   }
+}
+
+function isIonButtonDisabled(button: Element): boolean {
+  return (
+    button.hasAttribute('disabled') ||
+    ((button as HTMLElement & { readonly disabled?: boolean }).disabled ?? false)
+  );
+}
+
+function waitForViewportTimer(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve);
+  });
 }
 
 describe('ExploreBrowserPage', () => {
@@ -171,6 +193,16 @@ describe('ExploreBrowserPage', () => {
     expect(fixture.componentInstance.actionsOpen()).toBeTrue();
   });
 
+  it('repositions the native viewport after opening browser controls', async () => {
+    const initialShowCount = browser.showCount;
+
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+    await waitForViewportTimer();
+
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
+  });
+
   it('disables unavailable toolbar navigation controls after overflow opens', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const overflowButton = nativeElement
@@ -183,8 +215,32 @@ describe('ExploreBrowserPage', () => {
 
     const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
 
-    expect(buttons.item(0).hasAttribute('disabled')).toBeTrue();
-    expect(buttons.item(1).hasAttribute('disabled')).toBeTrue();
+    expect(isIonButtonDisabled(buttons.item(0))).toBeTrue();
+    expect(isIonButtonDisabled(buttons.item(1))).toBeTrue();
+  });
+
+  it('enables reading mode only when a current URL is not loading', () => {
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+
+    let nativeElement = fixture.nativeElement as HTMLElement;
+    let buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+    expect(isIonButtonDisabled(buttons.item(3))).toBeFalse();
+
+    browser.loading.set(true);
+    fixture.detectChanges();
+
+    nativeElement = fixture.nativeElement as HTMLElement;
+    buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+    expect(isIonButtonDisabled(buttons.item(3))).toBeTrue();
+
+    browser.loading.set(false);
+    browser.currentUrl.set(null);
+    fixture.detectChanges();
+
+    nativeElement = fixture.nativeElement as HTMLElement;
+    buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+    expect(isIonButtonDisabled(buttons.item(3))).toBeTrue();
   });
 
   it('runs browser controls after overflow opens', async () => {
@@ -196,13 +252,43 @@ describe('ExploreBrowserPage', () => {
     const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
 
     buttons.item(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     buttons.item(4).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons.item(5).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
     expect(browser.reloads).toBe(1);
     expect(browser.copied).toBe(1);
     expect(browser.openedExternally).toBe(1);
+  });
+
+  it('opens reading mode from browser actions', async () => {
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+
+    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.readingModeOpens).toBe(1);
+    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(router.navigations).toEqual([['explore', 'reader']]);
+  });
+
+  it('stays on the browser when reading mode is unavailable', async () => {
+    browser.readingModeResult = false;
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+
+    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.readingModeOpens).toBe(1);
+    expect(router.navigations).toEqual([]);
   });
 
   it('closes back to Explore', async () => {

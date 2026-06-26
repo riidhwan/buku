@@ -30,6 +30,31 @@ export interface NativeBrowserCapabilityEvent {
   readonly url: string | null;
 }
 
+export interface NativeReadingArticleSnapshot {
+  readonly url: string;
+  readonly title: string;
+  readonly byline: string | null;
+  readonly siteName: string | null;
+  readonly excerpt: string | null;
+  readonly publishedTime: string | null;
+  readonly contentHtml: string;
+  readonly textContent: string;
+  readonly length: number;
+}
+
+export type NativeArticleExtractionResult =
+  | {
+      readonly status: 'ok';
+      readonly article: NativeReadingArticleSnapshot;
+    }
+  | {
+      readonly status: 'unavailable';
+    }
+  | {
+      readonly status: 'failed';
+      readonly message: string;
+    };
+
 export interface ExploreBrowserPlugin {
   show(options: { readonly rect: NativeBrowserViewportRect }): Promise<void>;
   hide(): Promise<void>;
@@ -41,6 +66,9 @@ export interface ExploreBrowserPlugin {
   forward(): Promise<void>;
   copyUrl(options: { readonly url: string }): Promise<void>;
   openExternal(options: { readonly url: string }): Promise<void>;
+  extractArticle(options: {
+    readonly readabilityScript: string;
+  }): Promise<NativeArticleExtractionResult>;
   addListener(
     eventName: 'navigationState',
     listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,
@@ -71,6 +99,7 @@ export const EXPLORE_BROWSER_PLUGIN = new InjectionToken<ExploreBrowserPlugin>(
       forward: () => CapacitorExploreBrowser.forward(),
       copyUrl: (options) => CapacitorExploreBrowser.copyUrl(options),
       openExternal: (options) => CapacitorExploreBrowser.openExternal(options),
+      extractArticle: (options) => CapacitorExploreBrowser.extractArticle(options),
       addListener: CapacitorExploreBrowser.addListener.bind(CapacitorExploreBrowser),
     }),
   },

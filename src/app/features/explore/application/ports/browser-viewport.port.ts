@@ -1,5 +1,6 @@
 import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
+import { ReadingArticleSnapshot } from '../../domain/reading-article';
 
 export type BrowserCapability =
   | 'camera'
@@ -50,6 +51,19 @@ export type BrowserViewportEvent =
       readonly event: BrowserCapabilityEvent;
     };
 
+export type BrowserArticleExtractionResult =
+  | {
+      readonly status: 'ok';
+      readonly article: ReadingArticleSnapshot;
+    }
+  | {
+      readonly status: 'unavailable';
+    }
+  | {
+      readonly status: 'failed';
+      readonly message: string;
+    };
+
 export interface BrowserViewportPort {
   readonly events$: Observable<BrowserViewportEvent>;
   show(rect: BrowserViewportRect): Promise<void>;
@@ -61,6 +75,7 @@ export interface BrowserViewportPort {
   back(): Promise<void>;
   forward(): Promise<void>;
   copyUrl(url: string): Promise<void>;
+  extractArticle(): Promise<BrowserArticleExtractionResult>;
 }
 
 export const BROWSER_VIEWPORT = new InjectionToken<BrowserViewportPort>('BROWSER_VIEWPORT');
