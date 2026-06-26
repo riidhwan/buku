@@ -70,7 +70,7 @@ const table =
       ].join('\n');
 
 const body = `${marker}
-## Coverage below 100%
+## Test results
 
 Only files with at least one metric below 100% are shown.
 
