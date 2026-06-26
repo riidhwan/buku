@@ -8,7 +8,11 @@ Buku is an Android-first app for managing and discovering books.
 The user's collection-oriented area for books in Buku.
 
 **Explore**:
-The browsing-oriented area for finding book-related content on the net from inside Buku.
+The browsing-oriented area for discovering readable or book-related content on the net from inside Buku. Explore may navigate to ordinary web pages, but it is product-framed around content discovery rather than being a standalone browser.
+
+**Explore Browser**:
+The in-app web navigation surface within Explore for visiting ordinary web pages during content discovery.
+_Avoid_: Buku Browser, standalone browser
 
 **More**:
 The overflow area for additional app menus that do not belong in Library or Explore.

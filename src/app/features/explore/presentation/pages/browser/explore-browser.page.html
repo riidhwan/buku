@@ -1,0 +1,95 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button aria-label="Close browser" (click)="close()">
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+
+    <form class="browser-url-form" (submit)="openUrl(); $event.preventDefault()">
+      <ion-input
+        aria-label="Web address"
+        inputmode="url"
+        type="url"
+        autocomplete="url"
+        [value]="browser.inputValue()"
+        [errorText]="browser.validationError() ?? ''"
+        [class.ion-invalid]="browser.validationError() !== null"
+        (ionInput)="updateUrl($event)"
+      >
+        <ion-icon
+          slot="start"
+          [name]="browser.isSecure() ? 'lock-closed-outline' : 'warning-outline'"
+          [color]="browser.isSecure() ? 'success' : 'warning'"
+          aria-hidden="true"
+        ></ion-icon>
+      </ion-input>
+    </form>
+
+    <ion-buttons slot="end">
+      <ion-button
+        aria-label="Open browser actions"
+        [disabled]="browser.currentUrl() === null"
+        [attr.aria-expanded]="actionsOpen()"
+        (click)="openActions()"
+      >
+        <ion-icon name="ellipsis-vertical-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  @if (actionsOpen()) {
+  <ion-toolbar>
+    <ion-buttons class="browser-controls">
+      <ion-button aria-label="Go back" [disabled]="!browser.canGoBack()" (click)="browser.goBack()">
+        <ion-icon name="arrow-back-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
+        aria-label="Go forward"
+        [disabled]="!browser.canGoForward()"
+        (click)="browser.goForward()"
+      >
+        <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button aria-label="Reload or stop" (click)="browser.stopOrReload()">
+        <ion-icon
+          [name]="browser.loading() ? 'stop-outline' : 'refresh-outline'"
+          aria-hidden="true"
+        ></ion-icon>
+      </ion-button>
+      <ion-button
+        aria-label="Copy URL"
+        [disabled]="browser.currentUrl() === null"
+        (click)="browser.copyCurrentUrl()"
+      >
+        <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
+        aria-label="Open in external browser"
+        [disabled]="browser.currentUrl() === null"
+        (click)="browser.openCurrentUrlExternally()"
+      >
+        <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  }
+</ion-header>
+
+<ion-content fullscreen="true">
+  <div #viewportHost class="viewport-host"></div>
+</ion-content>
+
+@if (browser.notice(); as notice) {
+<ion-footer>
+  <ion-toolbar class="browser-notice">
+    <ion-text>{{ notice.message }}</ion-text>
+    <ion-buttons slot="end">
+      @if (notice.url !== null) {
+      <ion-button (click)="openNoticeUrlExternally()">Open externally</ion-button>
+      }
+      <ion-button (click)="browser.dismissNotice()">Dismiss</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-footer>
+}

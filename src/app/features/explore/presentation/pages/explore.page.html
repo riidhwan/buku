@@ -4,4 +4,36 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content></ion-content>
+<ion-content>
+  <form class="url-entry" (submit)="openUrl(); $event.preventDefault()">
+    <ion-item>
+      <ion-input
+        label="Web address"
+        label-placement="stacked"
+        inputmode="url"
+        type="url"
+        autocomplete="url"
+        placeholder="example.com"
+        [value]="browser.inputValue()"
+        [errorText]="browser.validationError() ?? ''"
+        [class.ion-invalid]="browser.validationError() !== null"
+        (ionInput)="updateUrl($event)"
+      ></ion-input>
+    </ion-item>
+
+    <ion-button type="submit" expand="block">Open</ion-button>
+  </form>
+
+  @if (browser.lastUrl(); as lastUrl) {
+  <ion-list inset="true" class="last-session">
+    <ion-item button="true" detail="true" (click)="resumeLastUrl()">
+      <ion-label>
+        <h2>Last opened URL</h2>
+        <p>{{ lastUrl }}</p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+  } @else {
+  <ion-note class="empty-state">No recent Explore Browser session.</ion-note>
+  }
+</ion-content>

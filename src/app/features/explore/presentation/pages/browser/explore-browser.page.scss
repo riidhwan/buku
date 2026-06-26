@@ -1,0 +1,23 @@
+:host {
+  display: block;
+}
+
+.browser-url-form {
+  display: block;
+  width: 100%;
+}
+
+.browser-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
+  width: 100%;
+}
+
+.viewport-host {
+  min-height: 100%;
+}
+
+.browser-notice {
+  --padding-start: 12px;
+  --padding-end: 8px;
+}

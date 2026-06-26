@@ -40,6 +40,9 @@ importers:
       '@capacitor/core':
         specifier: 8.4.1
         version: 8.4.1
+      '@capacitor/preferences':
+        specifier: 8.0.1
+        version: 8.0.1(@capacitor/core@8.4.1)
       '@ionic/angular':
         specifier: ^8.0.0
         version: 8.8.12(5617e5c8610d1256638f1b6c4095b5e3)
@@ -1439,6 +1442,14 @@ packages:
       {
         integrity: sha512-xqhOGLbTAYeOWK+IDUNSjQJAPapQjRHrIcgk9PYp52or9zFTaaMko31uNi16N6W+CRJ8VrRram6fOYILkBG2Hg==,
       }
+
+  '@capacitor/preferences@8.0.1':
+    resolution:
+      {
+        integrity: sha512-T6no3ebi79XJCk91U3Jp/liJUwgBdvHR+s6vhvPkPxSuch7z3zx5Rv1bdWM6sWruNx+pViuEGqZvbfCdyBvcHQ==,
+      }
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@colors/colors@1.5.0':
     resolution:
@@ -10885,6 +10896,10 @@ snapshots:
   '@capacitor/core@8.4.1':
     dependencies:
       tslib: 2.8.1
+
+  '@capacitor/preferences@8.0.1(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
 
   '@colors/colors@1.5.0': {}
 

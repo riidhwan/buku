@@ -1,0 +1,234 @@
+import { signal } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
+import { ExploreBrowserPage } from './explore-browser.page';
+
+class FakeExploreBrowserFacade {
+  public readonly inputValue = signal('https://example.com/');
+  public readonly validationError = signal<string | null>(null);
+  public readonly currentUrl = signal<string | null>('https://example.com/');
+  public readonly loading = signal(false);
+  public readonly canGoBack = signal(false);
+  public readonly canGoForward = signal(false);
+  public readonly isSecure = signal(true);
+  public readonly notice = signal<{ readonly message: string; readonly url: string | null } | null>(
+    null,
+  );
+  public shownRect: BrowserViewportRect | null = null;
+  public hidden = 0;
+  public openInputs = 0;
+  public openedExternally = 0;
+  public dismissed = 0;
+  public closed = 0;
+  public copied = 0;
+  public reloads = 0;
+
+  public updateInputValue(value: string): void {
+    this.inputValue.set(value);
+  }
+
+  public openInput(): Promise<{ readonly ok: boolean }> {
+    this.openInputs += 1;
+    return Promise.resolve({ ok: true });
+  }
+
+  public showViewport(rect: BrowserViewportRect): Promise<void> {
+    this.shownRect = rect;
+    return Promise.resolve();
+  }
+
+  public hideViewport(): Promise<void> {
+    this.hidden += 1;
+    return Promise.resolve();
+  }
+
+  public closeBrowser(): Promise<void> {
+    this.closed += 1;
+    return Promise.resolve();
+  }
+
+  public goBack(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public goForward(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public stopOrReload(): Promise<void> {
+    this.reloads += 1;
+    return Promise.resolve();
+  }
+
+  public copyCurrentUrl(): Promise<void> {
+    this.copied += 1;
+    return Promise.resolve();
+  }
+
+  public openCurrentUrlExternally(): Promise<void> {
+    this.openedExternally += 1;
+    return Promise.resolve();
+  }
+
+  public dismissNotice(): void {
+    this.dismissed += 1;
+  }
+}
+
+class FakeRouter {
+  public readonly navigations: string[][] = [];
+
+  public navigate(commands: string[]): Promise<boolean> {
+    this.navigations.push(commands);
+    return Promise.resolve(true);
+  }
+}
+
+describe('ExploreBrowserPage', () => {
+  let fixture: ComponentFixture<ExploreBrowserPage>;
+  let browser: FakeExploreBrowserFacade;
+  let router: FakeRouter;
+
+  beforeEach(async () => {
+    browser = new FakeExploreBrowserFacade();
+    router = new FakeRouter();
+
+    await TestBed.configureTestingModule({
+      imports: [ExploreBrowserPage],
+      providers: [
+        { provide: ExploreBrowserFacade, useValue: browser },
+        { provide: Router, useValue: router },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(ExploreBrowserPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+  });
+
+  it('shows the native viewport inside the page content rectangle', () => {
+    expect(browser.shownRect).not.toBeNull();
+  });
+
+  it('updates URL input state and submits edited URLs', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+    const form = nativeElement.querySelectorAll('form').item(0);
+
+    input.dispatchEvent(
+      new CustomEvent('ionInput', {
+        bubbles: true,
+        detail: { value: 'https://edited.example/' },
+      }),
+    );
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+
+    expect(browser.inputValue()).toBe('https://edited.example/');
+    expect(browser.openInputs).toBe(1);
+  });
+
+  it('treats empty browser URL input event values as an empty string', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    input.dispatchEvent(
+      new CustomEvent('ionInput', {
+        bubbles: true,
+        detail: {},
+      }),
+    );
+
+    expect(browser.inputValue()).toBe('');
+  });
+
+  it('repositions and hides the native viewport with page lifecycle events', async () => {
+    window.dispatchEvent(new Event('resize'));
+    await fixture.whenStable();
+
+    fixture.destroy();
+
+    expect(browser.shownRect).not.toBeNull();
+    expect(browser.hidden).toBe(1);
+  });
+
+  it('hides browser controls until the overflow button opens them', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.browser-controls')).toBeNull();
+
+    const overflowButton = nativeElement
+      .querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button')
+      .item(0);
+
+    overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
+    expect(fixture.componentInstance.actionsOpen()).toBeTrue();
+  });
+
+  it('disables unavailable toolbar navigation controls after overflow opens', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const overflowButton = nativeElement
+      .querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button')
+      .item(0);
+
+    overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+
+    expect(buttons.item(0).hasAttribute('disabled')).toBeTrue();
+    expect(buttons.item(1).hasAttribute('disabled')).toBeTrue();
+  });
+
+  it('runs browser controls after overflow opens', async () => {
+    browser.loading.set(true);
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+
+    buttons.item(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons.item(4).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.reloads).toBe(1);
+    expect(browser.copied).toBe(1);
+    expect(browser.openedExternally).toBe(1);
+  });
+
+  it('closes back to Explore', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const closeButton = nativeElement.querySelectorAll('ion-header ion-button').item(0);
+
+    closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.closed).toBe(1);
+    expect(router.navigations).toEqual([['explore']]);
+  });
+
+  it('offers notice recovery actions', async () => {
+    browser.notice.set({
+      message: 'Downloads are not supported in Explore Browser.',
+      url: 'https://example.com/file.pdf',
+    });
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const noticeButtons = nativeElement.querySelectorAll('ion-footer ion-button');
+    noticeButtons.item(0).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.openedExternally).toBe(1);
+    expect(browser.dismissed).toBe(1);
+  });
+});

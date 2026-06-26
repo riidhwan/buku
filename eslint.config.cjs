@@ -142,6 +142,26 @@ module.exports = [
     },
   },
   {
+    files: ['src/app/features/*/infrastructure/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@env/*'],
+              message: 'Expose environment values through typed injected config tokens.',
+            },
+            {
+              group: ['@features/*'],
+              message: 'Features must not import from other features directly.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/app/core/logging/console-logger.ts'],
     rules: {
       'no-console': 'off',
