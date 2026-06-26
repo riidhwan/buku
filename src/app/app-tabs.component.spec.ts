@@ -17,10 +17,17 @@ describe('AppTabsComponent', () => {
 
   it('renders the primary navigation tabs', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const tabLabels = Array.from(nativeElement.querySelectorAll('ion-label'), (element) =>
-      element.textContent.trim(),
-    );
+    const tabButtons = Array.from(nativeElement.querySelectorAll('ion-tab-button'));
 
-    expect(tabLabels).toEqual(['Library', 'Explore', 'More']);
+    expect(
+      tabButtons.map((element) => ({
+        tab: element.getAttribute('tab'),
+        href: element.getAttribute('href'),
+      })),
+    ).toEqual([
+      { tab: 'library', href: '/library' },
+      { tab: 'explore', href: '/explore' },
+      { tab: 'more', href: '/more' },
+    ]);
   });
 });
