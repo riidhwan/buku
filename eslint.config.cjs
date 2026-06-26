@@ -11,6 +11,31 @@ const tsStrictRules = {
   ...ts.configs['stylistic-type-checked'].rules,
 };
 
+const applicationLayerRelativeImports = [
+  '../application/*',
+  '../../application/*',
+  '../../../application/*',
+  '../../../../application/*',
+];
+const domainLayerRelativeImports = [
+  '../domain/*',
+  '../../domain/*',
+  '../../../domain/*',
+  '../../../../domain/*',
+];
+const infrastructureLayerRelativeImports = [
+  '../infrastructure/*',
+  '../../infrastructure/*',
+  '../../../infrastructure/*',
+  '../../../../infrastructure/*',
+];
+const presentationLayerRelativeImports = [
+  '../presentation/*',
+  '../../presentation/*',
+  '../../../presentation/*',
+  '../../../../presentation/*',
+];
+
 module.exports = [
   {
     ignores: ['android/**', 'coverage/**', 'dist/**', 'node_modules/**', 'out-tsc/**', 'www/**'],
@@ -122,6 +147,111 @@ module.exports = [
     },
   },
   {
+    files: ['src/app/features/*/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@angular/*',
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+                ...applicationLayerRelativeImports,
+                ...infrastructureLayerRelativeImports,
+                ...presentationLayerRelativeImports,
+              ],
+              message:
+                'Domain code must stay pure TypeScript and must not depend on Angular, Ionic, Capacitor, environment, application, infrastructure, or presentation code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/features/*/application/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+                ...infrastructureLayerRelativeImports,
+                ...presentationLayerRelativeImports,
+              ],
+              message:
+                'Application code may depend on domain code, but must not depend on Ionic, Capacitor, environment, infrastructure, or presentation code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/features/*/application/ports/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+                ...infrastructureLayerRelativeImports,
+                ...presentationLayerRelativeImports,
+              ],
+              message:
+                'Ports must describe application needs without importing infrastructure, presentation, Ionic, Capacitor, or environment code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/app/features/*/presentation/pages/**/*.ts',
+      'src/app/features/*/presentation/components/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                ...infrastructureLayerRelativeImports,
+              ],
+              message:
+                'Presentation pages and components may call application code, but must not import Capacitor, environment, feature aliases, or infrastructure code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['capacitor.config.ts', 'src/main.ts', 'src/app/core/config/**'],
     rules: {
       'no-restricted-imports': [
@@ -149,12 +279,107 @@ module.exports = [
         {
           patterns: [
             {
-              group: ['@env/*'],
-              message: 'Expose environment values through typed injected config tokens.',
+              group: [
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+                ...presentationLayerRelativeImports,
+              ],
+              message:
+                'Infrastructure code may implement application ports, but must not depend on presentation, Ionic, feature aliases, or environment imports.',
             },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/core/**/*.ts'],
+    ignores: ['src/app/core/config/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
             {
-              group: ['@features/*'],
-              message: 'Features must not import from other features directly.',
+              group: [
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+              ],
+              message:
+                'Core is app-wide wiring and must not depend on feature, Ionic, Capacitor, or environment imports unless a narrower override allows it.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@angular/*',
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+              ],
+              message:
+                'Shared domain code must stay pure TypeScript and must not depend on Angular, Ionic, Capacitor, environment, or feature code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/application/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@capacitor/*',
+                '@env/*',
+                '@features/*',
+                '@ionic/*',
+                'ionicons',
+                'ionicons/*',
+              ],
+              message:
+                'Shared application code must not depend on Ionic, Capacitor, environment, or feature code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/presentation/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@capacitor/*', '@env/*', '@features/*'],
+              message:
+                'Shared presentation code may use UI dependencies, but must not depend on Capacitor, environment, or feature code.',
             },
           ],
         },

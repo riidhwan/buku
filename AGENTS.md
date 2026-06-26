@@ -4,6 +4,8 @@
 
 This is an Android-first Ionic Angular project. Before changing code, read:
 
+- `CONTEXT.md`
+- `docs/architecture-glossary.md`
 - `docs/project-structure.md`
 - `docs/scaffold-checklist.md`
 - relevant ADRs in `docs/adr/`
