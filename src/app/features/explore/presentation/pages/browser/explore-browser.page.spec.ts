@@ -102,6 +102,10 @@ function isIonButtonDisabled(button: Element): boolean {
   );
 }
 
+function getEndToolbarButtons(nativeElement: HTMLElement): NodeListOf<Element> {
+  return nativeElement.querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button');
+}
+
 function waitForViewportTimer(): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve);
@@ -181,9 +185,7 @@ describe('ExploreBrowserPage', () => {
 
     expect(nativeElement.querySelector('.browser-controls')).toBeNull();
 
-    const overflowButton = nativeElement
-      .querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button')
-      .item(0);
+    const overflowButton = getEndToolbarButtons(nativeElement).item(1);
 
     overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
@@ -225,9 +227,7 @@ describe('ExploreBrowserPage', () => {
 
   it('disables unavailable toolbar navigation controls after overflow opens', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const overflowButton = nativeElement
-      .querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button')
-      .item(0);
+    const overflowButton = getEndToolbarButtons(nativeElement).item(1);
 
     overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
@@ -240,27 +240,24 @@ describe('ExploreBrowserPage', () => {
   });
 
   it('enables reading mode only when a current URL is not loading', () => {
-    fixture.componentInstance.openActions();
-    fixture.detectChanges();
-
     let nativeElement = fixture.nativeElement as HTMLElement;
-    let buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
-    expect(isIonButtonDisabled(buttons.item(3))).toBeFalse();
+    let readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    expect(isIonButtonDisabled(readingModeButton)).toBeFalse();
 
     browser.loading.set(true);
     fixture.detectChanges();
 
     nativeElement = fixture.nativeElement as HTMLElement;
-    buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
-    expect(isIonButtonDisabled(buttons.item(3))).toBeTrue();
+    readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    expect(isIonButtonDisabled(readingModeButton)).toBeTrue();
 
     browser.loading.set(false);
     browser.currentUrl.set(null);
     fixture.detectChanges();
 
     nativeElement = fixture.nativeElement as HTMLElement;
-    buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
-    expect(isIonButtonDisabled(buttons.item(3))).toBeTrue();
+    readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    expect(isIonButtonDisabled(readingModeButton)).toBeTrue();
   });
 
   it('runs browser controls after overflow opens', async () => {
@@ -272,8 +269,8 @@ describe('ExploreBrowserPage', () => {
     const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
 
     buttons.item(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     buttons.item(4).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    buttons.item(5).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
     expect(browser.reloads).toBe(1);
@@ -281,14 +278,14 @@ describe('ExploreBrowserPage', () => {
     expect(browser.openedExternally).toBe(1);
   });
 
-  it('opens reading mode from browser actions', async () => {
+  it('opens reading mode from the address bar toolbar', async () => {
     fixture.componentInstance.openActions();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+    const readingModeButton = getEndToolbarButtons(nativeElement).item(0);
 
-    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    readingModeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
     expect(browser.readingModeOpens).toBe(1);
@@ -302,9 +299,9 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const buttons = nativeElement.querySelectorAll('.browser-controls ion-button');
+    const readingModeButton = getEndToolbarButtons(nativeElement).item(0);
 
-    buttons.item(3).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    readingModeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
     expect(browser.readingModeOpens).toBe(1);

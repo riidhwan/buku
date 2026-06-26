@@ -28,6 +28,13 @@
 
     <ion-buttons slot="end">
       <ion-button
+        aria-label="Open reading mode"
+        [disabled]="browser.currentUrl() === null || browser.loading()"
+        (click)="openReadingMode()"
+      >
+        <ion-icon name="reader-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
         aria-label="Open browser actions"
         [disabled]="browser.currentUrl() === null"
         [attr.aria-expanded]="actionsOpen()"
@@ -56,13 +63,6 @@
           [name]="browser.loading() ? 'stop-outline' : 'refresh-outline'"
           aria-hidden="true"
         ></ion-icon>
-      </ion-button>
-      <ion-button
-        aria-label="Open reading mode"
-        [disabled]="browser.currentUrl() === null || browser.loading()"
-        (click)="openReadingMode()"
-      >
-        <ion-icon name="reader-outline" aria-hidden="true"></ion-icon>
       </ion-button>
       <ion-button
         aria-label="Copy URL"
