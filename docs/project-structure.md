@@ -248,12 +248,13 @@ The scaffold should enable strict quality gates from the beginning:
 - strict TypeScript
 - strict Angular templates
 - type-aware ESLint
+- TypeScript complexity limits for control flow, nesting, function length, and parameter count
 - import boundary enforcement
 - no direct feature-to-feature imports
 - no direct Capacitor imports outside adapters
 - no direct environment imports from feature code
 - Prettier formatting
-- Stylelint for CSS/SCSS
+- Stylelint for CSS/SCSS, including selector nesting limits
 - lint warnings fail CI
 
 Tooling responsibilities:

@@ -23,10 +23,11 @@ The following rules are enforced by tooling:
 - strict TypeScript
 - strict Angular templates
 - ESLint with type-aware rules
+- ESLint complexity limits for TypeScript control flow, nesting, function length, and parameter count
 - ESLint boundaries for architectural imports
 - path-specific ESLint rules for domain, application, ports, infrastructure, presentation, core, and shared code
 - restricted feature, environment, Capacitor, and console imports
-- Stylelint for SCSS
+- Stylelint for SCSS, including selector nesting limits
 - Prettier formatting
 - CI web and Android quality jobs
 

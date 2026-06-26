@@ -104,6 +104,10 @@ module.exports = [
           varsIgnorePattern: '^_',
         },
       ],
+      complexity: ['error', { max: 10 }],
+      'max-depth': ['error', { max: 4 }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-params': ['error', { max: 4 }],
       'boundaries/dependencies': [
         'error',
         {
@@ -144,6 +148,12 @@ module.exports = [
     files: ['src/**/*.component.ts', 'src/**/*.page.ts'],
     rules: {
       '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
+  {
+    files: ['**/*.spec.ts'],
+    rules: {
+      'max-lines-per-function': 'off',
     },
   },
   {

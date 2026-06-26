@@ -1,6 +1,7 @@
 {
   "extends": ["stylelint-config-standard-scss"],
   "rules": {
-    "import-notation": "string"
+    "import-notation": "string",
+    "max-nesting-depth": 3
   }
 }
