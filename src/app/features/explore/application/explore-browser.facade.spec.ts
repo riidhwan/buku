@@ -31,6 +31,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   private readonly eventsSubject = new Subject<BrowserViewportEvent>();
   public readonly events$ = this.eventsSubject.asObservable();
   public readonly loadedUrls: string[] = [];
+  public loadError: Error | null = null;
   public copiedUrl: string | null = null;
   public shownRect: BrowserViewportRect | null = null;
   public hideCount = 0;
@@ -41,6 +42,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   public articleExtractionResult: BrowserArticleExtractionResult = {
     status: 'unavailable',
   };
+  public articleExtractionPromise: Promise<BrowserArticleExtractionResult> | null = null;
   public extractCount = 0;
 
   public emit(event: BrowserViewportEvent): void {
@@ -62,6 +64,10 @@ class FakeBrowserViewport implements BrowserViewportPort {
   }
 
   public load(url: string): Promise<void> {
+    if (this.loadError !== null) {
+      return Promise.reject(this.loadError);
+    }
+
     this.loadedUrls.push(url);
     return Promise.resolve();
   }
@@ -93,7 +99,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
 
   public extractArticle(): Promise<BrowserArticleExtractionResult> {
     this.extractCount += 1;
-    return Promise.resolve(this.articleExtractionResult);
+    return this.articleExtractionPromise ?? Promise.resolve(this.articleExtractionResult);
   }
 }
 
@@ -117,6 +123,35 @@ const articleSnapshot = {
   textContent: 'Readable body.',
   length: 14,
 };
+
+const articleSnapshotWithChapters = {
+  ...articleSnapshot,
+  previousChapter: {
+    href: '/previous',
+    label: 'Previous chapter',
+  },
+  nextChapter: {
+    href: '/next',
+    label: 'Next chapter',
+  },
+};
+
+class Deferred<T> {
+  public readonly promise: Promise<T>;
+  private resolveValue: (value: T) => void = () => {
+    throw new Error('Deferred resolver was not assigned.');
+  };
+
+  public constructor() {
+    this.promise = new Promise<T>((resolve) => {
+      this.resolveValue = resolve;
+    });
+  }
+
+  public resolve(value: T): void {
+    this.resolveValue(value);
+  }
+}
 
 describe('ExploreBrowserFacade', () => {
   let facade: ExploreBrowserFacade;
@@ -522,8 +557,455 @@ describe('ExploreBrowserFacade', () => {
     });
   });
 
+  it('keeps the reader open when reader links cannot be resolved', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.openReadingModeLink('https://[');
+
+    expect(result.ok).toBeFalse();
+    expect(facade.readingArticle()).toEqual(articleSnapshot);
+    expect(facade.notice()).toEqual({
+      kind: 'unsupportedCapability',
+      message: 'This link type is not supported in Explore Browser.',
+      url: 'https://example.com/article',
+    });
+  });
+
   it('ignores reader link navigation without an in-memory article', async () => {
     const result = await facade.openReadingModeLink('https://example.com/next');
+
+    expect(result.ok).toBeFalse();
+    expect(viewport.loadedUrls).toEqual([]);
+  });
+
+  it('loads and replaces the in-memory article for next chapter navigation', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+
+    const nextArticle = {
+      ...articleSnapshot,
+      url: 'https://example.com/next',
+      title: 'Next chapter',
+    };
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: nextArticle,
+    };
+
+    const resultPromise = facade.navigateReadingChapter('next');
+
+    expect(facade.chapterNavigationLoading()).toBeTrue();
+    expect(facade.readingArticle()).toEqual(articleSnapshotWithChapters);
+
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/next',
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+      },
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toEqual({ ok: true, destination: 'reader' });
+    expect(facade.chapterNavigationLoading()).toBeFalse();
+    expect(facade.readingArticle()).toEqual(nextArticle);
+    expect(viewport.loadedUrls).toEqual(['https://example.com/next']);
+    expect(viewport.extractCount).toBe(2);
+  });
+
+  it('loads and replaces the in-memory article for previous chapter navigation', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+
+    const previousArticle = {
+      ...articleSnapshot,
+      url: 'https://example.com/previous',
+      title: 'Previous chapter',
+    };
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: previousArticle,
+    };
+
+    const resultPromise = facade.navigateReadingChapter('previous');
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/previous',
+        loading: false,
+        canGoBack: true,
+        canGoForward: true,
+      },
+    });
+
+    expect(await resultPromise).toEqual({ ok: true, destination: 'reader' });
+    expect(facade.readingArticle()).toEqual(previousArticle);
+    expect(viewport.loadedUrls).toEqual(['https://example.com/previous']);
+  });
+
+  it('keeps Reading Mode open when chapter navigation targets an unsupported URL', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    const article = {
+      ...articleSnapshot,
+      nextChapter: {
+        href: 'mailto:reader@example.com',
+        label: 'Next chapter',
+      },
+    };
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article,
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.navigateReadingChapter('next');
+
+    expect(result.ok).toBeFalse();
+    expect(facade.readingArticle()).toEqual(article);
+    expect(viewport.loadedUrls).toEqual([]);
+    expect(facade.notice()).toEqual({
+      kind: 'unsupportedCapability',
+      message: 'Only HTTP and HTTPS links are supported.',
+      url: 'https://example.com/article',
+    });
+  });
+
+  it('keeps Reading Mode open when a chapter href cannot be resolved', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    const article = {
+      ...articleSnapshot,
+      nextChapter: {
+        href: 'https://[',
+        label: 'Next chapter',
+      },
+    };
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article,
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.navigateReadingChapter('next');
+
+    expect(result.ok).toBeFalse();
+    expect(facade.readingArticle()).toEqual(article);
+    expect(facade.notice()).toEqual({
+      kind: 'unsupportedCapability',
+      message: 'This link type is not supported in Explore Browser.',
+      url: 'https://example.com/article',
+    });
+  });
+
+  it('falls back to the Explore Browser when chapter loading fails', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+
+    const resultPromise = facade.navigateReadingChapter('next');
+    viewport.emit({
+      type: 'loadFailed',
+      event: {
+        url: 'https://example.com/next',
+        description: 'Network error',
+      },
+    });
+
+    expect(await resultPromise).toEqual({ ok: true, destination: 'browser' });
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.notice()).toEqual({
+      kind: 'loadFailed',
+      message: 'Page failed to load: Network error',
+      url: 'https://example.com/next',
+    });
+  });
+
+  it('falls back to the Explore Browser when chapter load is rejected', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+    viewport.loadError = new Error('Bridge rejected');
+
+    const result = await facade.navigateReadingChapter('next');
+
+    expect(result).toEqual({ ok: true, destination: 'browser' });
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.notice()).toEqual({
+      kind: 'loadFailed',
+      message: 'Page failed to load: Bridge rejected',
+      url: 'https://example.com/next',
+    });
+  });
+
+  it('falls back to the Explore Browser when target chapter extraction is unavailable', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+    viewport.articleExtractionResult = {
+      status: 'unavailable',
+    };
+
+    const resultPromise = facade.navigateReadingChapter('next');
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/next',
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+      },
+    });
+
+    expect(await resultPromise).toEqual({ ok: true, destination: 'browser' });
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.notice()).toEqual({
+      kind: 'readingModeUnavailable',
+      message: 'Reading Mode is not available for this page.',
+      url: 'https://example.com/next',
+    });
+  });
+
+  it('falls back to the Explore Browser when target chapter extraction fails', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+    viewport.articleExtractionResult = {
+      status: 'failed',
+      message: 'Script failed',
+    };
+
+    const resultPromise = facade.navigateReadingChapter('next');
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/next',
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+      },
+    });
+
+    expect(await resultPromise).toEqual({ ok: true, destination: 'browser' });
+    expect(facade.readingArticle()).toBeNull();
+    expect(facade.notice()).toEqual({
+      kind: 'readingModeFailed',
+      message: 'Reading Mode failed: Script failed',
+      url: 'https://example.com/next',
+    });
+  });
+
+  it('disables concurrent chapter navigation while a chapter is loading', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+    const extraction = new Deferred<BrowserArticleExtractionResult>();
+    viewport.articleExtractionPromise = extraction.promise;
+
+    const resultPromise = facade.navigateReadingChapter('next');
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/next',
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+      },
+    });
+    await Promise.resolve();
+
+    const blockedResult = await facade.navigateReadingChapter('previous');
+    extraction.resolve({
+      status: 'ok',
+      article: articleSnapshot,
+    });
+    await resultPromise;
+
+    expect(blockedResult.ok).toBeFalse();
+    expect(viewport.loadedUrls).toEqual(['https://example.com/next']);
+  });
+
+  it('ignores chapter navigation when the direction is unavailable', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: {
+        ...articleSnapshot,
+        nextChapter: {
+          href: '/next',
+          label: 'Next chapter',
+        },
+      },
+    };
+    await facade.openReadingMode();
+
+    const result = await facade.navigateReadingChapter('previous');
+
+    expect(result.ok).toBeFalse();
+    expect(viewport.loadedUrls).toEqual([]);
+  });
+
+  it('ignores chapter navigation while the browser is already loading', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshotWithChapters,
+    };
+    await facade.openReadingMode();
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: true,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    const result = await facade.navigateReadingChapter('next');
 
     expect(result.ok).toBeFalse();
     expect(viewport.loadedUrls).toEqual([]);

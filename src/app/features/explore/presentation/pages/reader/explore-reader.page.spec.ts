@@ -16,14 +16,25 @@ const articleSnapshot: ReadingArticleSnapshot = {
     '<p>Readable body.</p><p><a href="/next"><span>Next article</span></a></p><script>window.bad = true;</script>',
   textContent: 'Readable body. Next article',
   length: 27,
+  previousChapter: {
+    href: '/previous',
+    label: 'Previous chapter',
+  },
+  nextChapter: {
+    href: '/next-chapter',
+    label: 'Next chapter',
+  },
 };
 
 class FakeExploreBrowserFacade {
   public readonly readingArticle = signal<ReadingArticleSnapshot | null>(articleSnapshot);
+  public readonly chapterNavigationLoading = signal(false);
   public hidden = 0;
   public closed = 0;
   public openedHref: string | null = null;
+  public chapterDirection: 'previous' | 'next' | null = null;
   public linkResult = true;
+  public chapterDestination: 'reader' | 'browser' = 'reader';
 
   public hideViewport(): Promise<void> {
     this.hidden += 1;
@@ -40,6 +51,13 @@ class FakeExploreBrowserFacade {
     this.openedHref = href;
     return Promise.resolve({ ok: this.linkResult });
   }
+
+  public navigateReadingChapter(
+    direction: 'previous' | 'next',
+  ): Promise<{ readonly ok: true; readonly destination: 'reader' | 'browser' }> {
+    this.chapterDirection = direction;
+    return Promise.resolve({ ok: true, destination: this.chapterDestination });
+  }
 }
 
 class FakeRouter {
@@ -49,6 +67,13 @@ class FakeRouter {
     this.navigations.push(commands);
     return Promise.resolve(true);
   }
+}
+
+function isIonButtonDisabled(button: Element): boolean {
+  return (
+    button.hasAttribute('disabled') ||
+    ((button as HTMLElement & { readonly disabled?: boolean }).disabled ?? false)
+  );
 }
 
 describe('ExploreReaderPage', () => {
@@ -123,6 +148,84 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     expect(browser.closed).toBe(1);
+    expect(router.navigations).toEqual([['explore', 'browser']]);
+  });
+
+  it('always renders chapter buttons and disables unavailable directions', async () => {
+    const nextChapter = articleSnapshot.nextChapter;
+    if (nextChapter === undefined) {
+      fail('Expected the base article fixture to include a next chapter.');
+      return;
+    }
+
+    browser.readingArticle.set({
+      url: articleSnapshot.url,
+      title: articleSnapshot.title,
+      byline: articleSnapshot.byline,
+      siteName: articleSnapshot.siteName,
+      excerpt: articleSnapshot.excerpt,
+      publishedTime: articleSnapshot.publishedTime,
+      contentHtml: articleSnapshot.contentHtml,
+      textContent: articleSnapshot.textContent,
+      length: articleSnapshot.length,
+      nextChapter,
+    });
+    createPage();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const chapterButtons = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button');
+
+    expect(chapterButtons.length).toBe(2);
+    expect(chapterButtons.item(0).querySelector('ion-icon')?.getAttribute('name')).toBe(
+      'chevron-back-outline',
+    );
+    expect(chapterButtons.item(1).querySelector('ion-icon')?.getAttribute('name')).toBe(
+      'chevron-forward-outline',
+    );
+    expect(isIonButtonDisabled(chapterButtons.item(0))).toBeTrue();
+    expect(isIonButtonDisabled(chapterButtons.item(1))).toBeFalse();
+  });
+
+  it('shows chapter loading state and disables chapter buttons while loading', async () => {
+    browser.chapterNavigationLoading.set(true);
+    createPage();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const chapterButtons = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button');
+
+    expect(nativeElement.querySelector('ion-spinner[aria-label="Loading chapter"]')).not.toBeNull();
+    expect(isIonButtonDisabled(chapterButtons.item(0))).toBeTrue();
+    expect(isIonButtonDisabled(chapterButtons.item(1))).toBeTrue();
+  });
+
+  it('navigates chapters through the facade without leaving the reader on replacement', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const nextButton = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').item(1);
+    nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.chapterDirection).toBe('next');
+    expect(router.navigations).toEqual([]);
+  });
+
+  it('routes to the Explore Browser when chapter navigation falls back', async () => {
+    browser.chapterDestination = 'browser';
+    createPage();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const previousButton = nativeElement
+      .querySelectorAll('ion-buttons[slot="end"] ion-button')
+      .item(0);
+    previousButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.chapterDirection).toBe('previous');
     expect(router.navigations).toEqual([['explore', 'browser']]);
   });
 

@@ -5,6 +5,29 @@
         <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
       </ion-button>
     </ion-buttons>
+    <ion-buttons slot="end">
+      @if (browser.chapterNavigationLoading()) {
+      <ion-spinner
+        class="reader-chapter-loading"
+        name="crescent"
+        aria-label="Loading chapter"
+      ></ion-spinner>
+      }
+      <ion-button
+        aria-label="Previous chapter"
+        [disabled]="browser.chapterNavigationLoading() || !browser.readingArticle()?.previousChapter"
+        (click)="navigateChapter('previous')"
+      >
+        <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
+        aria-label="Next chapter"
+        [disabled]="browser.chapterNavigationLoading() || !browser.readingArticle()?.nextChapter"
+        (click)="navigateChapter('next')"
+      >
+        <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 

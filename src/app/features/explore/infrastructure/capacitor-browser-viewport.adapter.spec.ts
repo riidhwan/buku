@@ -191,6 +191,14 @@ describe('CapacitorBrowserViewportAdapter', () => {
         contentHtml: '<p>Readable body.</p>',
         textContent: 'Readable body.',
         length: 14,
+        previousChapter: {
+          href: '/previous',
+          label: 'Previous chapter',
+        },
+        nextChapter: {
+          href: '/next',
+          label: 'Next chapter',
+        },
       },
     };
 
@@ -198,6 +206,27 @@ describe('CapacitorBrowserViewportAdapter', () => {
 
     expect(window.fetch).toHaveBeenCalledOnceWith('assets/readability/Readability.js');
     expect(plugin.readabilityScript).toBe('readability script');
+    expect(result).toEqual(plugin.articleExtractionResult);
+  });
+
+  it('maps successful article extraction when native chapter links are absent', async () => {
+    plugin.articleExtractionResult = {
+      status: 'ok',
+      article: {
+        url: 'https://example.com/article',
+        title: 'Readable article',
+        byline: null,
+        siteName: null,
+        excerpt: null,
+        publishedTime: null,
+        contentHtml: '<p>Readable body.</p>',
+        textContent: 'Readable body.',
+        length: 14,
+      },
+    };
+
+    const result = await adapter.extractArticle();
+
     expect(result).toEqual(plugin.articleExtractionResult);
   });
 

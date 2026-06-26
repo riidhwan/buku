@@ -30,6 +30,11 @@ export interface NativeBrowserCapabilityEvent {
   readonly url: string | null;
 }
 
+export interface NativeReadingChapterLink {
+  readonly href: string;
+  readonly label: string | null;
+}
+
 export interface NativeReadingArticleSnapshot {
   readonly url: string;
   readonly title: string;
@@ -40,6 +45,8 @@ export interface NativeReadingArticleSnapshot {
   readonly contentHtml: string;
   readonly textContent: string;
   readonly length: number;
+  readonly previousChapter?: NativeReadingChapterLink;
+  readonly nextChapter?: NativeReadingChapterLink;
 }
 
 export type NativeArticleExtractionResult =

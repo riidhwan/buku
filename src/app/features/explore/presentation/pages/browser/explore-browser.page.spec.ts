@@ -203,6 +203,17 @@ describe('ExploreBrowserPage', () => {
     expect(browser.showCount).toBeGreaterThan(initialShowCount);
   });
 
+  it('keeps only the latest pending viewport reposition timer', async () => {
+    const initialShowCount = browser.showCount;
+
+    fixture.componentInstance.openActions();
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+    await waitForViewportTimer();
+
+    expect(browser.showCount).toBe(initialShowCount + 1);
+  });
+
   it('disables unavailable toolbar navigation controls after overflow opens', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const overflowButton = nativeElement

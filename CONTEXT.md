@@ -18,5 +18,9 @@ _Avoid_: Buku Browser, standalone browser
 A Buku-rendered reader view created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling
 
+**Chapter Navigation**:
+The optional previous-chapter and next-chapter targets that Reading Mode can expose when the source page provides high-confidence chapter links.
+_Avoid_: pagination, page navigation
+
 **More**:
 The overflow area for additional app menus that do not belong in Library or Explore.

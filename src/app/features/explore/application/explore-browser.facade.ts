@@ -1,10 +1,11 @@
 import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { ReadingArticleSnapshot } from '../domain/reading-article';
+import { filter, firstValueFrom, Subscription, take } from 'rxjs';
+import { ReadingArticleSnapshot, ReadingChapterLink } from '../domain/reading-article';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { BROWSER_SESSION_STORE, BrowserSessionStorePort } from './ports/browser-session-store.port';
 import {
   BROWSER_VIEWPORT,
+  BrowserArticleExtractionResult,
   BrowserCapability,
   BrowserViewportEvent,
   BrowserViewportPort,
@@ -32,6 +33,17 @@ export interface BrowserOpenResult {
 export interface BrowserReadingModeResult {
   readonly ok: boolean;
 }
+
+export type ReadingChapterDirection = 'previous' | 'next';
+
+export type BrowserReadingChapterNavigationResult =
+  | {
+      readonly ok: true;
+      readonly destination: 'reader' | 'browser';
+    }
+  | {
+      readonly ok: false;
+    };
 
 const capabilityMessages: Record<BrowserCapability, string> = {
   camera: 'Camera access is not supported in Explore Browser.',
@@ -61,6 +73,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly validationErrorSignal = signal<string | null>(null);
   private readonly noticeSignal = signal<BrowserNotice | null>(null);
   private readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
+  private readonly chapterNavigationLoadingSignal = signal(false);
 
   public readonly inputValue = this.inputValueSignal.asReadonly();
   public readonly currentUrl = this.currentUrlSignal.asReadonly();
@@ -71,6 +84,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   public readonly validationError = this.validationErrorSignal.asReadonly();
   public readonly notice = this.noticeSignal.asReadonly();
   public readonly readingArticle = this.readingArticleSignal.asReadonly();
+  public readonly chapterNavigationLoading = this.chapterNavigationLoadingSignal.asReadonly();
   public readonly isSecure = computed(
     () => this.currentUrlSignal()?.startsWith('https://') ?? false,
   );
@@ -247,6 +261,64 @@ export class ExploreBrowserFacade implements OnDestroy {
     return { ok: true };
   }
 
+  public async navigateReadingChapter(
+    direction: ReadingChapterDirection,
+  ): Promise<BrowserReadingChapterNavigationResult> {
+    const article = this.readingArticleSignal();
+    if (article === null || this.loadingSignal() || this.chapterNavigationLoadingSignal()) {
+      return { ok: false };
+    }
+
+    const chapter = this.chapterLinkForDirection(article, direction);
+    if (chapter === undefined) {
+      return { ok: false };
+    }
+
+    const targetUrl = this.resolveReadingModeHref(chapter.href, article.url);
+    if (targetUrl === null) {
+      this.noticeSignal.set({
+        kind: 'unsupportedCapability',
+        message: capabilityMessages.customScheme,
+        url: article.url,
+      });
+      return { ok: false };
+    }
+
+    const normalized = this.urlPolicy.normalize(targetUrl);
+    if (!normalized.ok) {
+      this.noticeSignal.set({
+        kind: 'unsupportedCapability',
+        message: normalized.message,
+        url: article.url,
+      });
+      return { ok: false };
+    }
+
+    this.chapterNavigationLoadingSignal.set(true);
+    try {
+      const navigationResultPromise = this.waitForChapterNavigation();
+      await this.viewport.load(normalized.url);
+      const navigationResult = await navigationResultPromise;
+      if (navigationResult === 'failed') {
+        this.readingArticleSignal.set(null);
+        return { ok: true, destination: 'browser' };
+      }
+
+      return await this.replaceReadingArticleFromCurrentPage(normalized.url);
+    } catch (error) {
+      this.readingArticleSignal.set(null);
+      const message = this.loadFailureMessage(error);
+      this.noticeSignal.set({
+        kind: 'loadFailed',
+        message: `Page failed to load: ${message}`,
+        url: normalized.url,
+      });
+      return { ok: true, destination: 'browser' };
+    } finally {
+      this.chapterNavigationLoadingSignal.set(false);
+    }
+  }
+
   public dismissNotice(): void {
     this.noticeSignal.set(null);
   }
@@ -269,6 +341,80 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.currentUrlSignal.set(url);
     this.loadingSignal.set(true);
     await this.viewport.load(url);
+  }
+
+  private chapterLinkForDirection(
+    article: ReadingArticleSnapshot,
+    direction: ReadingChapterDirection,
+  ): ReadingChapterLink | undefined {
+    return direction === 'previous' ? article.previousChapter : article.nextChapter;
+  }
+
+  private resolveReadingModeHref(href: string, baseUrl: string): string | null {
+    try {
+      return new URL(href, baseUrl).toString();
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  private loadFailureMessage(error: unknown): string {
+    /* istanbul ignore if */
+    if (!(error instanceof Error)) {
+      return 'Unknown error';
+    }
+
+    return error.message;
+  }
+
+  private waitForChapterNavigation(): Promise<'loaded' | 'failed'> {
+    return firstValueFrom(
+      this.viewport.events$.pipe(
+        filter(
+          (event) =>
+            event.type === 'loadFailed' ||
+            (event.type === 'navigation' && event.committed && !event.state.loading),
+        ),
+        take(1),
+      ),
+    ).then((event) => (event.type === 'loadFailed' ? 'failed' : 'loaded'));
+  }
+
+  private async replaceReadingArticleFromCurrentPage(
+    fallbackUrl: string,
+  ): Promise<BrowserReadingChapterNavigationResult> {
+    const result = await this.viewport.extractArticle();
+    switch (result.status) {
+      case 'ok':
+        this.readingArticleSignal.set(result.article);
+        this.noticeSignal.set(null);
+        await this.viewport.hide();
+        return { ok: true, destination: 'reader' };
+      case 'unavailable':
+      case 'failed':
+        this.readingArticleSignal.set(null);
+        this.noticeSignal.set(this.toReadingModeNotice(result, fallbackUrl));
+        return { ok: true, destination: 'browser' };
+    }
+  }
+
+  private toReadingModeNotice(
+    result: Exclude<BrowserArticleExtractionResult, { readonly status: 'ok' }>,
+    url: string,
+  ): BrowserNotice {
+    if (result.status === 'unavailable') {
+      return {
+        kind: 'readingModeUnavailable',
+        message: 'Reading Mode is not available for this page.',
+        url,
+      };
+    }
+
+    return {
+      kind: 'readingModeFailed',
+      message: `Reading Mode failed: ${result.message}`,
+      url,
+    };
   }
 
   private handleViewportEvent(event: BrowserViewportEvent): void {

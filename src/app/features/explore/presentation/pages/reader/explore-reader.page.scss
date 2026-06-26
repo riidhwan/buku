@@ -2,6 +2,12 @@ app-explore-reader-page {
   display: block;
 }
 
+.reader-chapter-loading {
+  width: 20px;
+  height: 20px;
+  margin-inline: 8px;
+}
+
 .reader-article {
   box-sizing: border-box;
   max-width: 720px;
