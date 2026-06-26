@@ -79,14 +79,14 @@ module.exports = [
           varsIgnorePattern: '^_',
         },
       ],
-      'boundaries/element-types': [
+      'boundaries/dependencies': [
         'error',
         {
           default: 'allow',
           rules: [
             {
-              from: ['features'],
-              disallow: ['features'],
+              from: { type: 'features' },
+              disallow: { to: { type: 'features' } },
               message:
                 'Features must use relative imports internally and must not import other features.',
             },
