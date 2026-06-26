@@ -6,19 +6,23 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonSpinner,
   IonText,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline } from 'ionicons/icons';
-import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import { chevronBackOutline, chevronForwardOutline, closeOutline } from 'ionicons/icons';
+import {
+  ExploreBrowserFacade,
+  ReadingChapterDirection,
+} from '../../../application/explore-browser.facade';
 
 @Component({
   selector: 'app-explore-reader-page',
   templateUrl: './explore-reader.page.html',
   styleUrl: './explore-reader.page.scss',
   encapsulation: ViewEncapsulation.None,
-  imports: [IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonText, IonToolbar],
+  imports: [IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonText, IonToolbar],
 })
 export class ExploreReaderPage implements OnInit {
   protected readonly browser = inject(ExploreBrowserFacade);
@@ -31,7 +35,7 @@ export class ExploreReaderPage implements OnInit {
   });
 
   public constructor() {
-    addIcons({ closeOutline });
+    addIcons({ chevronBackOutline, chevronForwardOutline, closeOutline });
   }
 
   public ngOnInit(): void {
@@ -58,6 +62,13 @@ export class ExploreReaderPage implements OnInit {
     event.preventDefault();
     const result = await this.browser.openReadingModeLink(href);
     if (result.ok) {
+      await this.router.navigate(['explore', 'browser']);
+    }
+  }
+
+  protected async navigateChapter(direction: ReadingChapterDirection): Promise<void> {
+    const result = await this.browser.navigateReadingChapter(direction);
+    if (result.ok && result.destination === 'browser') {
       await this.router.navigate(['explore', 'browser']);
     }
   }
