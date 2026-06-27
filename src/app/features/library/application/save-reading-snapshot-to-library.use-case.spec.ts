@@ -1,10 +1,15 @@
 import { TestBed } from '@angular/core/testing';
-import { LibraryDocument } from '../domain/library-series';
+import { LibraryDocument, LibrarySeriesEntry, LibrarySeriesRecord } from '../domain/library-series';
 import { LIBRARY_CLOCK, LibraryClock } from './ports/library-clock.port';
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
-import { LibraryRepository } from './ports/library-repository.port';
+import {
+  LibraryRepository,
+  SaveLibraryEntryInput,
+  SaveLibraryEntryResult,
+} from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
 import {
+  normalizeTitleKey,
   SaveReadingSnapshotToLibraryInput,
   SaveReadingSnapshotToLibraryUseCase,
 } from './save-reading-snapshot-to-library.use-case';
@@ -19,35 +24,14 @@ const snapshot = {
 };
 
 describe('SaveReadingSnapshotToLibraryUseCase', () => {
-  let document: LibraryDocument;
-  let savedDocument: LibraryDocument | null;
-  let failSave: boolean;
-  let failLoad: boolean;
+  let repository: FakeLibraryRepository;
   let ids: string[];
   let useCase: SaveReadingSnapshotToLibraryUseCase;
 
   beforeEach(() => {
-    document = { series: [] };
-    savedDocument = null;
-    failSave = false;
-    failLoad = false;
+    repository = new FakeLibraryRepository();
     ids = ['series-created', 'entry-created'];
 
-    const repository: LibraryRepository = {
-      load: () =>
-        Promise.resolve(
-          failLoad ? { ok: false, reason: 'persistenceFailed' } : { ok: true, document },
-        ),
-      save: (nextDocument) => {
-        if (failSave) {
-          return Promise.resolve({ ok: false, reason: 'persistenceFailed' });
-        }
-
-        savedDocument = nextDocument;
-        document = nextDocument;
-        return Promise.resolve({ ok: true });
-      },
-    };
     const clock: LibraryClock = { now: () => '2026-06-27T10:00:00.000Z' };
     const idGenerator: LibraryIdGenerator = {
       createId: () => ids.shift() ?? 'fallback-id',
@@ -75,8 +59,8 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
       seriesId: 'series-created',
       entryId: 'entry-created',
     });
-    expect(savedDocument?.series[0]?.title).toBe('New Series');
-    expect(savedDocument?.series[0]?.entries[0]).toEqual({
+    expect(repository.document.series[0]?.title).toBe('New Series');
+    expect(repository.document.series[0]?.entries[0]).toEqual({
       id: 'entry-created',
       seriesId: 'series-created',
       seriesTitle: 'New Series',
@@ -94,42 +78,26 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
   });
 
   it('saves into an existing Series on explicit or exact normalized match', async () => {
-    document = {
+    repository.document = {
       series: [{ id: 'series-1', title: 'Existing Series', entries: [] }],
     };
-    ids = ['entry-created'];
+    ids = ['series-unused', 'entry-created'];
 
     await expectAsync(
       useCase.execute(input({ target: { kind: 'title', title: 'existing   series' } })),
     ).toBeResolvedTo({ status: 'saved', seriesId: 'series-1', entryId: 'entry-created' });
 
-    expect(savedDocument?.series.length).toBe(1);
-    expect(savedDocument?.series[0]?.title).toBe('Existing Series');
+    expect(repository.document.series.length).toBe(1);
+    expect(repository.document.series[0]?.title).toBe('Existing Series');
   });
 
   it('rejects duplicate source URLs in the same Series', async () => {
-    document = {
+    repository.document = {
       series: [
         {
           id: 'series-1',
           title: 'Series',
-          entries: [
-            {
-              id: 'entry-1',
-              seriesId: 'series-1',
-              seriesTitle: 'Series',
-              displayTitle: 'Existing',
-              sourceUrl: snapshot.url,
-              sourceHost: 'example.com',
-              articleTitle: 'Existing',
-              byline: null,
-              siteName: null,
-              publishedTime: null,
-              contentHtml: '<p>Existing</p>',
-              createdAt: '2026-06-26T10:00:00.000Z',
-              updatedAt: '2026-06-26T10:00:00.000Z',
-            },
-          ],
+          entries: [entry({ id: 'entry-1', sourceUrl: snapshot.url })],
         },
       ],
     };
@@ -140,28 +108,12 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
   });
 
   it('allows the same source URL in a different Series', async () => {
-    document = {
+    repository.document = {
       series: [
         {
           id: 'series-1',
           title: 'First Series',
-          entries: [
-            {
-              id: 'entry-1',
-              seriesId: 'series-1',
-              seriesTitle: 'First Series',
-              displayTitle: 'Existing',
-              sourceUrl: snapshot.url,
-              sourceHost: 'example.com',
-              articleTitle: 'Existing',
-              byline: null,
-              siteName: null,
-              publishedTime: null,
-              contentHtml: '<p>Existing</p>',
-              createdAt: '2026-06-26T10:00:00.000Z',
-              updatedAt: '2026-06-26T10:00:00.000Z',
-            },
-          ],
+          entries: [entry({ id: 'entry-1', sourceUrl: snapshot.url })],
         },
       ],
     };
@@ -172,7 +124,7 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
   });
 
   it('returns typed persistence failure when writes fail', async () => {
-    failSave = true;
+    repository.failSave = true;
 
     await expectAsync(
       useCase.execute(input({ target: { kind: 'title', title: 'Series' } })),
@@ -195,16 +147,8 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
     });
   });
 
-  it('returns typed persistence failure when loading fails', async () => {
-    failLoad = true;
-
-    await expectAsync(
-      useCase.execute(input({ target: { kind: 'title', title: 'Series' } })),
-    ).toBeResolvedTo({ status: 'persistenceFailed' });
-  });
-
   it('preserves other Series while appending to an existing Series', async () => {
-    document = {
+    repository.document = {
       series: [
         { id: 'series-1', title: 'First Series', entries: [] },
         { id: 'series-2', title: 'Second Series', entries: [] },
@@ -214,11 +158,111 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
 
     await useCase.execute(input({ target: { kind: 'existing', seriesId: 'series-1' } }));
 
-    expect(savedDocument?.series.map((series) => series.id)).toEqual(['series-1', 'series-2']);
-    expect(savedDocument?.series[0]?.entries.length).toBe(1);
-    expect(savedDocument?.series[1]?.entries.length).toBe(0);
+    expect(repository.document.series.map((series) => series.id)).toEqual(['series-1', 'series-2']);
+    expect(repository.document.series[0]?.entries.length).toBe(1);
+    expect(repository.document.series[1]?.entries.length).toBe(0);
   });
 });
+
+class FakeLibraryRepository implements LibraryRepository {
+  public document: LibraryDocument = { series: [] };
+  public failSave = false;
+
+  public listSeries(): never {
+    throw new Error('Not used in this spec.');
+  }
+
+  public getSeries(): never {
+    throw new Error('Not used in this spec.');
+  }
+
+  public getEntry(): never {
+    throw new Error('Not used in this spec.');
+  }
+
+  public saveEntry(input: SaveLibraryEntryInput): Promise<SaveLibraryEntryResult> {
+    if (this.failSave) {
+      return Promise.resolve({ ok: false, reason: 'persistenceFailed' });
+    }
+
+    const series = this.resolveSeries(input);
+    if (series === null) {
+      return Promise.resolve({ ok: true, status: 'missingSeries' });
+    }
+
+    const duplicate = series.entries.find((entry) => entry.sourceUrl === input.entry.sourceUrl);
+    if (duplicate !== undefined) {
+      return Promise.resolve({
+        ok: true,
+        status: 'duplicate',
+        seriesId: series.id,
+        entryId: duplicate.id,
+      });
+    }
+
+    series.entries = [...series.entries, toEntry(series, input)];
+    return Promise.resolve({
+      ok: true,
+      status: 'saved',
+      seriesId: series.id,
+      entryId: input.entry.id,
+    });
+  }
+
+  private resolveSeries(input: SaveLibraryEntryInput): MutableSeriesRecord | null {
+    if (input.target.kind === 'existing') {
+      return this.mutableSeries().find((series) => series.id === input.target.seriesId) ?? null;
+    }
+
+    const normalizedTitle = input.target.normalizedTitle;
+    const existing = this.mutableSeries().find(
+      (series) => normalizeTitleKey(series.title) === normalizedTitle,
+    );
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const created = { id: input.target.seriesId, title: input.target.title, entries: [] };
+    this.document = { series: [...this.document.series, created] };
+    return created;
+  }
+
+  private mutableSeries(): MutableSeriesRecord[] {
+    return this.document.series as MutableSeriesRecord[];
+  }
+}
+
+interface MutableSeriesRecord {
+  readonly id: string;
+  readonly title: string;
+  entries: readonly LibrarySeriesEntry[];
+}
+
+function toEntry(series: LibrarySeriesRecord, input: SaveLibraryEntryInput): LibrarySeriesEntry {
+  return {
+    ...input.entry,
+    seriesId: series.id,
+    seriesTitle: series.title,
+  };
+}
+
+function entry(override: { readonly id: string; readonly sourceUrl: string }): LibrarySeriesEntry {
+  return {
+    id: override.id,
+    seriesId: 'series-1',
+    seriesTitle: 'Series',
+    displayTitle: 'Existing',
+    sourceUrl: override.sourceUrl,
+    sourceHost: 'example.com',
+    articleTitle: 'Existing',
+    byline: null,
+    siteName: null,
+    publishedTime: null,
+    contentHtml: '<p>Existing</p>',
+    createdAt: '2026-06-26T10:00:00.000Z',
+    updatedAt: '2026-06-26T10:00:00.000Z',
+  };
+}
 
 function input(
   override: Pick<SaveReadingSnapshotToLibraryInput, 'target'>,

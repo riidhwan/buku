@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
-import { LibraryDocument, LibrarySeriesEntry, LibrarySeriesRecord } from '../domain/library-series';
 import { LIBRARY_CLOCK } from './ports/library-clock.port';
 import { LIBRARY_ID_GENERATOR } from './ports/library-id-generator.port';
+import { SaveLibraryEntryTarget } from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
 
 export interface LibraryReadingSnapshot {
@@ -48,16 +48,6 @@ export type SaveReadingSnapshotToLibraryResult =
       readonly status: 'persistenceFailed';
     };
 
-type ResolveTargetSeriesResult =
-  | {
-      readonly status: 'resolved';
-      readonly series: LibrarySeriesRecord;
-    }
-  | {
-      readonly status: 'validationFailed';
-      readonly message: string;
-    };
-
 @Injectable()
 export class SaveReadingSnapshotToLibraryUseCase {
   private readonly repository = inject(LIBRARY_REPOSITORY);
@@ -73,83 +63,57 @@ export class SaveReadingSnapshotToLibraryUseCase {
       return { status: 'validationFailed', message: 'Series and entry title are required.' };
     }
 
-    const loaded = await this.repository.load();
-    if (!loaded.ok) {
-      return { status: 'persistenceFailed' };
-    }
-
-    const target = this.resolveTargetSeries(loaded.document, input.target, seriesTitle);
-    if (target.status === 'validationFailed') {
-      return target;
-    }
-
-    const duplicate = target.series.entries.find((entry) => entry.sourceUrl === input.snapshot.url);
-    if (duplicate !== undefined) {
-      return { status: 'duplicate', seriesId: target.series.id, entryId: duplicate.id };
-    }
-
     const createdAt = this.clock.now();
-    const entry = this.createEntry(input, target.series, entryTitle, createdAt);
-    const updatedDocument = upsertEntry(loaded.document, target.series, entry);
-    const saved = await this.repository.save(updatedDocument);
+    const saved = await this.repository.saveEntry({
+      target: this.saveTarget(input.target, seriesTitle, createdAt),
+      entry: {
+        id: this.idGenerator.createId(),
+        displayTitle: entryTitle,
+        sourceUrl: input.snapshot.url,
+        sourceHost: sourceHost(input.snapshot.url),
+        articleTitle: input.snapshot.title,
+        byline: input.snapshot.byline,
+        siteName: input.snapshot.siteName,
+        publishedTime: input.snapshot.publishedTime,
+        contentHtml: input.snapshot.contentHtml,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    });
     if (!saved.ok) {
       return { status: 'persistenceFailed' };
     }
+    if (saved.status === 'missingSeries') {
+      return { status: 'validationFailed', message: 'Selected Series is no longer available.' };
+    }
 
-    return { status: 'saved', seriesId: target.series.id, entryId: entry.id };
+    return {
+      status: saved.status,
+      seriesId: saved.seriesId,
+      entryId: saved.entryId,
+    };
   }
 
   private targetTitle(target: LibrarySeriesSaveTarget): string {
     return target.kind === 'title' ? normalizeTitle(target.title) : target.seriesId.trim();
   }
 
-  private resolveTargetSeries(
-    document: LibraryDocument,
+  private saveTarget(
     target: LibrarySeriesSaveTarget,
-    normalizedTitle: string,
-  ): ResolveTargetSeriesResult {
+    seriesTitle: string,
+    createdAt: string,
+  ): SaveLibraryEntryTarget {
     if (target.kind === 'existing') {
-      const series = document.series.find((candidate) => candidate.id === target.seriesId);
-      return series === undefined
-        ? { status: 'validationFailed', message: 'Selected Series is no longer available.' }
-        : { status: 'resolved', series };
+      return target;
     }
 
-    const exactMatch = document.series.find(
-      (candidate) =>
-        normalizeTitle(candidate.title).toLocaleLowerCase() === normalizedTitle.toLocaleLowerCase(),
-    );
     return {
-      status: 'resolved',
-      series: exactMatch ?? {
-        id: this.idGenerator.createId(),
-        title: normalizedTitle,
-        entries: [],
-      },
-    };
-  }
-
-  private createEntry(
-    input: SaveReadingSnapshotToLibraryInput,
-    series: LibrarySeriesRecord,
-    entryTitle: string,
-    createdAt: string,
-  ): LibrarySeriesEntry {
-    return {
-      id: this.idGenerator.createId(),
-      seriesId: series.id,
-      seriesTitle: series.title,
-      displayTitle: entryTitle,
-      sourceUrl: input.snapshot.url,
-      sourceHost: sourceHost(input.snapshot.url),
-      articleTitle: input.snapshot.title,
-      byline: input.snapshot.byline,
-      siteName: input.snapshot.siteName,
-      publishedTime: input.snapshot.publishedTime,
-      contentHtml: input.snapshot.contentHtml,
+      kind: 'title',
+      seriesId: this.idGenerator.createId(),
+      title: seriesTitle,
+      normalizedTitle: normalizeTitleKey(seriesTitle),
       createdAt,
-      updatedAt: createdAt,
-    };
+    } as const;
   }
 }
 
@@ -157,22 +121,8 @@ export function normalizeTitle(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function upsertEntry(
-  document: LibraryDocument,
-  series: LibrarySeriesRecord,
-  entry: LibrarySeriesEntry,
-): LibraryDocument {
-  const updatedSeries = { ...series, entries: [...series.entries, entry] };
-  const existingIndex = document.series.findIndex((candidate) => candidate.id === series.id);
-  if (existingIndex === -1) {
-    return { series: [...document.series, updatedSeries] };
-  }
-
-  return {
-    series: document.series.map((candidate) =>
-      candidate.id === series.id ? updatedSeries : candidate,
-    ),
-  };
+export function normalizeTitleKey(value: string): string {
+  return normalizeTitle(value).toLowerCase();
 }
 
 function sourceHost(sourceUrl: string): string | null {

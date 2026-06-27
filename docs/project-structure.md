@@ -172,7 +172,11 @@ Feature code must not import environment files directly.
 Persistence is accessed through application-layer ports and implemented by infrastructure adapters.
 
 - Use Capacitor Preferences for small settings and flags.
-- Use SQLite for structured local data, queryable records, offline workflows, and data that needs migrations.
+- Use SQLite through `@capacitor-community/sqlite` for structured local data, queryable records, offline workflows, and data that needs migrations.
+- Keep one app-wide SQLite database capability under `core/storage`; it owns connection lifecycle, startup initialization, migration registration, and generic raw query primitives only.
+- Keep ordered SQLite schema migrations under `core/storage/sqlite/migrations` so global database history is auditable from one place.
+- Keep feature SQL statements, table row mapping, data migration from older feature storage, and repository behavior in feature infrastructure adapters.
+- Use repo-owned raw SQL migration definitions registered through the SQLite upgrade statement API.
 - Keep offline-capable boundaries, but do not make every feature offline-first by default.
 
 ## State

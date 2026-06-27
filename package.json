@@ -28,6 +28,7 @@
     "@angular/forms": "20.3.25",
     "@angular/platform-browser": "20.3.25",
     "@angular/router": "20.3.25",
+    "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/android": "8.4.1",
     "@capacitor/core": "8.4.1",
     "@capacitor/preferences": "8.0.1",

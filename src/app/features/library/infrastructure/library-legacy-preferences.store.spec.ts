@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import {
   LIBRARY_CAPACITOR_PREFERENCES,
-  LibraryPreferencesAdapter,
-} from './library-preferences.adapter';
+  LibraryLegacyPreferencesStore,
+} from './library-legacy-preferences.store';
 import { LibraryDocument } from '../domain/library-series';
 
 class FakePreferences {
@@ -28,27 +28,27 @@ class FakePreferences {
   }
 }
 
-describe('LibraryPreferencesAdapter', () => {
-  let adapter: LibraryPreferencesAdapter;
+describe('LibraryLegacyPreferencesStore', () => {
+  let store: LibraryLegacyPreferencesStore;
   let preferences: FakePreferences;
 
   beforeEach(() => {
     preferences = new FakePreferences();
     TestBed.configureTestingModule({
       providers: [
-        LibraryPreferencesAdapter,
+        LibraryLegacyPreferencesStore,
         { provide: LIBRARY_CAPACITOR_PREFERENCES, useValue: preferences },
       ],
     });
 
-    adapter = TestBed.inject(LibraryPreferencesAdapter);
+    store = TestBed.inject(LibraryLegacyPreferencesStore);
   });
 
-  it('reads an empty Library when no document exists', async () => {
-    await expectAsync(adapter.load()).toBeResolvedTo({ ok: true, document: { series: [] } });
+  it('returns null when no legacy document exists', async () => {
+    await expectAsync(store.loadDocument()).toBeResolvedTo({ ok: true, document: null });
   });
 
-  it('persists and reloads a versioned document', async () => {
+  it('loads a versioned legacy document', async () => {
     const document: LibraryDocument = {
       series: [
         {
@@ -74,30 +74,33 @@ describe('LibraryPreferencesAdapter', () => {
         },
       ],
     };
+    preferences.values.set(
+      'library.document',
+      JSON.stringify({ version: 1, series: document.series }),
+    );
 
-    await expectAsync(adapter.save(document)).toBeResolvedTo({ ok: true });
-    await expectAsync(adapter.load()).toBeResolvedTo({ ok: true, document });
+    await expectAsync(store.loadDocument()).toBeResolvedTo({ ok: true, document });
   });
 
-  it('returns a typed persistence failure when writes fail', async () => {
-    preferences.failWrites = true;
+  it('tracks whether legacy data has been migrated to SQLite', async () => {
+    await expectAsync(store.hasMigratedToSqlite()).toBeResolvedTo(false);
 
-    await expectAsync(adapter.save({ series: [] })).toBeResolvedTo({
-      ok: false,
-      reason: 'persistenceFailed',
-    });
+    await store.markMigratedToSqlite();
+
+    expect(preferences.values.get('library.sqliteMigration.v1')).toBe('done');
+    await expectAsync(store.hasMigratedToSqlite()).toBeResolvedTo(true);
   });
 
   it('returns a typed persistence failure when reads or JSON parsing fail', async () => {
     preferences.failReads = true;
-    await expectAsync(adapter.load()).toBeResolvedTo({
+    await expectAsync(store.loadDocument()).toBeResolvedTo({
       ok: false,
       reason: 'persistenceFailed',
     });
 
     preferences.failReads = false;
     preferences.values.set('library.document', '{');
-    await expectAsync(adapter.load()).toBeResolvedTo({
+    await expectAsync(store.loadDocument()).toBeResolvedTo({
       ok: false,
       reason: 'persistenceFailed',
     });
@@ -106,7 +109,10 @@ describe('LibraryPreferencesAdapter', () => {
   it('ignores unrelated or invalid stored data', async () => {
     preferences.values.set('library.document', JSON.stringify({ mockSeries: [{ id: 'demo' }] }));
 
-    await expectAsync(adapter.load()).toBeResolvedTo({ ok: true, document: { series: [] } });
+    await expectAsync(store.loadDocument()).toBeResolvedTo({
+      ok: true,
+      document: { series: [] },
+    });
   });
 
   it('wraps Capacitor Preferences in a plain injectable object', async () => {

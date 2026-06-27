@@ -90,6 +90,12 @@ Feature providers live under `src/app/features/<feature>/infrastructure/` and ar
 
 Providers may connect an application-layer port token to an infrastructure adapter with `useExisting`, `useClass`, or equivalent Angular provider wiring.
 
+## Raw SQL
+
+Handwritten SQL statements owned by infrastructure code.
+
+Feature SQL lives with the feature infrastructure adapter that executes and maps it. Core storage may expose generic query, run, execute, transaction, and migration primitives, but it must not contain feature table names, row shapes, or business queries.
+
 ## Shared
 
 Reusable code that has already proven it is generic across multiple features.
@@ -105,6 +111,12 @@ A typed return value for an expected application failure.
 Use typed results when a user action or outside-world operation can fail in a known way. Reserve exceptions for programmer errors, violated invariants, and unexpected failures.
 
 Infrastructure adapters should map native, storage, and network failures into typed application errors before presentation code turns them into UI state.
+
+## SQLite Migration
+
+An ordered database schema change for the app-wide SQLite database.
+
+Migrations are repo-owned raw SQL definitions registered through the SQLite integration during app startup. Migration files may create or change feature-owned tables, but feature data migrations from an older storage adapter stay in that feature's infrastructure.
 
 ## Use Case
 

@@ -1,11 +1,7 @@
 import { inject, InjectionToken, Injectable } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+
 import { LibraryDocument, LibrarySeriesEntry, LibrarySeriesRecord } from '../domain/library-series';
-import {
-  LibraryRepository,
-  LoadLibraryResult,
-  SaveLibraryDocumentResult,
-} from '../application/ports/library-repository.port';
 
 interface PreferencesPort {
   get(options: { readonly key: string }): Promise<{ readonly value: string | null }>;
@@ -16,6 +12,16 @@ interface StoredLibraryDocument {
   readonly version: 1;
   readonly series: readonly LibrarySeriesRecord[];
 }
+
+export type LoadLegacyLibraryDocumentResult =
+  | {
+      readonly ok: true;
+      readonly document: LibraryDocument | null;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: 'persistenceFailed';
+    };
 
 export const LIBRARY_CAPACITOR_PREFERENCES = new InjectionToken<PreferencesPort>(
   'LIBRARY_CAPACITOR_PREFERENCES',
@@ -28,33 +34,28 @@ export const LIBRARY_CAPACITOR_PREFERENCES = new InjectionToken<PreferencesPort>
 );
 
 const libraryDocumentKey = 'library.document';
-const emptyDocument: LibraryDocument = { series: [] };
+const sqliteMigrationMarkerKey = 'library.sqliteMigration.v1';
 
 @Injectable()
-export class LibraryPreferencesAdapter implements LibraryRepository {
+export class LibraryLegacyPreferencesStore {
   private readonly preferences = inject(LIBRARY_CAPACITOR_PREFERENCES);
 
-  public async load(): Promise<LoadLibraryResult> {
-    try {
-      const result = await this.preferences.get({ key: libraryDocumentKey });
-      if (result.value === null) {
-        return { ok: true, document: emptyDocument };
-      }
-
-      return { ok: true, document: parseDocument(result.value) };
-    } catch (_error) {
-      return { ok: false, reason: 'persistenceFailed' };
-    }
+  public async hasMigratedToSqlite(): Promise<boolean> {
+    const result = await this.preferences.get({ key: sqliteMigrationMarkerKey });
+    return result.value === 'done';
   }
 
-  public async save(document: LibraryDocument): Promise<SaveLibraryDocumentResult> {
+  public async markMigratedToSqlite(): Promise<void> {
+    await this.preferences.set({ key: sqliteMigrationMarkerKey, value: 'done' });
+  }
+
+  public async loadDocument(): Promise<LoadLegacyLibraryDocumentResult> {
     try {
-      const stored: StoredLibraryDocument = {
-        version: 1,
-        series: document.series,
+      const result = await this.preferences.get({ key: libraryDocumentKey });
+      return {
+        ok: true,
+        document: result.value === null ? null : parseDocument(result.value),
       };
-      await this.preferences.set({ key: libraryDocumentKey, value: JSON.stringify(stored) });
-      return { ok: true };
     } catch (_error) {
       return { ok: false, reason: 'persistenceFailed' };
     }
@@ -64,7 +65,7 @@ export class LibraryPreferencesAdapter implements LibraryRepository {
 function parseDocument(value: string): LibraryDocument {
   const parsed: unknown = JSON.parse(value);
   if (!isStoredLibraryDocument(parsed)) {
-    return emptyDocument;
+    return { series: [] };
   }
 
   return { series: parsed.series };
