@@ -123,5 +123,8 @@ describe('LibraryLegacyPreferencesStore', () => {
     await expectAsync(preferences.get({ key: 'missing-library-key' })).toBeResolvedTo({
       value: null,
     });
+    await expectAsync(
+      preferences.set({ key: 'library-test-key', value: 'library-test-value' }),
+    ).toBeResolved();
   });
 });

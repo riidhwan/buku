@@ -77,6 +77,18 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
     });
   });
 
+  it('stores a null source host when the snapshot URL cannot be parsed', async () => {
+    await useCase.execute({
+      ...input({ target: { kind: 'title', title: 'New Series' } }),
+      snapshot: {
+        ...snapshot,
+        url: 'not a url',
+      },
+    });
+
+    expect(repository.document.series[0]?.entries[0]?.sourceHost).toBeNull();
+  });
+
   it('saves into an existing Series on explicit or exact normalized match', async () => {
     repository.document = {
       series: [{ id: 'series-1', title: 'Existing Series', entries: [] }],

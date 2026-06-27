@@ -264,6 +264,23 @@ describe('SqliteLibraryRepositoryAdapter', () => {
       reason: 'persistenceFailed',
     });
   });
+
+  it('returns persistence failure when read or save database operations fail', async () => {
+    database.failQueries = true;
+
+    await expectAsync(repository.getSeries('series-1')).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
+    await expectAsync(repository.getEntry('series-1', 'entry-1')).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
+    await expectAsync(repository.saveEntry(saveInput())).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
+  });
 });
 
 interface FakeSeries {

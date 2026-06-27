@@ -75,6 +75,7 @@ class FakeRouter {
 
 class FakeReadingLibrarySave {
   public readonly savedInputs: unknown[] = [];
+  public listSeriesCount = 0;
   public saveStatus:
     | 'saved'
     | 'duplicate'
@@ -92,6 +93,7 @@ class FakeReadingLibrarySave {
       },
     ]
   > {
+    this.listSeriesCount += 1;
     return Promise.resolve([
       {
         id: 'series-1',
@@ -394,6 +396,25 @@ describe('ExploreReaderPage', () => {
     expect(component.seriesInput).toBe('');
   });
 
+  it('does not open the save modal while article state is unavailable', async () => {
+    browser.chapterNavigationLoading.set(true);
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+
+    expect(component.saveModalOpen()).toBeFalse();
+    expect(librarySave.listSeriesCount).toBe(0);
+
+    browser.chapterNavigationLoading.set(false);
+    browser.readingArticle.set(null);
+    await component.openSaveModal();
+
+    expect(component.saveModalOpen()).toBeFalse();
+    expect(librarySave.listSeriesCount).toBe(0);
+  });
+
   it('keeps save disabled until Series and Entry title are present', async () => {
     createPage();
     await fixture.whenStable();
@@ -475,6 +496,44 @@ describe('ExploreReaderPage', () => {
     expect(component.saveModalOpen()).toBeFalse();
     expect(component.saveConfirmed()).toBeTrue();
     expect(router.navigations).toEqual([]);
+  });
+
+  it('does not save when required input or article state is unavailable', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+
+    await component.saveToLibrary();
+    expect(librarySave.savedInputs.length).toBe(0);
+
+    component.updateSeriesInput('Existing Series');
+    browser.readingArticle.set(null);
+    await component.saveToLibrary();
+    expect(librarySave.savedInputs.length).toBe(0);
+  });
+
+  it('saves to an explicitly selected existing Series target', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    const series = component.existingSeries()[0];
+    if (series === undefined) {
+      fail('Expected existing Series option.');
+      return;
+    }
+
+    component.selectSeries(series);
+    await component.saveToLibrary();
+
+    expect(librarySave.savedInputs[0]).toEqual(
+      jasmine.objectContaining({
+        target: { kind: 'existing', seriesId: 'series-1' },
+      }),
+    );
   });
 
   it('keeps duplicate and persistence errors inline', async () => {
