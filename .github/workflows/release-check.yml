@@ -1,0 +1,64 @@
+name: Release Check
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    if: ${{ startsWith(github.head_ref, 'release/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version-file: .java-version
+
+      - uses: android-actions/setup-android@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: git fetch origin master
+
+      - id: release
+        run: node .github/scripts/validate-release.mjs --check-master-version-code
+
+      - run: pnpm build
+      - run: pnpm cap:sync:android
+
+      - name: Decode release-check keystore
+        run: |
+          printf '%s' "$ANDROID_RELEASE_CHECK_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release-check.keystore"
+        env:
+          ANDROID_RELEASE_CHECK_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_CHECK_KEYSTORE_BASE64 }}
+
+      - run: ./gradlew assembleRelease
+        working-directory: android
+        env:
+          ANDROID_SIGNING_KEYSTORE_FILE: ${{ runner.temp }}/release-check.keystore
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_CHECK_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_CHECK_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_CHECK_KEY_PASSWORD }}
+
+      - run: cp android/app/build/outputs/apk/release/app-release.apk "${{ runner.temp }}/${{ steps.release.outputs.release_check_apk_name }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buku-${{ steps.release.outputs.version }}-release-check
+          path: ${{ runner.temp }}/${{ steps.release.outputs.release_check_apk_name }}
+          retention-days: 7

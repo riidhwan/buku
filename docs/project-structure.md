@@ -303,7 +303,7 @@ npx cap sync android
 
 Do not pin Java before the Android scaffold exists. Use the JDK required by the generated Capacitor Android project's Android Gradle Plugin and Android Studio baseline, then pin that verified version explicitly in CI and local documentation.
 
-Release signing is deferred. The initial Android project must support debug builds, but signing keys and release signing secrets are added only when app identity, distribution path, and environment strategy are known.
+Release signing uses a long-lived Android keystore kept outside git and injected into GitHub Actions from repository secrets. The first release channel is GitHub Releases, which publishes signed APKs for direct Android installation and future in-app updates. See `docs/release-playbook.md` for the release process.
 
 ## Angular Runtime
 

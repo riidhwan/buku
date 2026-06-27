@@ -1,0 +1,67 @@
+name: Release Publish
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: ${{ github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/') }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version-file: .java-version
+
+      - uses: android-actions/setup-android@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: release
+        run: node .github/scripts/validate-release.mjs --version=${{ github.event.pull_request.head.ref }}
+
+      - run: pnpm build
+      - run: pnpm cap:sync:android
+
+      - name: Decode release keystore
+        run: |
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+
+      - run: ./gradlew assembleRelease
+        working-directory: android
+        env:
+          ANDROID_SIGNING_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+
+      - run: mkdir -p release-dist
+      - run: cp android/app/build/outputs/apk/release/app-release.apk "release-dist/${{ steps.release.outputs.apk_name }}"
+      - run: sha256sum "${{ steps.release.outputs.apk_name }}" > SHA256SUMS
+        working-directory: release-dist
+
+      - run: node .github/scripts/publish-github-release.mjs --version=${{ steps.release.outputs.version }} --sha=${{ github.event.pull_request.merge_commit_sha }} --apk=release-dist/${{ steps.release.outputs.apk_name }} --checksums=release-dist/SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

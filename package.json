@@ -1,6 +1,6 @@
 {
   "name": "buku",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Android-first Ionic Angular app.",
   "packageManager": "pnpm@10.20.0",
   "scripts": {
@@ -16,6 +16,8 @@
     "format:check": "prettier . --check",
     "cap:sync:android": "cap sync android",
     "android:build:debug": "cd android && ./gradlew assembleDebug",
+    "android:build:release": "cd android && ./gradlew assembleRelease",
+    "release:validate": "node .github/scripts/validate-release.mjs",
     "android:install:debug": "pnpm build && pnpm cap:sync:android && cd android && ./gradlew installDebug",
     "prepare": "husky >/dev/null 2>&1 || true"
   },

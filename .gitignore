@@ -31,6 +31,7 @@ log.txt
 android/.gradle/
 android/**/build/
 android/local.properties
+android/release-signing.properties
 
 # Node
 /node_modules
