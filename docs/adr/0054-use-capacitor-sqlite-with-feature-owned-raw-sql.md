@@ -1,0 +1,5 @@
+# Use Capacitor SQLite with feature-owned raw SQL
+
+Buku will use `@capacitor-community/sqlite` as the Android SQLite integration and its upgrade statement API as the migration execution mechanism. The app owns the ordered raw SQL migration definitions in `core/storage/sqlite/migrations`, initializes and migrates one app-wide database from `core/storage`, and keeps all feature runtime SQL statements, row mapping, and repository behavior inside feature infrastructure adapters behind application-layer ports.
+
+This keeps native database lifecycle and migration registration centralized without moving Library concepts into `core`. Library persistence will move from Capacitor Preferences to normalized SQLite tables for Series and Series Entries, with an operation-shaped repository port, stable application-generated normalized titles, database uniqueness for duplicate detection, and an explicit one-time Preferences-to-SQLite data migration in Library infrastructure. SQLite encryption is deferred to a separate product and architecture decision; the initial database is unencrypted.

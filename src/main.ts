@@ -16,6 +16,7 @@ import { ERROR_REPORTER } from './app/core/errors/error-reporter.token';
 import { NoopErrorReporter } from './app/core/errors/noop-error-reporter';
 import { ConsoleLogger } from './app/core/logging/console-logger';
 import { LOGGER } from './app/core/logging/logger.token';
+import { provideSqliteStorage } from './app/core/storage/sqlite/provide-sqlite-storage';
 import { provideLibrary } from './app/features/library/infrastructure/provide-library';
 import { READING_LIBRARY_SAVE } from './app/features/explore/application/ports/reading-library-save.port';
 import { ReadingLibrarySaveAdapter } from './app/reading-library-save.adapter';
@@ -29,6 +30,7 @@ void bootstrapApplication(AppComponent, {
     { provide: LOGGER, useClass: ConsoleLogger },
     { provide: READING_LIBRARY_SAVE, useClass: ReadingLibrarySaveAdapter },
     provideLibrary(),
+    provideSqliteStorage(),
     provideAppConfig(environment.appConfig),
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
