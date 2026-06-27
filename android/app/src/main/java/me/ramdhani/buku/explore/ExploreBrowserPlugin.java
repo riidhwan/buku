@@ -181,9 +181,9 @@ public class ExploreBrowserPlugin extends Plugin {
 
     @PluginMethod
     public void extractArticle(PluginCall call) {
-        String readabilityScript = call.getString("readabilityScript");
-        if (readabilityScript == null || readabilityScript.length() == 0) {
-            call.reject("Missing Readability runner.");
+        String script = call.getString("script");
+        if (script == null || script.length() == 0) {
+            call.reject("Missing article extraction script.");
             return;
         }
 
@@ -194,7 +194,7 @@ public class ExploreBrowserPlugin extends Plugin {
                 return;
             }
 
-            webView.evaluateJavascript(articleExtractionScript(readabilityScript), result -> {
+            webView.evaluateJavascript(script, result -> {
                 try {
                     call.resolve(toArticleExtractionPayload(result));
                 } catch (JSONException error) {
@@ -296,36 +296,6 @@ public class ExploreBrowserPlugin extends Plugin {
         payload.put("capability", capability);
         payload.put("url", url);
         notifyListeners("capabilityUnsupported", payload);
-    }
-
-    private String articleExtractionScript(String readabilityScript) {
-        return "(function(){try{" +
-            readabilityScript +
-            ";" + ChapterNavigationScript.source() +
-            "var previousChapter=findChapterLink('previous');" +
-            "var nextChapter=findChapterLink('next');" +
-            ";var clonedDocument=document.cloneNode(true);" +
-            "var article=new Readability(clonedDocument).parse();" +
-            "if(!article||!article.content||!article.textContent||!article.textContent.trim()){" +
-            "return JSON.stringify({status:'unavailable'});" +
-            "}" +
-            "var snapshot={" +
-            "url:document.location.href," +
-            "title:article.title||document.title||document.location.href," +
-            "byline:article.byline||null," +
-            "siteName:article.siteName||null," +
-            "excerpt:article.excerpt||null," +
-            "publishedTime:article.publishedTime||null," +
-            "contentHtml:article.content||''," +
-            "textContent:article.textContent||''," +
-            "length:article.length||((article.textContent||'').length)" +
-            "};" +
-            "if(previousChapter){snapshot.previousChapter=previousChapter;}" +
-            "if(nextChapter){snapshot.nextChapter=nextChapter;}" +
-            "return JSON.stringify({status:'ok',article:snapshot});" +
-            "}catch(error){" +
-            "return JSON.stringify({status:'failed',message:error&&error.message?error.message:'Article extraction failed.'});" +
-            "}})();";
     }
 
     private JSObject toArticleExtractionPayload(String result) throws JSONException {

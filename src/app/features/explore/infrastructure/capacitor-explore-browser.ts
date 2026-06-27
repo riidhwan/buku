@@ -73,9 +73,7 @@ export interface ExploreBrowserPlugin {
   forward(): Promise<void>;
   copyUrl(options: { readonly url: string }): Promise<void>;
   openExternal(options: { readonly url: string }): Promise<void>;
-  extractArticle(options: {
-    readonly readabilityScript: string;
-  }): Promise<NativeArticleExtractionResult>;
+  extractArticle(options: { readonly script: string }): Promise<NativeArticleExtractionResult>;
   addListener(
     eventName: 'navigationState',
     listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,
