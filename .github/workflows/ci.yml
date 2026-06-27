@@ -57,8 +57,7 @@ jobs:
       - uses: android-actions/setup-android@v4
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm cap:sync:android
+      - run: pnpm android:sync:debug
       - run: ./gradlew test
         working-directory: android
       - run: ./gradlew lint

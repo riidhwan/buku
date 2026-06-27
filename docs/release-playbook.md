@@ -20,7 +20,7 @@ Releases start from a branch named `release/<version>`, where `<version>` is the
 
 The release pull request owns the app version bump. `package.json` `version` and Android `versionName` must match `<version>`, Android `versionCode` must be an explicit source-owned integer greater than the current `master` value, and the eventual Git tag must be `v<version>`. Release automation publishes the reviewed version metadata; it does not invent or rewrite it after merge.
 
-Release pull requests run the normal pull request quality gates unchanged, plus a separate release-check job that runs `pnpm build`, `pnpm cap:sync:android`, and `./gradlew assembleRelease` with the disposable release-check keystore. The release-check job proves the signed Android release artifact can be built from the proposed release state without duplicating the normal format, lint, and unit test jobs.
+Release pull requests run the normal pull request quality gates unchanged, plus a separate release-check job that runs `pnpm android:sync:release` and `./gradlew assembleRelease` with the disposable release-check keystore. The release-check job proves the signed Android release artifact can be built from the proposed release state without duplicating the normal format, lint, and unit test jobs.
 
 The release-check job may upload its disposable-signed APK as a short-lived workflow artifact named `buku-<version>-release-check.apk`, retained for 7 days. This artifact is for debugging only and must not be attached to GitHub Releases.
 
