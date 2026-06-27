@@ -38,8 +38,7 @@ jobs:
       - id: release
         run: node .github/scripts/validate-release.mjs --check-master-version-code
 
-      - run: pnpm build
-      - run: pnpm cap:sync:android
+      - run: pnpm android:sync:release
 
       - name: Decode release-check keystore
         run: |

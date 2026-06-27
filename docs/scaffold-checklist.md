@@ -141,8 +141,7 @@ pnpm build
 
 ```text
 pnpm install --frozen-lockfile
-pnpm build
-npx cap sync android
+pnpm android:sync:debug
 ./gradlew test
 ./gradlew lint
 ./gradlew assembleDebug

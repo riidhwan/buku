@@ -39,7 +39,7 @@ pnpm lint
 pnpm lint:styles
 pnpm exec tsc -p tsconfig.spec.json --noEmit
 pnpm build
-pnpm cap:sync:android
+pnpm android:sync:debug
 ```
 
 For Android changes, also run from `android/`:
