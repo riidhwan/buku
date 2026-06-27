@@ -156,6 +156,17 @@ describe('ExploreBrowserPage', () => {
     expect(browser.openInputs).toBe(1);
   });
 
+  it('opens the dedicated tabs view from the toolbar', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const tabsButton = getEndToolbarButtons(nativeElement).item(2);
+
+    tabsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.hidden).toBe(1);
+    expect(router.navigations).toEqual([['explore', 'browser', 'tabs']]);
+  });
+
   it('treats empty browser URL input event values as an empty string', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const input = nativeElement.querySelectorAll('ion-input').item(0);

@@ -1,0 +1,52 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button aria-label="Close tabs" (click)="close()">
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+
+    <ion-title>Explore Browser Tabs</ion-title>
+
+    <ion-buttons slot="end">
+      <ion-button aria-label="New tab" (click)="createBlankTab()">
+        <ion-icon name="add-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list inset="true" class="tab-list">
+    @for (tab of browser.tabs(); track tab.id) {
+    <ion-item
+      button="true"
+      detail="false"
+      [class.tab-list-active]="browser.activeTab()?.id === tab.id"
+      (click)="selectTab(tab.id)"
+    >
+      @if (browser.activeTab()?.id === tab.id) {
+      <ion-icon
+        slot="start"
+        name="checkmark-circle-outline"
+        color="primary"
+        aria-hidden="true"
+      ></ion-icon>
+      }
+
+      <ion-label>
+        <h2>{{ tabLabel(tab.url) }}</h2>
+        @if (tab.url !== null) {
+        <p>{{ tab.url }}</p>
+        } @else {
+        <p>Ready for a new address.</p>
+        }
+      </ion-label>
+
+      <ion-button slot="end" fill="clear" aria-label="Close tab" (click)="closeTab($event, tab.id)">
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-item>
+    }
+  </ion-list>
+</ion-content>

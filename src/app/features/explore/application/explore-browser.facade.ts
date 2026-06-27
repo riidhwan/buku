@@ -2,7 +2,12 @@ import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
 import { filter, firstValueFrom, Subscription, take } from 'rxjs';
 import { ReadingArticleSnapshot, ReadingChapterLink } from '../domain/reading-article';
 import { BrowserUrlPolicy } from './browser-url-policy';
-import { BROWSER_SESSION_STORE, BrowserSessionStorePort } from './ports/browser-session-store.port';
+import {
+  BROWSER_SESSION_STORE,
+  BrowserSessionStorePort,
+  BrowserTabSession,
+  ExploreBrowserTab,
+} from './ports/browser-session-store.port';
 import {
   BROWSER_VIEWPORT,
   BrowserArticleExtractionResult,
@@ -66,7 +71,8 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   private readonly inputValueSignal = signal('');
   private readonly currentUrlSignal = signal<string | null>(null);
-  private readonly lastUrlSignal = signal<string | null>(null);
+  private readonly tabsSignal = signal<readonly ExploreBrowserTab[]>([]);
+  private readonly selectedTabIdSignal = signal<string | null>(null);
   private readonly loadingSignal = signal(false);
   private readonly canGoBackSignal = signal(false);
   private readonly canGoForwardSignal = signal(false);
@@ -77,7 +83,23 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   public readonly inputValue = this.inputValueSignal.asReadonly();
   public readonly currentUrl = this.currentUrlSignal.asReadonly();
-  public readonly lastUrl = this.lastUrlSignal.asReadonly();
+  public readonly tabs = this.tabsSignal.asReadonly();
+  public readonly activeTab = computed(() => this.findActiveTab());
+  public readonly recentTabs = computed(() => this.tabsSignal().filter((tab) => tab.url !== null));
+  public readonly lastUrl = computed(() => {
+    const recentTabs = this.recentTabs();
+    if (recentTabs.length === 0) {
+      return null;
+    }
+
+    const lastTab = recentTabs[recentTabs.length - 1];
+    /* istanbul ignore if -- guarded by the length check above. */
+    if (lastTab === undefined) {
+      return null;
+    }
+
+    return lastTab.url;
+  });
   public readonly loading = this.loadingSignal.asReadonly();
   public readonly canGoBack = this.canGoBackSignal.asReadonly();
   public readonly canGoForward = this.canGoForwardSignal.asReadonly();
@@ -103,8 +125,21 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async initialize(): Promise<void> {
-    const lastUrl = await this.sessionStore.readLastUrl();
-    this.lastUrlSignal.set(lastUrl);
+    const session = await this.sessionStore.readTabSession();
+    if (session.tabs.length > 0) {
+      this.applySession(session);
+      return;
+    }
+
+    const legacyLastUrl = await this.sessionStore.readLegacyLastUrl();
+    if (legacyLastUrl !== null) {
+      const tab = this.createTab(legacyLastUrl);
+      this.applySession({ tabs: [tab], selectedTabId: tab.id });
+      await this.persistTabs();
+      return;
+    }
+
+    this.replaceWithBlankTab();
   }
 
   public updateInputValue(value: string): void {
@@ -113,17 +148,87 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async openInput(): Promise<BrowserOpenResult> {
-    return this.openRawValue(this.inputValueSignal());
+    return this.openRawValue(this.inputValueSignal(), 'active');
   }
 
-  public async resumeLastUrl(): Promise<BrowserOpenResult> {
-    const lastUrl = this.lastUrlSignal();
-    if (lastUrl === null) {
+  public async openInputInNewTab(): Promise<BrowserOpenResult> {
+    return this.openRawValue(this.inputValueSignal(), 'new');
+  }
+
+  public async resumeTab(tabId: string): Promise<BrowserOpenResult> {
+    const tab = this.tabsSignal().find((candidate) => candidate.id === tabId);
+    if (tab?.url === undefined || tab.url === null) {
       return { ok: false };
     }
 
-    this.inputValueSignal.set(lastUrl);
-    return this.openRawValue(lastUrl);
+    await this.selectTab(tab.id);
+    return { ok: true };
+  }
+
+  public async resumeLastUrl(): Promise<BrowserOpenResult> {
+    const recentTabs = this.recentTabs();
+    const lastTab = recentTabs[recentTabs.length - 1];
+    if (lastTab === undefined) {
+      return { ok: false };
+    }
+
+    return this.resumeTab(lastTab.id);
+  }
+
+  public async createBlankTab(): Promise<void> {
+    const tab = this.createTab(null);
+    this.tabsSignal.update((tabs) => [...tabs, tab]);
+    this.selectedTabIdSignal.set(tab.id);
+    await this.clearVisiblePageForBlankTab();
+    await this.persistTabs();
+  }
+
+  public async selectTab(tabId: string): Promise<void> {
+    const tab = this.tabsSignal().find((candidate) => candidate.id === tabId);
+    if (tab === undefined) {
+      return;
+    }
+
+    this.selectedTabIdSignal.set(tab.id);
+    await this.persistTabs();
+    if (tab.url === null) {
+      await this.clearVisiblePageForBlankTab();
+      return;
+    }
+
+    await this.loadSelectedTabUrl(tab.url);
+  }
+
+  public async closeTab(tabId: string): Promise<void> {
+    const tabs = this.tabsSignal();
+    const closedIndex = tabs.findIndex((tab) => tab.id === tabId);
+    if (closedIndex === -1) {
+      return;
+    }
+
+    const wasSelected = this.selectedTabIdSignal() === tabId;
+    const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
+    if (remainingTabs.length === 0) {
+      this.replaceWithBlankTab();
+      await this.clearVisiblePageForBlankTab();
+      await this.persistTabs();
+      return;
+    }
+
+    this.tabsSignal.set(remainingTabs);
+    if (!wasSelected) {
+      await this.persistTabs();
+      return;
+    }
+
+    const nextIndex = Math.max(0, closedIndex - 1);
+    const nextTab = remainingTabs[nextIndex];
+    /* istanbul ignore if -- guarded by remaining tab length and bounded nextIndex. */
+    if (nextTab === undefined) {
+      return;
+    }
+
+    await this.selectTab(nextTab.id);
   }
 
   public async retryCurrentUrl(): Promise<BrowserOpenResult> {
@@ -323,7 +428,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.noticeSignal.set(null);
   }
 
-  private async openRawValue(value: string): Promise<BrowserOpenResult> {
+  private async openRawValue(value: string, target: 'active' | 'new'): Promise<BrowserOpenResult> {
     const normalized = this.urlPolicy.normalize(value);
 
     if (!normalized.ok) {
@@ -332,15 +437,43 @@ export class ExploreBrowserFacade implements OnDestroy {
     }
 
     this.validationErrorSignal.set(null);
-    await this.loadNormalizedUrl(normalized.url);
+    if (target === 'new') {
+      const tab = this.createTab(normalized.url);
+      this.tabsSignal.update((tabs) => [...tabs, tab]);
+      this.selectedTabIdSignal.set(tab.id);
+    } else {
+      this.ensureActiveTab();
+      this.updateActiveTabUrl(normalized.url);
+    }
+
+    await this.persistTabs();
+    await this.loadSelectedTabUrl(normalized.url);
     return { ok: true };
   }
 
   private async loadNormalizedUrl(url: string): Promise<void> {
+    this.ensureActiveTab();
+    this.updateActiveTabUrl(url);
+    await this.persistTabs();
+    await this.loadSelectedTabUrl(url);
+  }
+
+  private async loadSelectedTabUrl(url: string): Promise<void> {
     this.inputValueSignal.set(url);
     this.currentUrlSignal.set(url);
     this.loadingSignal.set(true);
     await this.viewport.load(url);
+  }
+
+  private async clearVisiblePageForBlankTab(): Promise<void> {
+    this.inputValueSignal.set('');
+    this.currentUrlSignal.set(null);
+    this.loadingSignal.set(false);
+    this.canGoBackSignal.set(false);
+    this.canGoForwardSignal.set(false);
+    this.validationErrorSignal.set(null);
+    await this.viewport.hide();
+    await this.viewport.destroy();
   }
 
   private chapterLinkForDirection(
@@ -426,8 +559,8 @@ export class ExploreBrowserFacade implements OnDestroy {
         this.canGoBackSignal.set(event.state.canGoBack);
         this.canGoForwardSignal.set(event.state.canGoForward);
         if (event.committed) {
-          this.lastUrlSignal.set(event.state.url);
-          void this.sessionStore.writeLastUrl(event.state.url);
+          this.updateActiveTabUrl(event.state.url);
+          void this.persistTabs();
         }
         break;
       case 'loadFailed':
@@ -446,5 +579,89 @@ export class ExploreBrowserFacade implements OnDestroy {
         });
         break;
     }
+  }
+
+  private applySession(session: BrowserTabSession): void {
+    const selectedTabId = this.selectedTabIdForSession(session);
+    this.tabsSignal.set(session.tabs);
+    this.selectedTabIdSignal.set(selectedTabId);
+
+    const activeTab = this.findActiveTab();
+    /* istanbul ignore if -- selectedTabIdForSession always returns a tab from this session. */
+    if (activeTab === null) {
+      this.currentUrlSignal.set(null);
+      this.inputValueSignal.set('');
+      return;
+    }
+
+    this.currentUrlSignal.set(activeTab.url);
+    this.inputValueSignal.set(activeTab.url ?? '');
+  }
+
+  private selectedTabIdForSession(session: BrowserTabSession): string {
+    const selectedTabId = session.selectedTabId;
+    if (selectedTabId !== null && session.tabs.some((tab) => tab.id === selectedTabId)) {
+      return selectedTabId;
+    }
+
+    const firstTab = session.tabs[0];
+    /* istanbul ignore if -- initialize only applies non-empty persisted sessions. */
+    if (firstTab === undefined) {
+      throw new Error('Cannot select a tab from an empty session.');
+    }
+
+    return firstTab.id;
+  }
+
+  private findActiveTab(): ExploreBrowserTab | null {
+    const selectedTabId = this.selectedTabIdSignal();
+    if (selectedTabId === null) {
+      return null;
+    }
+
+    const tab = this.tabsSignal().find((candidate) => candidate.id === selectedTabId);
+    /* istanbul ignore next -- selected ids are maintained through facade tab commands. */
+    return tab ?? null;
+  }
+
+  private ensureActiveTab(): void {
+    if (this.findActiveTab() !== null) {
+      return;
+    }
+
+    this.replaceWithBlankTab();
+  }
+
+  private replaceWithBlankTab(): void {
+    const tab = this.createTab(null);
+    this.tabsSignal.set([tab]);
+    this.selectedTabIdSignal.set(tab.id);
+    this.currentUrlSignal.set(null);
+    this.inputValueSignal.set('');
+  }
+
+  private updateActiveTabUrl(url: string): void {
+    const selectedTabId = this.selectedTabIdSignal();
+    if (selectedTabId === null) {
+      return;
+    }
+
+    this.tabsSignal.update((tabs) =>
+      tabs.map((tab) => (tab.id === selectedTabId ? { ...tab, url } : tab)),
+    );
+  }
+
+  private createTab(url: string | null): ExploreBrowserTab {
+    return {
+      id: `explore-tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+      url,
+    };
+  }
+
+  private async persistTabs(): Promise<void> {
+    await this.sessionStore.writeTabSession({
+      tabs: this.tabsSignal(),
+      selectedTabId: this.selectedTabIdSignal(),
+    });
   }
 }

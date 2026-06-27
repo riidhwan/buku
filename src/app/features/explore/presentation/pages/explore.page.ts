@@ -44,16 +44,25 @@ export class ExplorePage implements OnInit {
   }
 
   protected async openUrl(): Promise<void> {
-    const result = await this.browser.openInput();
+    const result = await this.browser.openInputInNewTab();
     if (result.ok) {
       await this.router.navigate(['explore', 'browser']);
     }
   }
 
-  protected async resumeLastUrl(): Promise<void> {
-    const result = await this.browser.resumeLastUrl();
+  protected async resumeTab(tabId: string): Promise<void> {
+    const result = await this.browser.resumeTab(tabId);
     if (result.ok) {
       await this.router.navigate(['explore', 'browser']);
     }
+  }
+
+  protected tabLabel(url: string | null): string {
+    if (url === null) {
+      return 'Blank tab';
+    }
+
+    const parsedUrl = new URL(url);
+    return `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}`;
   }
 }
