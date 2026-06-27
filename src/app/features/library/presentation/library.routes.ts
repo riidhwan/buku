@@ -1,10 +1,8 @@
 import { Routes } from '@angular/router';
-import { provideLibrary } from '../infrastructure/provide-library';
 
 export const routes: Routes = [
   {
     path: '',
-    providers: [provideLibrary()],
     children: [
       {
         path: '',

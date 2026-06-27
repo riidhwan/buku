@@ -1,11 +1,25 @@
-import {
-  LibrarySeries,
-  LibrarySeriesEntry,
-  LibrarySeriesSummary,
-} from '../../domain/library-series';
+import { LibraryDocument } from '../../domain/library-series';
+
+export type LoadLibraryResult =
+  | {
+      readonly ok: true;
+      readonly document: LibraryDocument;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: 'persistenceFailed';
+    };
+
+export type SaveLibraryDocumentResult =
+  | {
+      readonly ok: true;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: 'persistenceFailed';
+    };
 
 export interface LibraryRepository {
-  listSeries(): readonly LibrarySeriesSummary[];
-  getSeries(seriesId: string): LibrarySeries | null;
-  getEntry(seriesId: string, entryId: string): LibrarySeriesEntry | null;
+  load(): Promise<LoadLibraryResult>;
+  save(document: LibraryDocument): Promise<SaveLibraryDocumentResult>;
 }

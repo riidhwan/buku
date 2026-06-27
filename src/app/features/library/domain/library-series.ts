@@ -35,3 +35,13 @@ export interface LibrarySeriesEntry {
   readonly createdAt: string;
   readonly updatedAt: string;
 }
+
+export interface LibrarySeriesRecord {
+  readonly id: string;
+  readonly title: string;
+  readonly entries: readonly LibrarySeriesEntry[];
+}
+
+export interface LibraryDocument {
+  readonly series: readonly LibrarySeriesRecord[];
+}

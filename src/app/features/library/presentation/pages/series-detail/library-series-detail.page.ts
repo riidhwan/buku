@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   IonBackButton,
@@ -33,7 +33,7 @@ import { LibrarySeries } from '../../../domain/library-series';
     RouterLink,
   ],
 })
-export class LibrarySeriesDetailPage {
+export class LibrarySeriesDetailPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
   private readonly dateTimeFormatter = new Intl.DateTimeFormat('en', {
@@ -44,9 +44,11 @@ export class LibrarySeriesDetailPage {
     year: 'numeric',
   });
 
-  protected readonly series: LibrarySeries | null = this.library.getSeries(
-    this.route.snapshot.paramMap.get('seriesId') ?? '',
-  );
+  protected readonly series = signal<LibrarySeries | null>(null);
+
+  public ngOnInit(): void {
+    void this.loadSeries();
+  }
 
   protected formatEntrySummary(sourceHost: string | null, createdAt: string): string {
     const savedAt = `Saved ${this.formatDateTime(createdAt)}`;
@@ -60,5 +62,11 @@ export class LibrarySeriesDetailPage {
     }
 
     return this.dateTimeFormatter.format(date);
+  }
+
+  private async loadSeries(): Promise<void> {
+    this.series.set(
+      await this.library.getSeries(this.route.snapshot.paramMap.get('seriesId') ?? ''),
+    );
   }
 }

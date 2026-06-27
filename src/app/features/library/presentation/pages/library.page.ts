@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   IonContent,
@@ -11,6 +11,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { LibraryFacade } from '../../application/library.facade';
+import { LibrarySeriesSummary } from '../../domain/library-series';
 
 @Component({
   selector: 'app-library-page',
@@ -28,16 +29,20 @@ import { LibraryFacade } from '../../application/library.facade';
     RouterLink,
   ],
 })
-export class LibraryPage {
+export class LibraryPage implements OnInit {
   private readonly library = inject(LibraryFacade);
 
-  protected readonly series = this.library.listSeries();
+  protected readonly series = signal<readonly LibrarySeriesSummary[]>([]);
 
   private readonly dateFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
+
+  public ngOnInit(): void {
+    void this.loadSeries();
+  }
 
   protected formatSeriesSummary(entryCount: number, lastSavedAt: string): string {
     const entryLabel = entryCount === 1 ? '1 entry' : `${String(entryCount)} entries`;
@@ -51,5 +56,9 @@ export class LibraryPage {
     }
 
     return this.dateFormatter.format(date);
+  }
+
+  private async loadSeries(): Promise<void> {
+    this.series.set(await this.library.listSeries());
   }
 }
