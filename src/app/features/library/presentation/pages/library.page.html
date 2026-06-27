@@ -4,4 +4,17 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content></ion-content>
+<ion-content>
+  <ion-list>
+    @for (seriesItem of series; track seriesItem.id) {
+    <ion-item [routerLink]="['/library', 'series', seriesItem.id]" detail="true">
+      <ion-label>
+        <h2>{{ seriesItem.title }}</h2>
+        <p>{{ formatSeriesSummary(seriesItem.entryCount, seriesItem.lastSavedAt) }}</p>
+      </ion-label>
+    </ion-item>
+    } @empty {
+    <ion-note class="library-empty">No Series saved yet.</ion-note>
+    }
+  </ion-list>
+</ion-content>

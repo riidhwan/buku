@@ -1,0 +1,68 @@
+app-library-entry-reader-page {
+  display: block;
+}
+
+.library-reader-article {
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 18px 40px;
+}
+
+.library-reader-header {
+  margin-bottom: 24px;
+}
+
+.library-reader-source,
+.library-reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--ion-color-medium);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.library-reader-header h1 {
+  margin: 0 0 12px;
+  color: var(--ion-color-dark);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.library-reader-body {
+  color: var(--ion-color-dark);
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.library-reader-body p,
+.library-reader-body ul,
+.library-reader-body ol,
+.library-reader-body blockquote,
+.library-reader-body pre,
+.library-reader-body figure {
+  margin: 0 0 1.1rem;
+}
+
+.library-reader-body h2,
+.library-reader-body h3,
+.library-reader-body h4 {
+  margin: 1.8rem 0 0.8rem;
+  color: var(--ion-color-dark);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.library-reader-body a {
+  color: var(--ion-color-primary);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.library-reader-empty {
+  display: block;
+  padding: 24px 16px;
+}

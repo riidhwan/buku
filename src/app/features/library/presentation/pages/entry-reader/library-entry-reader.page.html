@@ -1,0 +1,58 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="['/library', 'series', seriesId].join('/')"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ entry?.displayTitle ?? 'Entry not found' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button
+        aria-label="Previous saved entry"
+        [disabled]="previousEntryId === null"
+        (click)="navigateToEntry(previousEntryId)"
+      >
+        <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+      <ion-button
+        aria-label="Next saved entry"
+        [disabled]="nextEntryId === null"
+        (click)="navigateToEntry(nextEntryId)"
+      >
+        <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (entry; as selectedEntry) {
+  <article class="library-reader-article">
+    <header class="library-reader-header">
+      <p class="library-reader-source">
+        {{ selectedEntry.siteName ?? selectedEntry.sourceHost ?? selectedEntry.sourceUrl }}
+      </p>
+      <h1>{{ selectedEntry.articleTitle }}</h1>
+      @if (selectedEntry.byline !== null || selectedEntry.publishedTime !== null) {
+      <ion-text class="library-reader-meta">
+        @if (selectedEntry.byline !== null) {
+        <span>{{ selectedEntry.byline }}</span>
+        } @if (selectedEntry.publishedTime !== null) {
+        <time [attr.datetime]="selectedEntry.publishedTime"
+          >{{ formatPublishedTime(selectedEntry.publishedTime) }}</time
+        >
+        }
+      </ion-text>
+      }
+    </header>
+
+    <div
+      class="library-reader-body"
+      tabindex="0"
+      [innerHTML]="selectedEntry.contentHtml"
+      (click)="preventReaderLinkNavigation($event)"
+      (keydown.enter)="preventReaderLinkNavigation($event)"
+    ></div>
+  </article>
+  } @else {
+  <ion-text class="library-reader-empty">This entry is not in the Library.</ion-text>
+  }
+</ion-content>
