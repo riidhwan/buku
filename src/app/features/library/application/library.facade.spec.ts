@@ -55,7 +55,13 @@ describe('LibraryFacade', () => {
           },
         }),
       getEntry: () => Promise.resolve({ ok: true, entry }),
-      saveEntry: () => Promise.resolve({ ok: true, status: 'missingSeries' }),
+      saveEntry: (input) =>
+        Promise.resolve({
+          ok: true,
+          status: 'saved',
+          seriesId: 'series-1',
+          entryId: input.entry.id,
+        }),
     };
     const facade = createFacade(repository);
 
@@ -82,6 +88,20 @@ describe('LibraryFacade', () => {
       ],
     });
     await expectAsync(facade.getEntry('series-1', 'entry-1')).toBeResolvedTo(entry);
+    await expectAsync(
+      facade.saveReadingSnapshot({
+        snapshot: {
+          url: 'https://example.com/entry-2',
+          title: 'Article 2',
+          byline: null,
+          siteName: null,
+          publishedTime: null,
+          contentHtml: '<p>Content</p>',
+        },
+        entryTitle: 'Entry 2',
+        target: { kind: 'title', title: 'Mock Series' },
+      }),
+    ).toBeResolvedTo({ status: 'saved', seriesId: 'series-1', entryId: 'id' });
   });
 
   it('returns empty and null reads when repository operations fail', async () => {
