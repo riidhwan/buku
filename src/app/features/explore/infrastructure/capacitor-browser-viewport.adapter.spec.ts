@@ -23,7 +23,7 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public shownRect: NativeBrowserViewportRect | null = null;
   public loadedUrl: string | null = null;
   public copiedUrl: string | null = null;
-  public readabilityScript: string | null = null;
+  public script: string | null = null;
   public articleExtractionResult: NativeArticleExtractionResult = {
     status: 'unavailable',
   };
@@ -82,10 +82,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   }
 
   public extractArticle(options: {
-    readonly readabilityScript: string;
+    readonly script: string;
   }): Promise<NativeArticleExtractionResult> {
     this.calls.push('extractArticle');
-    this.readabilityScript = options.readabilityScript;
+    this.script = options.script;
     return Promise.resolve(this.articleExtractionResult);
   }
 
@@ -130,10 +130,23 @@ describe('CapacitorBrowserViewportAdapter', () => {
   let adapter: CapacitorBrowserViewportAdapter;
   let plugin: FakeExploreBrowserPlugin;
   let events: BrowserViewportEvent[];
+  let scriptAssets: Map<string, string>;
 
   beforeEach(async () => {
     plugin = new FakeExploreBrowserPlugin();
-    spyOn(window, 'fetch').and.resolveTo(new Response('readability script'));
+    scriptAssets = new Map([
+      ['assets/readability/Readability.js', 'readability script'],
+      ['assets/explore/chapter-navigation.js', 'chapter navigation script'],
+      ['assets/explore/article-extraction.js', 'article extraction script'],
+    ]);
+    spyOn(window, 'fetch').and.callFake((input: RequestInfo | URL) => {
+      const url =
+        input instanceof Request ? input.url : input instanceof URL ? input.toString() : input;
+      const script = scriptAssets.get(url);
+      return Promise.resolve(
+        script === undefined ? new Response('', { status: 404 }) : new Response(script),
+      );
+    });
     TestBed.configureTestingModule({
       providers: [
         CapacitorBrowserViewportAdapter,
@@ -204,8 +217,14 @@ describe('CapacitorBrowserViewportAdapter', () => {
 
     const result = await adapter.extractArticle();
 
-    expect(window.fetch).toHaveBeenCalledOnceWith('assets/readability/Readability.js');
-    expect(plugin.readabilityScript).toBe('readability script');
+    expect(window.fetch).toHaveBeenCalledTimes(3);
+    expect(window.fetch).toHaveBeenCalledWith('assets/readability/Readability.js');
+    expect(window.fetch).toHaveBeenCalledWith('assets/explore/chapter-navigation.js');
+    expect(window.fetch).toHaveBeenCalledWith('assets/explore/article-extraction.js');
+    expect(plugin.script).toContain('readability script');
+    expect(plugin.script).toContain('chapter navigation script');
+    expect(plugin.script).toContain('article extraction script');
+    expect(plugin.script).toContain('window.BukuExplore.extractArticle()');
     expect(result).toEqual(plugin.articleExtractionResult);
   });
 
@@ -248,11 +267,11 @@ describe('CapacitorBrowserViewportAdapter', () => {
       status: 'failed',
       message: 'Script failed',
     });
-    expect(window.fetch).toHaveBeenCalledTimes(1);
+    expect(window.fetch).toHaveBeenCalledTimes(3);
   });
 
   it('maps Readability asset loading failures to failed extraction', async () => {
-    (window.fetch as jasmine.Spy).and.resolveTo(new Response('', { status: 404 }));
+    scriptAssets.delete('assets/readability/Readability.js');
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -267,6 +286,25 @@ describe('CapacitorBrowserViewportAdapter', () => {
     expect(await adapter.extractArticle()).toEqual({
       status: 'failed',
       message: 'Readability runner could not be loaded.',
+    });
+  });
+
+  it('maps Explore script asset loading failures to failed extraction', async () => {
+    scriptAssets.delete('assets/explore/chapter-navigation.js');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        CapacitorBrowserViewportAdapter,
+        { provide: EXPLORE_BROWSER_PLUGIN, useValue: plugin },
+      ],
+    });
+    adapter = TestBed.inject(CapacitorBrowserViewportAdapter);
+
+    await Promise.resolve();
+
+    expect(await adapter.extractArticle()).toEqual({
+      status: 'failed',
+      message: 'Chapter navigation runner could not be loaded.',
     });
   });
 

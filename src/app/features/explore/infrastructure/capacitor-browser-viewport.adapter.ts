@@ -29,6 +29,8 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
   private readonly eventsSubject = new Subject<BrowserViewportEvent>();
   private readonly plugin = inject(EXPLORE_BROWSER_PLUGIN);
   private readabilityScriptPromise: Promise<string> | null = null;
+  private chapterNavigationScriptPromise: Promise<string> | null = null;
+  private articleExtractionScriptPromise: Promise<string> | null = null;
 
   public readonly events$ = this.eventsSubject.asObservable();
 
@@ -74,9 +76,20 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
 
   public async extractArticle(): Promise<BrowserArticleExtractionResult> {
     try {
-      const readabilityScript = await this.loadReadabilityScript();
+      const [readabilityScript, chapterNavigationScript, articleExtractionScript] =
+        await Promise.all([
+          this.loadReadabilityScript(),
+          this.loadChapterNavigationScript(),
+          this.loadArticleExtractionScript(),
+        ]);
       return this.toArticleExtractionResult(
-        await this.plugin.extractArticle({ readabilityScript }),
+        await this.plugin.extractArticle({
+          script: this.toInjectedArticleExtractionScript(
+            readabilityScript,
+            chapterNavigationScript,
+            articleExtractionScript,
+          ),
+        }),
       );
     } catch (error) {
       return {
@@ -125,17 +138,55 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
   }
 
   private loadReadabilityScript(): Promise<string> {
-    this.readabilityScriptPromise ??= fetch('assets/readability/Readability.js').then(
-      (response) => {
-        if (!response.ok) {
-          throw new Error('Readability runner could not be loaded.');
-        }
-
-        return response.text();
-      },
+    this.readabilityScriptPromise ??= this.loadScriptAsset(
+      'assets/readability/Readability.js',
+      'Readability runner could not be loaded.',
     );
 
     return this.readabilityScriptPromise;
+  }
+
+  private loadChapterNavigationScript(): Promise<string> {
+    this.chapterNavigationScriptPromise ??= this.loadScriptAsset(
+      'assets/explore/chapter-navigation.js',
+      'Chapter navigation runner could not be loaded.',
+    );
+
+    return this.chapterNavigationScriptPromise;
+  }
+
+  private loadArticleExtractionScript(): Promise<string> {
+    this.articleExtractionScriptPromise ??= this.loadScriptAsset(
+      'assets/explore/article-extraction.js',
+      'Article extraction runner could not be loaded.',
+    );
+
+    return this.articleExtractionScriptPromise;
+  }
+
+  private loadScriptAsset(url: string, failureMessage: string): Promise<string> {
+    return fetch(url).then((response) => {
+      if (!response.ok) {
+        throw new Error(failureMessage);
+      }
+
+      return response.text();
+    });
+  }
+
+  private toInjectedArticleExtractionScript(
+    readabilityScript: string,
+    chapterNavigationScript: string,
+    articleExtractionScript: string,
+  ): string {
+    return `(function(){try{
+${readabilityScript}
+${chapterNavigationScript}
+${articleExtractionScript}
+return JSON.stringify(window.BukuExplore.extractArticle());
+}catch(error){
+return JSON.stringify({status:'failed',message:error&&error.message?error.message:'Article extraction failed.'});
+}})();`;
   }
 
   private toArticleExtractionResult(
