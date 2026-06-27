@@ -85,6 +85,10 @@ rtk ./gradlew assembleDebug
 
 Run Gradle commands from `android/`.
 
+## GitHub CLI
+
+`gh` commands that read or write GitHub authentication state may need escalated execution in the managed sandbox. If `gh auth status` reports an invalid token from the sandbox, retry the same GitHub CLI operation with escalation before concluding that authentication is actually broken.
+
 ## Changing The Architecture
 
 Do not silently change the architecture. If a change conflicts with an ADR or `docs/project-structure.md`, stop and surface the trade-off. If the user accepts the change, update the relevant docs and add a new ADR when the decision is hard to reverse, surprising without context, and the result of a real trade-off.
