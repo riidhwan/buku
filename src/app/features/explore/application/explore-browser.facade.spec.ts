@@ -2,7 +2,11 @@ import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { ExploreBrowserFacade } from './explore-browser.facade';
-import { BROWSER_SESSION_STORE, BrowserSessionStorePort } from './ports/browser-session-store.port';
+import {
+  BROWSER_SESSION_STORE,
+  BrowserSessionStorePort,
+  BrowserTabSession,
+} from './ports/browser-session-store.port';
 import {
   BrowserArticleExtractionResult,
   BROWSER_VIEWPORT,
@@ -13,16 +17,21 @@ import {
 import { EXTERNAL_URL_OPENER, ExternalUrlOpenerPort } from './ports/external-url-opener.port';
 
 class FakeBrowserSessionStore implements BrowserSessionStorePort {
-  public lastUrl: string | null = null;
-  public readonly writes: string[] = [];
+  public session: BrowserTabSession = { tabs: [], selectedTabId: null };
+  public legacyLastUrl: string | null = null;
+  public readonly writes: BrowserTabSession[] = [];
 
-  public readLastUrl(): Promise<string | null> {
-    return Promise.resolve(this.lastUrl);
+  public readTabSession(): Promise<BrowserTabSession> {
+    return Promise.resolve(this.session);
   }
 
-  public writeLastUrl(url: string): Promise<void> {
-    this.writes.push(url);
-    this.lastUrl = url;
+  public readLegacyLastUrl(): Promise<string | null> {
+    return Promise.resolve(this.legacyLastUrl);
+  }
+
+  public writeTabSession(session: BrowserTabSession): Promise<void> {
+    this.writes.push(session);
+    this.session = session;
     return Promise.resolve();
   }
 }
@@ -35,6 +44,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   public copiedUrl: string | null = null;
   public shownRect: BrowserViewportRect | null = null;
   public hideCount = 0;
+  public destroyCount = 0;
   public stopCount = 0;
   public reloadCount = 0;
   public backCount = 0;
@@ -60,6 +70,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   }
 
   public destroy(): Promise<void> {
+    this.destroyCount += 1;
     return Promise.resolve();
   }
 
@@ -177,12 +188,60 @@ describe('ExploreBrowserFacade', () => {
     facade = TestBed.inject(ExploreBrowserFacade);
   });
 
-  it('loads the resumable last URL', async () => {
-    store.lastUrl = 'https://example.com/';
+  it('initializes persisted tabs', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: 'https://buku.example/' },
+      ],
+      selectedTabId: 'tab-2',
+    };
 
     await facade.initialize();
 
-    expect(facade.lastUrl()).toBe('https://example.com/');
+    expect(facade.tabs()).toEqual(store.session.tabs);
+    expect(facade.activeTab()).toEqual({ id: 'tab-2', url: 'https://buku.example/' });
+    expect(facade.inputValue()).toBe('https://buku.example/');
+    expect(facade.lastUrl()).toBe('https://buku.example/');
+  });
+
+  it('falls back to the first tab when the persisted selected tab is missing', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: 'https://buku.example/' },
+      ],
+      selectedTabId: 'missing-tab',
+    };
+
+    await facade.initialize();
+
+    expect(facade.activeTab()?.id).toBe('tab-1');
+    expect(facade.inputValue()).toBe('https://example.com/');
+  });
+
+  it('initializes a persisted blank selected tab', async () => {
+    store.session = {
+      tabs: [{ id: 'tab-1', url: null }],
+      selectedTabId: 'tab-1',
+    };
+
+    await facade.initialize();
+
+    expect(facade.activeTab()).toEqual({ id: 'tab-1', url: null });
+    expect(facade.currentUrl()).toBeNull();
+    expect(facade.inputValue()).toBe('');
+    expect(facade.lastUrl()).toBeNull();
+  });
+
+  it('migrates legacy last URL into one selected tab when no tab session exists', async () => {
+    store.legacyLastUrl = 'https://example.com/';
+
+    await facade.initialize();
+
+    expect(facade.tabs()).toEqual([jasmine.objectContaining({ url: 'https://example.com/' })]);
+    expect(facade.activeTab()?.url).toBe('https://example.com/');
+    expect(store.writes[store.writes.length - 1]?.tabs).toEqual(facade.tabs());
   });
 
   it('reports no secure or insecure state before a URL is loaded', () => {
@@ -214,8 +273,14 @@ describe('ExploreBrowserFacade', () => {
     expect(viewport.loadedUrls).toEqual([]);
   });
 
-  it('resumes the last URL', async () => {
-    store.lastUrl = 'https://buku.example/';
+  it('resumes the most recent URL tab', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: 'https://buku.example/' },
+      ],
+      selectedTabId: 'tab-1',
+    };
     await facade.initialize();
 
     const result = await facade.resumeLastUrl();
@@ -234,7 +299,174 @@ describe('ExploreBrowserFacade', () => {
     expect(viewport.loadedUrls).toEqual([]);
   });
 
-  it('updates state and persists committed navigation events', () => {
+  it('does not resume missing or blank tabs', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: null },
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    expect((await facade.resumeTab('missing-tab')).ok).toBeFalse();
+    expect((await facade.resumeTab('tab-2')).ok).toBeFalse();
+    expect(viewport.loadedUrls).toEqual([]);
+  });
+
+  it('opens landing-page URLs in a new selected tab', async () => {
+    await facade.initialize();
+    facade.updateInputValue('buku.example');
+
+    const result = await facade.openInputInNewTab();
+
+    expect(result.ok).toBeTrue();
+    expect(facade.activeTab()?.url).toBe('https://buku.example/');
+    expect(facade.tabs().length).toBe(2);
+    expect(viewport.loadedUrls).toEqual(['https://buku.example/']);
+  });
+
+  it('updates the active tab URL from browser-page submissions', async () => {
+    await facade.initialize();
+    facade.updateInputValue('example.com');
+    await facade.openInput();
+    facade.updateInputValue('buku.example');
+
+    const result = await facade.openInput();
+
+    expect(result.ok).toBeTrue();
+    expect(facade.tabs().filter((tab) => tab.url !== null).length).toBe(1);
+    expect(facade.activeTab()?.url).toBe('https://buku.example/');
+  });
+
+  it('switches tabs by loading the selected tab URL', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: 'https://buku.example/' },
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.selectTab('tab-2');
+
+    expect(facade.activeTab()?.id).toBe('tab-2');
+    expect(viewport.loadedUrls).toEqual(['https://buku.example/']);
+  });
+
+  it('switches to blank tabs by clearing input and unloading the viewport', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: null },
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.selectTab('tab-2');
+
+    expect(facade.inputValue()).toBe('');
+    expect(facade.currentUrl()).toBeNull();
+    expect(viewport.hideCount).toBe(1);
+    expect(viewport.destroyCount).toBe(1);
+  });
+
+  it('creates a selected blank tab', async () => {
+    await facade.initialize();
+
+    await facade.createBlankTab();
+
+    expect(facade.activeTab()?.url).toBeNull();
+    expect(facade.inputValue()).toBe('');
+    expect(facade.currentUrl()).toBeNull();
+    expect(viewport.hideCount).toBe(1);
+    expect(viewport.destroyCount).toBe(1);
+  });
+
+  it('ignores unknown tab selection and close requests', async () => {
+    await facade.initialize();
+
+    await facade.selectTab('missing-tab');
+    await facade.closeTab('missing-tab');
+
+    expect(facade.activeTab()?.url).toBeNull();
+    expect(store.writes).toEqual([]);
+  });
+
+  it('closing the active tab selects the left neighbor', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://one.example/' },
+        { id: 'tab-2', url: 'https://two.example/' },
+        { id: 'tab-3', url: 'https://three.example/' },
+      ],
+      selectedTabId: 'tab-2',
+    };
+    await facade.initialize();
+
+    await facade.closeTab('tab-2');
+
+    expect(facade.activeTab()?.id).toBe('tab-1');
+    expect(viewport.loadedUrls).toEqual(['https://one.example/']);
+  });
+
+  it('closing the final tab creates a selected blank tab', async () => {
+    store.session = {
+      tabs: [{ id: 'tab-1', url: 'https://one.example/' }],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.closeTab('tab-1');
+
+    expect(facade.tabs()).toEqual([jasmine.objectContaining({ url: null })]);
+    expect(facade.activeTab()?.url).toBeNull();
+    expect(facade.inputValue()).toBe('');
+  });
+
+  it('closing an inactive tab keeps the current tab selected', async () => {
+    store.session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://one.example/' },
+        { id: 'tab-2', url: 'https://two.example/' },
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.closeTab('tab-2');
+
+    expect(facade.activeTab()?.id).toBe('tab-1');
+    expect(viewport.loadedUrls).toEqual([]);
+    expect(store.writes[store.writes.length - 1]?.tabs).toEqual([
+      { id: 'tab-1', url: 'https://one.example/' },
+    ]);
+  });
+
+  it('ignores committed navigation URL persistence when no tab is selected', () => {
+    expect(facade.activeTab()).toBeNull();
+
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect(facade.currentUrl()).toBe('https://example.com/');
+    expect(store.writes[store.writes.length - 1]?.tabs).toEqual([]);
+  });
+
+  it('updates state and persists committed navigation events', async () => {
+    await facade.initialize();
+    facade.updateInputValue('example.com');
+    await facade.openInputInNewTab();
     viewport.emit({
       type: 'navigation',
       committed: true,
@@ -249,7 +481,9 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.currentUrl()).toBe('http://example.com/');
     expect(facade.isInsecure()).toBeTrue();
     expect(facade.canGoBack()).toBeTrue();
-    expect(store.writes).toEqual(['http://example.com/']);
+    const lastWrite = store.writes[store.writes.length - 1];
+    const lastWrittenTab = lastWrite?.tabs[lastWrite.tabs.length - 1];
+    expect(lastWrittenTab?.url).toBe('http://example.com/');
   });
 
   it('controls reload, stop, back, and forward through the viewport', async () => {

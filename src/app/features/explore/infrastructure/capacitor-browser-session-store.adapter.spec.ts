@@ -33,14 +33,81 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
     adapter = TestBed.inject(CapacitorBrowserSessionStoreAdapter);
   });
 
-  it('returns null when no last URL is stored', async () => {
-    await expectAsync(adapter.readLastUrl()).toBeResolvedTo(null);
+  it('returns an empty tab session when no tabs are stored', async () => {
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [],
+      selectedTabId: null,
+    });
   });
 
-  it('writes and reads the last URL', async () => {
-    await adapter.writeLastUrl('https://example.com/');
+  it('writes and reads tab sessions', async () => {
+    const session = {
+      tabs: [
+        { id: 'tab-1', url: 'https://example.com/' },
+        { id: 'tab-2', url: null },
+      ],
+      selectedTabId: 'tab-1',
+    };
 
-    await expectAsync(adapter.readLastUrl()).toBeResolvedTo('https://example.com/');
+    await adapter.writeTabSession(session);
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo(session);
+  });
+
+  it('returns an empty tab session for invalid stored JSON', async () => {
+    preferences.values.set('explore.browser.tabs', '{');
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [],
+      selectedTabId: null,
+    });
+  });
+
+  it('returns an empty tab session for invalid stored shapes', async () => {
+    preferences.values.set('explore.browser.tabs', JSON.stringify('invalid'));
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [],
+      selectedTabId: null,
+    });
+  });
+
+  it('returns an empty tab list when stored tabs are missing', async () => {
+    preferences.values.set(
+      'explore.browser.tabs',
+      JSON.stringify({
+        selectedTabId: 'tab-1',
+      }),
+    );
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [],
+      selectedTabId: null,
+    });
+  });
+
+  it('drops invalid tab entries and invalid selected tab IDs', async () => {
+    preferences.values.set(
+      'explore.browser.tabs',
+      JSON.stringify({
+        tabs: [
+          { id: 'tab-1', url: 'https://example.com/' },
+          { id: 2, url: 'https://invalid.example/' },
+        ],
+        selectedTabId: 'missing-tab',
+      }),
+    );
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [{ id: 'tab-1', url: 'https://example.com/' }],
+      selectedTabId: null,
+    });
+  });
+
+  it('reads the legacy last URL for migration', async () => {
+    preferences.values.set('explore.browser.lastUrl', 'https://example.com/');
+
+    await expectAsync(adapter.readLegacyLastUrl()).toBeResolvedTo('https://example.com/');
   });
 
   it('wraps Capacitor Preferences in a plain injectable object', async () => {

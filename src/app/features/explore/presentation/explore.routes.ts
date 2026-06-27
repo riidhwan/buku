@@ -18,6 +18,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'browser/tabs',
+        loadComponent: () =>
+          import('./pages/browser-tabs/explore-browser-tabs.page').then(
+            (module) => module.ExploreBrowserTabsPage,
+          ),
+      },
+      {
         path: 'reader',
         loadComponent: () =>
           import('./pages/reader/explore-reader.page').then((module) => module.ExploreReaderPage),

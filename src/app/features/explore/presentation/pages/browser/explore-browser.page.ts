@@ -31,6 +31,7 @@ import {
   readerOutline,
   refreshOutline,
   stopOutline,
+  tabletLandscapeOutline,
   warningOutline,
 } from 'ionicons/icons';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
@@ -76,6 +77,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
       readerOutline,
       refreshOutline,
       stopOutline,
+      tabletLandscapeOutline,
       warningOutline,
     });
   }
@@ -109,6 +111,12 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     await this.browser.closeBrowser();
     this.closeActions();
     await this.router.navigate(['explore']);
+  }
+
+  protected async openTabs(): Promise<void> {
+    this.closeActions();
+    await this.browser.hideViewport();
+    await this.router.navigate(['explore', 'browser', 'tabs']);
   }
 
   protected async openNoticeUrlExternally(): Promise<void> {

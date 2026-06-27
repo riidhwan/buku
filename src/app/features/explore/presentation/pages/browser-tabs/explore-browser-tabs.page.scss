@@ -1,0 +1,26 @@
+:host {
+  display: block;
+}
+
+.tab-list {
+  margin-top: 12px;
+}
+
+.tab-list ion-item {
+  --min-height: 64px;
+}
+
+.tab-list-active {
+  --background: var(--ion-item-background);
+  --border-color: var(--ion-color-primary);
+
+  box-shadow: inset 4px 0 0 var(--ion-color-primary);
+}
+
+.tab-list-active h2 {
+  color: var(--ion-color-primary);
+}
+
+.tab-list-active p {
+  color: var(--ion-color-medium);
+}

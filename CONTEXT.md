@@ -22,6 +22,10 @@ The browsing-oriented area for discovering readable or book-related content on t
 The in-app web navigation surface within Explore for visiting ordinary web pages during content discovery.
 _Avoid_: Buku Browser, standalone browser
 
+**Explore Browser Tab**:
+A lightweight saved URL slot within the Explore Browser. It lets the user keep multiple discovery destinations and switch between them, without promising separate live browser sessions or full browser-style tab history.
+_Avoid_: browser tab, WebView session, reading history entry
+
 **Reading Mode**:
 A Buku-rendered reader view created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling

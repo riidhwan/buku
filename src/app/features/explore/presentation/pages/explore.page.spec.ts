@@ -6,7 +6,9 @@ import { ExplorePage } from './explore.page';
 
 class FakeExploreBrowserFacade {
   public readonly inputValue = signal('');
-  public readonly lastUrl = signal<string | null>(null);
+  public readonly recentTabs = signal<
+    readonly { readonly id: string; readonly url: string | null }[]
+  >([]);
   public readonly validationError = signal<string | null>(null);
   public updatedValue = '';
   public openResult = true;
@@ -14,6 +16,7 @@ class FakeExploreBrowserFacade {
   public initializeCount = 0;
   public openCount = 0;
   public resumeCount = 0;
+  public resumedTabId: string | null = null;
 
   public initialize(): Promise<void> {
     this.initializeCount += 1;
@@ -25,13 +28,14 @@ class FakeExploreBrowserFacade {
     this.inputValue.set(value);
   }
 
-  public openInput(): Promise<{ readonly ok: boolean }> {
+  public openInputInNewTab(): Promise<{ readonly ok: boolean }> {
     this.openCount += 1;
     return Promise.resolve({ ok: this.openResult });
   }
 
-  public resumeLastUrl(): Promise<{ readonly ok: boolean }> {
+  public resumeTab(tabId: string): Promise<{ readonly ok: boolean }> {
     this.resumeCount += 1;
+    this.resumedTabId = tabId;
     return Promise.resolve({ ok: this.resumeResult });
   }
 }
@@ -143,17 +147,33 @@ describe('ExplorePage', () => {
     expect(router.navigations).toEqual([]);
   });
 
-  it('renders and resumes the last opened URL row', async () => {
-    browser.lastUrl.set('https://example.com/');
+  it('renders and resumes recent tab rows', async () => {
+    browser.recentTabs.set([{ id: 'tab-1', url: 'https://example.com/path' }]);
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const row = queryRequired(nativeElement, '.last-session ion-item');
+    const row = queryRequired(nativeElement, '.recent-tabs ion-item');
     row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
+    expect(row.textContent).toContain('example.com/path');
     expect(row.textContent).toContain('https://example.com/');
     expect(browser.resumeCount).toBe(1);
+    expect(browser.resumedTabId).toBe('tab-1');
     expect(router.navigations).toEqual([['explore', 'browser']]);
+  });
+
+  it('renders URL labels for root and blank tab rows', () => {
+    browser.recentTabs.set([
+      { id: 'tab-1', url: 'https://example.com/' },
+      { id: 'tab-2', url: null },
+    ]);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const rows = nativeElement.querySelectorAll('.recent-tabs ion-item');
+
+    expect(rows.item(0).querySelector('h2')?.textContent).toBe('example.com');
+    expect(rows.item(1).textContent).toContain('Blank tab');
   });
 });

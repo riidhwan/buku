@@ -24,16 +24,18 @@
     <ion-button type="submit" expand="block">Open</ion-button>
   </form>
 
-  @if (browser.lastUrl(); as lastUrl) {
-  <ion-list inset="true" class="last-session">
-    <ion-item button="true" detail="true" (click)="resumeLastUrl()">
+  @if (browser.recentTabs().length > 0) {
+  <ion-list inset="true" class="recent-tabs">
+    @for (tab of browser.recentTabs(); track tab.id) {
+    <ion-item button="true" detail="true" (click)="resumeTab(tab.id)">
       <ion-label>
-        <h2>Last opened URL</h2>
-        <p>{{ lastUrl }}</p>
+        <h2>{{ tabLabel(tab.url) }}</h2>
+        <p>{{ tab.url }}</p>
       </ion-label>
     </ion-item>
+    }
   </ion-list>
   } @else {
-  <ion-note class="empty-state">No recent Explore Browser session.</ion-note>
+  <ion-note class="empty-state">No recent Explore Browser tabs.</ion-note>
   }
 </ion-content>
