@@ -6,6 +6,13 @@
       </ion-button>
     </ion-buttons>
     <ion-buttons slot="end">
+      <ion-button
+        aria-label="Add to Library"
+        [disabled]="browser.chapterNavigationLoading() || browser.readingArticle() === null"
+        (click)="openSaveModal()"
+      >
+        <ion-icon name="bookmark-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
       @if (browser.chapterNavigationLoading()) {
       <ion-spinner
         class="reader-chapter-loading"
@@ -60,3 +67,81 @@
   </article>
   }
 </ion-content>
+
+<ion-modal [isOpen]="saveModalOpen()" (didDismiss)="closeSaveModal()">
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Add to Library</ion-title>
+        <ion-buttons slot="end">
+          <ion-button
+            aria-label="Close add to Library"
+            [disabled]="saving()"
+            (click)="closeSaveModal()"
+          >
+            <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="reader-save-modal">
+      <ion-list>
+        <ion-item>
+          <ion-input
+            label="Series"
+            labelPlacement="stacked"
+            [ngModel]="seriesInput"
+            (ngModelChange)="updateSeriesInput($event)"
+          ></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-input
+            label="Entry title"
+            labelPlacement="stacked"
+            [ngModel]="entryTitleInput"
+            (ngModelChange)="updateEntryTitle($event)"
+          ></ion-input>
+        </ion-item>
+      </ion-list>
+
+      <ion-list class="reader-series-results">
+        @for (series of filteredSeries(); track series.id) {
+        <ion-item button="true" [detail]="false" (click)="selectSeries(series)">
+          <ion-label>
+            <h2>{{ series.title }}</h2>
+            <p>{{ series.entryCount === 1 ? '1 entry' : series.entryCount + ' entries' }}</p>
+          </ion-label>
+        </ion-item>
+        } @if (showCreateSeries()) {
+        <ion-item button="true" [detail]="false">
+          <ion-label>
+            <h2>Create "{{ seriesInput.trim() }}"</h2>
+          </ion-label>
+        </ion-item>
+        }
+      </ion-list>
+
+      @if (saveError(); as error) {
+      <ion-note class="reader-save-error" color="danger">{{ error }}</ion-note>
+      }
+    </ion-content>
+
+    <ion-footer>
+      <ion-toolbar>
+        <ion-button expand="block" [disabled]="!canSave()" (click)="saveToLibrary()">
+          @if (saving()) {
+          <ion-spinner name="crescent" aria-label="Saving"></ion-spinner>
+          } @else { Save }
+        </ion-button>
+      </ion-toolbar>
+    </ion-footer>
+  </ng-template>
+</ion-modal>
+
+<ion-toast
+  message="Saved to Library."
+  [isOpen]="saveConfirmed()"
+  [duration]="1800"
+  (didDismiss)="saveConfirmed.set(false)"
+></ion-toast>

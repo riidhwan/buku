@@ -6,7 +6,7 @@
 
 <ion-content>
   <ion-list>
-    @for (seriesItem of series; track seriesItem.id) {
+    @for (seriesItem of series(); track seriesItem.id) {
     <ion-item [routerLink]="['/library', 'series', seriesItem.id]" detail="true">
       <ion-label>
         <h2>{{ seriesItem.title }}</h2>

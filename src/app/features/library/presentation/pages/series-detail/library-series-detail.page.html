@@ -3,12 +3,12 @@
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/library"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ series?.title ?? 'Series not found' }}</ion-title>
+    <ion-title>{{ series()?.title ?? 'Series not found' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  @if (series; as selectedSeries) {
+  @if (series(); as selectedSeries) {
   <ion-list>
     @for (entry of selectedSeries.entries; track entry.id) {
     <ion-item

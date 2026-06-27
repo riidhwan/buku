@@ -1,4 +1,4 @@
-import { Component, ViewEncapsulation, inject } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonBackButton,
@@ -33,7 +33,7 @@ import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-serie
     IonToolbar,
   ],
 })
-export class LibraryEntryReaderPage {
+export class LibraryEntryReaderPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -46,16 +46,17 @@ export class LibraryEntryReaderPage {
 
   protected readonly seriesId = this.route.snapshot.paramMap.get('seriesId') ?? '';
   protected readonly entryId = this.route.snapshot.paramMap.get('entryId') ?? '';
-  protected readonly series: LibrarySeries | null = this.library.getSeries(this.seriesId);
-  protected readonly entry: LibrarySeriesEntry | null = this.library.getEntry(
-    this.seriesId,
-    this.entryId,
-  );
-  protected readonly previousEntryId = this.adjacentEntryId(-1);
-  protected readonly nextEntryId = this.adjacentEntryId(1);
+  protected readonly series = signal<LibrarySeries | null>(null);
+  protected readonly entry = signal<LibrarySeriesEntry | null>(null);
+  protected readonly previousEntryId = signal<string | null>(null);
+  protected readonly nextEntryId = signal<string | null>(null);
 
   public constructor() {
     addIcons({ chevronBackOutline, chevronForwardOutline });
+  }
+
+  public ngOnInit(): void {
+    void this.loadEntry();
   }
 
   protected async navigateToEntry(entryId: string | null): Promise<void> {
@@ -87,12 +88,20 @@ export class LibraryEntryReaderPage {
   }
 
   private adjacentEntryId(offset: -1 | 1): string | null {
-    if (this.series === null) {
+    const series = this.series();
+    if (series === null) {
       return null;
     }
 
-    const entryIndex = this.series.entries.findIndex((entry) => entry.id === this.entryId);
-    const adjacentEntry = this.series.entries[entryIndex + offset];
+    const entryIndex = series.entries.findIndex((entry) => entry.id === this.entryId);
+    const adjacentEntry = series.entries[entryIndex + offset];
     return adjacentEntry?.id ?? null;
+  }
+
+  private async loadEntry(): Promise<void> {
+    this.series.set(await this.library.getSeries(this.seriesId));
+    this.entry.set(await this.library.getEntry(this.seriesId, this.entryId));
+    this.previousEntryId.set(this.adjacentEntryId(-1));
+    this.nextEntryId.set(this.adjacentEntryId(1));
   }
 }

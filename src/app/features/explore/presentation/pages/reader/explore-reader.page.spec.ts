@@ -3,6 +3,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { ReadingArticleSnapshot } from '../../../domain/reading-article';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import {
+  READING_LIBRARY_SAVE,
+  ReadingLibrarySeriesOption,
+} from '../../../application/ports/reading-library-save.port';
 import { ExploreReaderPage } from './explore-reader.page';
 
 const articleSnapshot: ReadingArticleSnapshot = {
@@ -69,6 +73,79 @@ class FakeRouter {
   }
 }
 
+class FakeReadingLibrarySave {
+  public readonly savedInputs: unknown[] = [];
+  public saveStatus:
+    | 'saved'
+    | 'duplicate'
+    | 'validationFailed'
+    | 'validationFailedWithoutMessage'
+    | 'persistenceFailed' = 'saved';
+
+  public listSeries(): Promise<
+    readonly [
+      {
+        readonly id: 'series-1';
+        readonly title: 'Existing Series';
+        readonly entryCount: 2;
+        readonly lastSavedAt: '2026-06-26T10:00:00.000Z';
+      },
+    ]
+  > {
+    return Promise.resolve([
+      {
+        id: 'series-1',
+        title: 'Existing Series',
+        entryCount: 2,
+        lastSavedAt: '2026-06-26T10:00:00.000Z',
+      },
+    ]);
+  }
+
+  public save(
+    input: unknown,
+  ): Promise<
+    | { readonly status: 'saved' | 'duplicate' | 'persistenceFailed' }
+    | { readonly status: 'validationFailed'; readonly message: 'Invalid save input.' }
+    | { readonly status: 'validationFailed' }
+  > {
+    this.savedInputs.push(input);
+    if (this.saveStatus === 'validationFailed') {
+      return Promise.resolve({ status: 'validationFailed', message: 'Invalid save input.' });
+    }
+    if (this.saveStatus === 'validationFailedWithoutMessage') {
+      return Promise.resolve({ status: 'validationFailed' });
+    }
+
+    return Promise.resolve({ status: this.saveStatus });
+  }
+}
+
+interface SignalHarness<T> {
+  (): T;
+  set(value: T): void;
+}
+
+interface ExploreReaderPageHarness {
+  readonly saveModalOpen: SignalHarness<boolean>;
+  readonly saving: SignalHarness<boolean>;
+  readonly saveError: SignalHarness<string | null>;
+  readonly saveConfirmed: SignalHarness<boolean>;
+  readonly existingSeries: SignalHarness<readonly ReadingLibrarySeriesOption[]>;
+  seriesInput: string;
+  entryTitleInput: string;
+  selectedSeriesId: string | null;
+  openSaveModal(): Promise<void>;
+  closeSaveModal(): void;
+  selectSeries(series: ReadingLibrarySeriesOption): void;
+  updateSeriesInput(value: string | number | null | undefined): void;
+  updateEntryTitle(value: string | number | null | undefined): void;
+  canSave(): boolean;
+  filteredSeries(): readonly ReadingLibrarySeriesOption[];
+  showCreateSeries(): boolean;
+  saveToLibrary(): Promise<void>;
+}
+
 function isIonButtonDisabled(button: Element): boolean {
   return (
     button.hasAttribute('disabled') ||
@@ -80,15 +157,18 @@ describe('ExploreReaderPage', () => {
   let fixture: ComponentFixture<ExploreReaderPage>;
   let browser: FakeExploreBrowserFacade;
   let router: FakeRouter;
+  let librarySave: FakeReadingLibrarySave;
 
   beforeEach(async () => {
     browser = new FakeExploreBrowserFacade();
     router = new FakeRouter();
+    librarySave = new FakeReadingLibrarySave();
 
     await TestBed.configureTestingModule({
       imports: [ExploreReaderPage],
       providers: [
         { provide: ExploreBrowserFacade, useValue: browser },
+        { provide: READING_LIBRARY_SAVE, useValue: librarySave },
         { provide: Router, useValue: router },
       ],
     }).compileComponents();
@@ -174,17 +254,19 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const chapterButtons = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button');
+    const chapterButtons = chapterButtonsFrom(nativeElement);
+    const previousButton = chapterButtonAt(chapterButtons, 0);
+    const nextButton = chapterButtonAt(chapterButtons, 1);
 
     expect(chapterButtons.length).toBe(2);
-    expect(chapterButtons.item(0).querySelector('ion-icon')?.getAttribute('name')).toBe(
+    expect(previousButton.querySelector('ion-icon')?.getAttribute('name')).toBe(
       'chevron-back-outline',
     );
-    expect(chapterButtons.item(1).querySelector('ion-icon')?.getAttribute('name')).toBe(
+    expect(nextButton.querySelector('ion-icon')?.getAttribute('name')).toBe(
       'chevron-forward-outline',
     );
-    expect(isIonButtonDisabled(chapterButtons.item(0))).toBeTrue();
-    expect(isIonButtonDisabled(chapterButtons.item(1))).toBeFalse();
+    expect(isIonButtonDisabled(previousButton)).toBeTrue();
+    expect(isIonButtonDisabled(nextButton)).toBeFalse();
   });
 
   it('shows chapter loading state and disables chapter buttons while loading', async () => {
@@ -193,11 +275,11 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const chapterButtons = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button');
+    const chapterButtons = chapterButtonsFrom(nativeElement);
 
     expect(nativeElement.querySelector('ion-spinner[aria-label="Loading chapter"]')).not.toBeNull();
-    expect(isIonButtonDisabled(chapterButtons.item(0))).toBeTrue();
-    expect(isIonButtonDisabled(chapterButtons.item(1))).toBeTrue();
+    expect(isIonButtonDisabled(chapterButtonAt(chapterButtons, 0))).toBeTrue();
+    expect(isIonButtonDisabled(chapterButtonAt(chapterButtons, 1))).toBeTrue();
   });
 
   it('navigates chapters through the facade without leaving the reader on replacement', async () => {
@@ -205,7 +287,7 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const nextButton = nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').item(1);
+    const nextButton = chapterButtonAt(chapterButtonsFrom(nativeElement), 1);
     nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
@@ -219,9 +301,7 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const previousButton = nativeElement
-      .querySelectorAll('ion-buttons[slot="end"] ion-button')
-      .item(0);
+    const previousButton = chapterButtonAt(chapterButtonsFrom(nativeElement), 0);
     previousButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
@@ -298,4 +378,164 @@ describe('ExploreReaderPage', () => {
     expect(browser.openedHref).toBeNull();
     expect(router.navigations).toEqual([]);
   });
+
+  it('opens the save modal with Series empty and Entry title prefilled', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.saveModalOpen()).toBeTrue();
+    expect(component.existingSeries().map((series) => series.title)).toEqual(['Existing Series']);
+    expect(component.entryTitleInput).toBe('Readable article');
+    expect(component.seriesInput).toBe('');
+  });
+
+  it('keeps save disabled until Series and Entry title are present', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+
+    expect(component.canSave()).toBeFalse();
+    component.updateSeriesInput('New Series');
+    expect(component.canSave()).toBeTrue();
+    component.updateEntryTitle('   ');
+    expect(component.canSave()).toBeFalse();
+  });
+
+  it('filters Series results and exposes create state only for non-exact input', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput('exist');
+
+    expect(component.filteredSeries().map((series) => series.title)).toEqual(['Existing Series']);
+    expect(component.showCreateSeries()).toBeTrue();
+
+    component.updateSeriesInput('Existing   Series');
+    expect(component.showCreateSeries()).toBeFalse();
+  });
+
+  it('selects existing Series, closes when idle, and ignores close while saving', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    const series = component.existingSeries()[0];
+    if (series === undefined) {
+      fail('Expected existing Series option.');
+      return;
+    }
+
+    component.selectSeries(series);
+
+    expect(component.seriesInput).toBe('Existing Series');
+    expect(component.selectedSeriesId).toBe('series-1');
+
+    component.saving.set(true);
+    component.closeSaveModal();
+    expect(component.saveModalOpen()).toBeTrue();
+
+    component.saving.set(false);
+    component.closeSaveModal();
+    expect(component.saveModalOpen()).toBeFalse();
+  });
+
+  it('treats nullish form values as empty input', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput(null);
+    component.updateEntryTitle(undefined);
+
+    expect(component.seriesInput).toBe('');
+    expect(component.entryTitleInput).toBe('');
+  });
+
+  it('saves without navigating away from Reading Mode', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput('Existing Series');
+    await component.saveToLibrary();
+
+    expect(librarySave.savedInputs.length).toBe(1);
+    expect(component.saveModalOpen()).toBeFalse();
+    expect(component.saveConfirmed()).toBeTrue();
+    expect(router.navigations).toEqual([]);
+  });
+
+  it('keeps duplicate and persistence errors inline', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput('Existing Series');
+    librarySave.saveStatus = 'duplicate';
+    await component.saveToLibrary();
+    expect(component.saveModalOpen()).toBeTrue();
+    expect(component.saveError()).toContain('already saved');
+
+    librarySave.saveStatus = 'persistenceFailed';
+    await component.saveToLibrary();
+    expect(component.saveError()).toContain('could not save');
+  });
+
+  it('keeps validation failures inline and creates a title target for new Series', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput('Brand New Series');
+    librarySave.saveStatus = 'validationFailed';
+    await component.saveToLibrary();
+
+    expect(librarySave.savedInputs[0]).toEqual(
+      jasmine.objectContaining({
+        target: { kind: 'title', title: 'Brand New Series' },
+      }),
+    );
+    expect(component.saveError()).toBe('Invalid save input.');
+  });
+
+  it('uses a fallback validation message when the save boundary omits one', async () => {
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+    component.updateSeriesInput('Existing Series');
+    librarySave.saveStatus = 'validationFailedWithoutMessage';
+    await component.saveToLibrary();
+
+    expect(component.saveError()).toBe('Series and entry title are required.');
+  });
 });
+
+function chapterButtonsFrom(nativeElement: HTMLElement): Element[] {
+  return Array.from(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button')).slice(1);
+}
+
+function chapterButtonAt(buttons: readonly Element[], index: number): Element {
+  const button = buttons[index];
+  if (button === undefined) {
+    fail(`Expected chapter button at index ${String(index)}.`);
+    return document.createElement('ion-button');
+  }
+
+  return button;
+}

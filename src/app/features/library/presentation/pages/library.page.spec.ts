@@ -7,8 +7,8 @@ import { LibraryPage } from './library.page';
 let seriesSummaries: readonly LibrarySeriesSummary[];
 
 class FakeLibraryFacade {
-  public listSeries(): readonly LibrarySeriesSummary[] {
-    return seriesSummaries;
+  public listSeries(): Promise<readonly LibrarySeriesSummary[]> {
+    return Promise.resolve(seriesSummaries);
   }
 }
 
@@ -41,7 +41,9 @@ describe('LibraryPage', () => {
     expect(title).toBe('Library');
   });
 
-  it('renders Series summaries', () => {
+  it('renders Series summaries', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
     const item = nativeElement.querySelector('ion-item');
 
@@ -49,7 +51,7 @@ describe('LibraryPage', () => {
     expect(item?.textContent).toContain('2 entries');
   });
 
-  it('renders singular entry counts and falls back to invalid date text', () => {
+  it('renders singular entry counts and falls back to invalid date text', async () => {
     seriesSummaries = [
       {
         id: 'series-2',
@@ -59,6 +61,8 @@ describe('LibraryPage', () => {
       },
     ];
     fixture = TestBed.createComponent(LibraryPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;

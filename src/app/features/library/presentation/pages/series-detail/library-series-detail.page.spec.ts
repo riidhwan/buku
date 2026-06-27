@@ -22,8 +22,8 @@ let series: LibrarySeries | null = {
 };
 
 class FakeLibraryFacade {
-  public getSeries(seriesId: string): LibrarySeries | null {
-    return series !== null && seriesId === series.id ? series : null;
+  public getSeries(seriesId: string): Promise<LibrarySeries | null> {
+    return Promise.resolve(series !== null && seriesId === series.id ? series : null);
   }
 }
 
@@ -67,7 +67,9 @@ describe('LibrarySeriesDetailPage', () => {
     fixture.detectChanges();
   });
 
-  it('renders the selected Series and its entries', () => {
+  it('renders the selected Series and its entries', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('ion-title')?.textContent).toContain(
@@ -77,7 +79,7 @@ describe('LibrarySeriesDetailPage', () => {
     expect(nativeElement.querySelector('ion-item')?.textContent).toContain('example.com');
   });
 
-  it('renders entry summaries without source hosts and keeps invalid date text', () => {
+  it('renders entry summaries without source hosts and keeps invalid date text', async () => {
     series = {
       id: 'series-1',
       title: 'The Clockwork Archive',
@@ -94,15 +96,19 @@ describe('LibrarySeriesDetailPage', () => {
     };
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('ion-item')?.textContent).toContain('Saved unknown date');
   });
 
-  it('renders a not-found state for unknown Series', () => {
+  it('renders a not-found state for unknown Series', async () => {
     series = null;
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -111,13 +117,15 @@ describe('LibrarySeriesDetailPage', () => {
     expect(nativeElement.textContent).toContain('This Series is not in the Library.');
   });
 
-  it('renders an empty state for Series without entries', () => {
+  it('renders an empty state for Series without entries', async () => {
     series = {
       id: 'series-1',
       title: 'The Clockwork Archive',
       entries: [],
     };
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -144,6 +152,8 @@ describe('LibrarySeriesDetailPage', () => {
     }).compileComponents();
 
     const missingFixture = TestBed.createComponent(LibrarySeriesDetailPage);
+    missingFixture.detectChanges();
+    await missingFixture.whenStable();
     missingFixture.detectChanges();
 
     const nativeElement = missingFixture.nativeElement as HTMLElement;

@@ -47,14 +47,16 @@ let entry: LibrarySeriesEntry | null = {
 };
 
 class FakeLibraryFacade {
-  public getSeries(seriesId: string): LibrarySeries | null {
-    return series !== null && seriesId === series.id ? series : null;
+  public getSeries(seriesId: string): Promise<LibrarySeries | null> {
+    return Promise.resolve(series !== null && seriesId === series.id ? series : null);
   }
 
-  public getEntry(seriesId: string, entryId: string): LibrarySeriesEntry | null {
-    return series !== null && entry !== null && seriesId === series.id && entryId === entry.id
-      ? entry
-      : null;
+  public getEntry(seriesId: string, entryId: string): Promise<LibrarySeriesEntry | null> {
+    return Promise.resolve(
+      series !== null && entry !== null && seriesId === series.id && entryId === entry.id
+        ? entry
+        : null,
+    );
   }
 }
 
@@ -130,7 +132,9 @@ describe('LibraryEntryReaderPage', () => {
     fixture.detectChanges();
   });
 
-  it('renders saved entry content', () => {
+  it('renders saved entry content', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 1');
@@ -143,15 +147,12 @@ describe('LibraryEntryReaderPage', () => {
   });
 
   it('navigates only among saved entries in the Series', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const nextButton = nativeElement.querySelector<HTMLElement>(
-      'ion-buttons[slot="end"] ion-button[aria-label="Next saved entry"]',
-    );
-    expect(nextButton).not.toBeNull();
-    if (nextButton === null) {
-      fail('Expected the next saved entry button to render.');
-      return;
-    }
+    const nextButton = nativeElement
+      .querySelectorAll<HTMLElement>('ion-buttons[slot="end"] ion-button')
+      .item(1);
 
     nextButton.click();
     await fixture.whenStable();
@@ -165,7 +166,9 @@ describe('LibraryEntryReaderPage', () => {
     ]);
   });
 
-  it('keeps mock reader links inert', () => {
+  it('keeps mock reader links inert', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
     const link = nativeElement.querySelector('.library-reader-body a');
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -184,7 +187,9 @@ describe('LibraryEntryReaderPage', () => {
     expect(event.defaultPrevented).toBeFalse();
   });
 
-  it('ignores inert-link handling when no link is clicked', () => {
+  it('ignores inert-link handling when no link is clicked', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
     const paragraph = nativeElement.querySelector('.library-reader-body p');
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -194,7 +199,7 @@ describe('LibraryEntryReaderPage', () => {
     expect(event.defaultPrevented).toBeFalse();
   });
 
-  it('keeps invalid published time text', () => {
+  it('keeps invalid published time text', async () => {
     if (entry === null) {
       fail('Expected the entry fixture to be present.');
       return;
@@ -202,13 +207,15 @@ describe('LibraryEntryReaderPage', () => {
     entry = { ...entry, publishedTime: 'unknown date' };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('time')?.textContent).toContain('unknown date');
   });
 
-  it('renders source host when site name is unavailable and hides absent metadata', () => {
+  it('renders source host when site name is unavailable and hides absent metadata', async () => {
     if (entry === null) {
       fail('Expected the entry fixture to be present.');
       return;
@@ -221,6 +228,8 @@ describe('LibraryEntryReaderPage', () => {
     };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
 
@@ -230,7 +239,7 @@ describe('LibraryEntryReaderPage', () => {
     expect(nativeElement.querySelector('.library-reader-meta')).toBeNull();
   });
 
-  it('falls back to source URL when source labels are unavailable', () => {
+  it('falls back to source URL when source labels are unavailable', async () => {
     if (entry === null) {
       fail('Expected the entry fixture to be present.');
       return;
@@ -241,6 +250,8 @@ describe('LibraryEntryReaderPage', () => {
       sourceHost: null,
     };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -258,9 +269,11 @@ describe('LibraryEntryReaderPage', () => {
     expect(router.navigate.calls.count()).toBe(0);
   });
 
-  it('renders not-found content for unknown entries', () => {
+  it('renders not-found content for unknown entries', async () => {
     entry = null;
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -269,10 +282,12 @@ describe('LibraryEntryReaderPage', () => {
     expect(nativeElement.textContent).toContain('This entry is not in the Library.');
   });
 
-  it('renders not-found content when the Series is unknown', () => {
+  it('renders not-found content when the Series is unknown', async () => {
     series = null;
     entry = null;
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -302,6 +317,8 @@ describe('LibraryEntryReaderPage', () => {
     }).compileComponents();
 
     const missingFixture = TestBed.createComponent(LibraryEntryReaderPage);
+    missingFixture.detectChanges();
+    await missingFixture.whenStable();
     missingFixture.detectChanges();
 
     const nativeElement = missingFixture.nativeElement as HTMLElement;
