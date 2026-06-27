@@ -1,4 +1,5 @@
 import { bootstrapApplication } from '@angular/platform-browser';
+import { provideHttpClient } from '@angular/common/http';
 import { ErrorHandler } from '@angular/core';
 import {
   PreloadAllModules,
@@ -32,6 +33,7 @@ void bootstrapApplication(AppComponent, {
     provideLibrary(),
     provideSqliteStorage(),
     provideAppConfig(environment.appConfig),
+    provideHttpClient(),
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
   ],

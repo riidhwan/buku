@@ -1,0 +1,95 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/more"></ion-back-button>
+    </ion-buttons>
+    <ion-title>App Update</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @let state = more.appUpdate();
+
+  <ion-list>
+    @if (state.status === 'idle') {
+    <ion-item>
+      <ion-label>
+        <h2>Keep Buku up to date</h2>
+        <p>Check whether a newer stable release is available.</p>
+      </ion-label>
+    </ion-item>
+    } @else if (state.status === 'checking') {
+    <ion-item>
+      <ion-spinner name="crescent" slot="start"></ion-spinner>
+      <ion-label>
+        <h2>Checking for update</h2>
+        <p>Looking for the latest stable release.</p>
+      </ion-label>
+    </ion-item>
+    } @else if (state.status === 'up-to-date') {
+    <ion-item>
+      <ion-label>
+        <h2>Buku is up to date</h2>
+        <p>Installed {{ state.installedVersion }}</p>
+      </ion-label>
+    </ion-item>
+    } @else if (state.status === 'update-available' || state.status === 'install-started') {
+    <ion-item>
+      <ion-label>
+        <h2>{{ state.release.title }}</h2>
+        <p>Installed {{ state.installedVersion }} | Available {{ state.release.version.raw }}</p>
+      </ion-label>
+    </ion-item>
+    @if (state.release.notes.length > 0) {
+    <ion-item>
+      <ion-label class="ion-text-wrap">
+        <h2>Release notes</h2>
+        <p>{{ state.release.notes }}</p>
+      </ion-label>
+    </ion-item>
+    } @if (state.status === 'install-started') {
+    <ion-item>
+      <ion-label>
+        <h2>Installer opened</h2>
+        <p>Follow Android's prompts to finish installing the update.</p>
+      </ion-label>
+    </ion-item>
+    } } @else if (state.status === 'installing') {
+    <ion-item>
+      <ion-spinner name="crescent" slot="start"></ion-spinner>
+      <ion-label>
+        <h2>Preparing update</h2>
+        <p>Downloading {{ state.release.version.raw }}.</p>
+      </ion-label>
+    </ion-item>
+    } @else {
+    <ion-item>
+      <ion-label class="ion-text-wrap">
+        <h2>Update check failed</h2>
+        <p>{{ failureMessage(state.reason) }}</p>
+      </ion-label>
+    </ion-item>
+    }
+  </ion-list>
+
+  <div class="app-update-actions">
+    @if (canInstallUpdate()) {
+    <ion-button expand="block" [disabled]="more.appUpdateBusy()" (click)="installUpdate()">
+      Install update
+    </ion-button>
+    }
+
+    <ion-button
+      expand="block"
+      fill="outline"
+      [disabled]="more.appUpdateBusy()"
+      (click)="checkForUpdate()"
+    >
+      Check for update
+    </ion-button>
+
+    @if (state.status === 'failure') {
+    <ion-note>{{ failureMessage(state.reason) }}</ion-note>
+    }
+  </div>
+</ion-content>

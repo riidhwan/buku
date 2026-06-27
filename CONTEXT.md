@@ -36,3 +36,11 @@ _Avoid_: pagination, page navigation
 
 **More**:
 The overflow area for additional app menus that do not belong in Library or Explore.
+
+**More Menu**:
+The list of actions and destinations shown in More. Each item opens a separate More-owned view when the workflow needs more detail than a single row can carry.
+_Avoid_: settings page, overflow page
+
+**App Update**:
+A newer Buku Android release that the user can discover from the More Menu and choose to install.
+_Avoid_: software update, GitHub release, version check
