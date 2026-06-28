@@ -37,6 +37,17 @@ export class ExploreReadingModeActions {
   }
 
   public async openReadingMode(): Promise<BrowserReadingModeResult> {
+    if (this.state.readingModeActiveSignal()) {
+      this.closeReadingMode();
+      return { ok: true };
+    }
+
+    if (this.state.readingArticleSignal() !== null) {
+      this.state.readingModeActiveSignal.set(true);
+      await this.viewport.hide();
+      return { ok: true };
+    }
+
     const currentUrl = this.state.currentUrlSignal();
     if (currentUrl === null || this.state.loadingSignal()) {
       return { ok: false };
@@ -46,6 +57,7 @@ export class ExploreReadingModeActions {
     switch (result.status) {
       case 'ok':
         this.state.readingArticleSignal.set(result.article);
+        this.state.readingModeActiveSignal.set(true);
         this.state.noticeSignal.set(null);
         await this.viewport.hide();
         return { ok: true };
@@ -57,6 +69,11 @@ export class ExploreReadingModeActions {
   }
 
   public closeReadingMode(): void {
+    this.state.readingModeActiveSignal.set(false);
+  }
+
+  public discardReadingMode(): void {
+    this.state.readingModeActiveSignal.set(false);
     this.state.readingArticleSignal.set(null);
   }
 
@@ -72,7 +89,7 @@ export class ExploreReadingModeActions {
       return { ok: false };
     }
 
-    this.state.readingArticleSignal.set(null);
+    this.discardReadingMode();
     await this.loadNormalizedUrl(targetUrl.url);
     return { ok: true };
   }
@@ -99,12 +116,13 @@ export class ExploreReadingModeActions {
 
       if (result.destination === 'reader') {
         this.state.readingArticleSignal.set(result.article);
+        this.state.readingModeActiveSignal.set(true);
         this.state.noticeSignal.set(null);
         await this.viewport.hide();
         return { ok: true, destination: 'reader' };
       }
 
-      this.state.readingArticleSignal.set(null);
+      this.discardReadingMode();
       if (result.notice !== null) {
         this.state.noticeSignal.set(result.notice);
       }

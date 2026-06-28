@@ -71,6 +71,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   public readonly canGoForward = this.state.canGoForward;
   public readonly validationError = this.state.validationError;
   public readonly notice = this.state.notice;
+  public readonly readingModeActive = this.state.readingModeActive;
   public readonly readingArticle = this.state.readingArticle;
   public readonly chapterNavigationLoading = this.state.chapterNavigationLoading;
   public readonly isSecure = this.state.isSecure;
@@ -90,6 +91,9 @@ export class ExploreBrowserFacade implements OnDestroy {
         this.state.noticeSignal.set(reduction.notice);
       }
       if (reduction.committedNavigation !== undefined) {
+        if (this.shouldDiscardReadingModeForCommittedUrl(reduction.committedNavigation.url)) {
+          this.discardReadingMode();
+        }
         this.commitActiveTabUrl(
           reduction.committedNavigation.url,
           reduction.committedNavigation.title,
@@ -155,6 +159,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async createBlankTab(): Promise<void> {
+    this.discardReadingMode();
     const tab = createExploreBrowserTab(null);
     this.state.tabsSignal.update((tabs) => [...tabs, tab]);
     this.state.selectedTabIdSignal.set(tab.id);
@@ -168,6 +173,7 @@ export class ExploreBrowserFacade implements OnDestroy {
       return;
     }
 
+    this.discardReadingMode();
     this.applySession(result.session);
     await this.persistTabs();
     if (result.status === 'blank') {
@@ -189,6 +195,9 @@ export class ExploreBrowserFacade implements OnDestroy {
       return;
     }
 
+    if (result.status !== 'closed-inactive') {
+      this.discardReadingMode();
+    }
     this.applySession(result.session);
     if (result.status === 'blank') {
       await this.clearVisiblePageForBlankTab();
@@ -254,6 +263,10 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.readingModeActions.closeReadingMode();
   }
 
+  public discardReadingMode(): void {
+    this.readingModeActions.discardReadingMode();
+  }
+
   public async rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
     this.state.tabsSignal.set(
       rememberExploreBrowserTabLibrarySeriesTitle({
@@ -288,6 +301,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     }
 
     this.state.validationErrorSignal.set(null);
+    this.discardReadingMode();
     if (target === 'new') {
       const tab = createExploreBrowserTab(null);
       this.state.tabsSignal.update((tabs) => [...tabs, tab]);
@@ -306,6 +320,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private async loadSelectedTabUrl(url: string): Promise<void> {
+    this.state.readingModeActiveSignal.set(false);
     this.state.inputValueSignal.set(url);
     this.state.currentUrlSignal.set(url);
     this.state.loadingSignal.set(true);
@@ -313,6 +328,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private async clearVisiblePageForBlankTab(): Promise<void> {
+    this.discardReadingMode();
     this.state.inputValueSignal.set('');
     this.state.currentUrlSignal.set(null);
     this.state.loadingSignal.set(false);
@@ -350,6 +366,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private replaceWithBlankTab(): void {
+    this.discardReadingMode();
     const session = blankExploreBrowserTabSession();
     this.state.tabsSignal.set(session.tabs);
     this.state.selectedTabIdSignal.set(session.selectedTabId);
@@ -367,6 +384,15 @@ export class ExploreBrowserFacade implements OnDestroy {
     });
     this.state.tabsSignal.set(commit.tabs);
     this.state.backNavigationState = commit.backNavigationState;
+  }
+
+  private shouldDiscardReadingModeForCommittedUrl(url: string): boolean {
+    const article = this.state.readingArticleSignal();
+    if (article === null) {
+      return false;
+    }
+
+    return article.url !== url;
   }
 
   private async persistTabs(): Promise<void> {

@@ -26,8 +26,8 @@ export const routes: Routes = [
       },
       {
         path: 'reader',
-        loadComponent: () =>
-          import('./pages/reader/explore-reader.page').then((module) => module.ExploreReaderPage),
+        redirectTo: 'browser',
+        pathMatch: 'full',
       },
     ],
   },

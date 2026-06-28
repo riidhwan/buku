@@ -23,6 +23,7 @@ export class ExploreBrowserFacadeState {
   public readonly canGoForwardSignal = signal(false);
   public readonly validationErrorSignal = signal<string | null>(null);
   public readonly noticeSignal = signal<BrowserNotice | null>(null);
+  public readonly readingModeActiveSignal = signal(false);
   public readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
   public readonly chapterNavigationLoadingSignal = signal(false);
   public backNavigationState: ExploreBrowserBackNavigationState =
@@ -43,6 +44,7 @@ export class ExploreBrowserFacadeState {
   public readonly canGoForward = this.canGoForwardSignal.asReadonly();
   public readonly validationError = this.validationErrorSignal.asReadonly();
   public readonly notice = this.noticeSignal.asReadonly();
+  public readonly readingModeActive = this.readingModeActiveSignal.asReadonly();
   public readonly readingArticle = this.readingArticleSignal.asReadonly();
   public readonly chapterNavigationLoading = this.chapterNavigationLoadingSignal.asReadonly();
   public readonly isSecure = computed(

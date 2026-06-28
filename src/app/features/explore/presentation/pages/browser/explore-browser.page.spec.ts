@@ -4,10 +4,32 @@ import { Router } from '@angular/router';
 import { Platform } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import {
+  READING_LIBRARY_SAVE,
+  ReadingLibrarySeriesOption,
+} from '../../../application/ports/reading-library-save.port';
 import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
+import { ReadingArticleSnapshot } from '../../../domain/reading-article';
+import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
 import { ExploreBrowserPage } from './explore-browser.page';
 
 type BackButtonCallback = (processNextHandler: () => void) => Promise<unknown> | undefined;
+
+const articleSnapshot: ReadingArticleSnapshot = {
+  url: 'https://example.com/article',
+  title: 'Readable article',
+  byline: 'A Writer',
+  siteName: 'Example',
+  excerpt: 'A short summary.',
+  publishedTime: '2026-06-26',
+  contentHtml: '<p>Readable body.</p><p><a href="/next">Next article</a></p>',
+  textContent: 'Readable body. Next article',
+  length: 27,
+  nextChapter: {
+    href: '/next-chapter',
+    label: 'Next chapter',
+  },
+};
 
 class FakeExploreBrowserFacade {
   public readonly inputValue = signal('https://example.com/');
@@ -17,6 +39,16 @@ class FakeExploreBrowserFacade {
   public readonly canGoBack = signal(false);
   public readonly canGoForward = signal(false);
   public readonly isSecure = signal(true);
+  public readonly readingModeActive = signal(false);
+  public readonly readingArticle = signal<ReadingArticleSnapshot | null>(null);
+  public readonly chapterNavigationLoading = signal(false);
+  public readonly activeTab = signal({
+    id: 'tab-1',
+    url: 'https://example.com/',
+    pageTitle: 'Example',
+    backStack: [],
+    lastLibrarySeriesTitle: null as string | null,
+  });
   public readonly notice = signal<{ readonly message: string; readonly url: string | null } | null>(
     null,
   );
@@ -33,6 +65,9 @@ class FakeExploreBrowserFacade {
   public reloads = 0;
   public readingModeOpens = 0;
   public readingModeResult = true;
+  public openedHref: string | null = null;
+  public chapterDirection: 'previous' | 'next' | null = null;
+  public rememberedSeriesTitle: string | null = null;
 
   public updateInputValue(value: string): void {
     this.inputValue.set(value);
@@ -85,11 +120,58 @@ class FakeExploreBrowserFacade {
 
   public openReadingMode(): Promise<{ readonly ok: boolean }> {
     this.readingModeOpens += 1;
+    if (this.readingModeResult) {
+      this.readingModeActive.update((isActive) => !isActive);
+    }
     return Promise.resolve({ ok: this.readingModeResult });
+  }
+
+  public closeReadingMode(): void {
+    this.readingModeActive.set(false);
+  }
+
+  public openReadingModeLink(href: string): Promise<{ readonly ok: boolean }> {
+    this.openedHref = href;
+    this.readingModeActive.set(false);
+    this.readingArticle.set(null);
+    return Promise.resolve({ ok: true });
+  }
+
+  public navigateReadingChapter(
+    direction: 'previous' | 'next',
+  ): Promise<{ readonly ok: true; readonly destination: 'reader' | 'browser' }> {
+    this.chapterDirection = direction;
+    return Promise.resolve({ ok: true, destination: 'reader' });
+  }
+
+  public rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
+    this.rememberedSeriesTitle = title;
+    this.activeTab.update((tab) => ({ ...tab, lastLibrarySeriesTitle: title }));
+    return Promise.resolve();
   }
 
   public dismissNotice(): void {
     this.dismissed += 1;
+  }
+}
+
+class FakeReadingLibrarySave {
+  public readonly savedInputs: unknown[] = [];
+
+  public listSeries(): Promise<readonly ReadingLibrarySeriesOption[]> {
+    return Promise.resolve([
+      {
+        id: 'series-1',
+        title: 'Existing Series',
+        entryCount: 2,
+        lastSavedAt: '2026-06-26T10:00:00.000Z',
+      },
+    ]);
+  }
+
+  public save(input: unknown): Promise<{ readonly status: 'saved' }> {
+    this.savedInputs.push(input);
+    return Promise.resolve({ status: 'saved' });
   }
 }
 
@@ -130,6 +212,14 @@ class FakePlatform {
   public readonly backButton = new FakeBackButton();
 }
 
+interface ExploreBrowserPageHarness {
+  readonly readerSave: ExploreBrowserReaderSaveActions;
+  openReadingMode(): Promise<void>;
+  openReaderLink(event: Event): Promise<void>;
+  navigateChapter(direction: 'previous' | 'next'): Promise<void>;
+  formatPublishedTime(publishedTime: string): string;
+}
+
 function isIonButtonDisabled(button: Element): boolean {
   return (
     button.hasAttribute('disabled') ||
@@ -152,16 +242,19 @@ describe('ExploreBrowserPage', () => {
   let browser: FakeExploreBrowserFacade;
   let router: FakeRouter;
   let platform: FakePlatform;
+  let librarySave: FakeReadingLibrarySave;
 
   beforeEach(async () => {
     browser = new FakeExploreBrowserFacade();
     router = new FakeRouter();
     platform = new FakePlatform();
+    librarySave = new FakeReadingLibrarySave();
 
     await TestBed.configureTestingModule({
       imports: [ExploreBrowserPage],
       providers: [
         { provide: ExploreBrowserFacade, useValue: browser },
+        { provide: READING_LIBRARY_SAVE, useValue: librarySave },
         { provide: Router, useValue: router },
         { provide: Platform, useValue: platform },
       ],
@@ -403,7 +496,166 @@ describe('ExploreBrowserPage', () => {
 
     expect(browser.readingModeOpens).toBe(1);
     expect(fixture.componentInstance.actionsOpen()).toBeFalse();
-    expect(router.navigations).toEqual([['explore', 'reader']]);
+    expect(router.navigations).toEqual([]);
+    expect(browser.readingModeActive()).toBeTrue();
+  });
+
+  it('refreshes the viewport when the reader icon closes active Reading Mode', async () => {
+    browser.readingModeActive.set(true);
+    const initialShowCount = browser.showCount;
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    await component.openReadingMode();
+    await waitForViewportTimer();
+
+    expect(browser.readingModeOpens).toBe(1);
+    expect(browser.readingModeActive()).toBeFalse();
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
+  });
+
+  it('renders retained article content inside the browser page while Reading Mode is active', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.viewport-host')?.hasAttribute('hidden')).toBeTrue();
+    expect(nativeElement.querySelector('.reader-article')?.hasAttribute('hidden')).toBeFalse();
+    expect(nativeElement.querySelector('h1')?.textContent).toContain('Readable article');
+    expect(nativeElement.querySelector('.reader-body')?.textContent).toContain('Readable body.');
+  });
+
+  it('shows reader controls only while Reading Mode is active and overflow is closed', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+
+    let nativeElement = fixture.nativeElement as HTMLElement;
+    expect(nativeElement.querySelector('.reader-controls')).not.toBeNull();
+    expect(nativeElement.querySelector('.browser-controls')).toBeNull();
+
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    nativeElement = fixture.nativeElement as HTMLElement;
+    expect(nativeElement.querySelector('.reader-controls')).toBeNull();
+    expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
+  });
+
+  it('keeps reader chapter controls in stable slots while the loading indicator appears', () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+
+    let nativeElement = fixture.nativeElement as HTMLElement;
+    let slots = Array.from(
+      nativeElement.querySelectorAll('.reader-controls [data-reader-control]'),
+    );
+    expect(slots.map((slot) => slot.getAttribute('data-reader-control'))).toEqual([
+      'save',
+      'loading',
+      'previous',
+      'next',
+    ]);
+    expect(slots[1]?.querySelector('ion-spinner')).toBeNull();
+    expect(slots[2]?.getAttribute('aria-label')).toBe('Previous chapter');
+    expect(slots[3]?.getAttribute('aria-label')).toBe('Next chapter');
+
+    browser.chapterNavigationLoading.set(true);
+    fixture.detectChanges();
+
+    nativeElement = fixture.nativeElement as HTMLElement;
+    slots = Array.from(nativeElement.querySelectorAll('.reader-controls [data-reader-control]'));
+    expect(slots.map((slot) => slot.getAttribute('data-reader-control'))).toEqual([
+      'save',
+      'loading',
+      'previous',
+      'next',
+    ]);
+    expect(slots[1]?.querySelector('ion-spinner[aria-label="Loading chapter"]')).not.toBeNull();
+    expect(slots[2]?.getAttribute('aria-label')).toBe('Previous chapter');
+    expect(slots[3]?.getAttribute('aria-label')).toBe('Next chapter');
+  });
+
+  it('navigates reader chapters and refreshes the viewport afterwards', async () => {
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+    const initialShowCount = browser.showCount;
+
+    await component.navigateChapter('next');
+    await waitForViewportTimer();
+
+    expect(browser.chapterDirection).toBe('next');
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
+  });
+
+  it('exits Reading Mode before browser navigation from Android back', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+
+    await platform.backButton.trigger();
+
+    expect(browser.readingModeActive()).toBeFalse();
+    expect(browser.backNavigations).toBe(0);
+    expect(browser.closed).toBe(0);
+  });
+
+  it('opens the Add to Library modal from the reader toolbar', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const addButton = nativeElement.querySelector('.reader-controls ion-button');
+    addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+    expect(component.readerSave.saveForm.modalOpen()).toBeTrue();
+  });
+
+  it('opens article links and ignores reader events that are not links', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    nativeElement.querySelector('.reader-body')?.dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await fixture.whenStable();
+
+    expect(browser.openedHref).toBeNull();
+
+    nativeElement.querySelector('.reader-body a')?.dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await fixture.whenStable();
+
+    expect(browser.openedHref).toBe('/next');
+  });
+
+  it('ignores reader events without an element target', async () => {
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    await component.openReaderLink(new Event('click'));
+
+    expect(browser.openedHref).toBeNull();
+  });
+
+  it('uses raw published time text when the date cannot be parsed', () => {
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    expect(component.formatPublishedTime('unknown date')).toBe('unknown date');
   });
 
   it('stays on the browser when reading mode is unavailable', async () => {
