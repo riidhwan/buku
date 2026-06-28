@@ -36,6 +36,15 @@ const presentationLayerRelativeImports = [
   '../../../../presentation/*',
 ];
 
+const fileSizeBudget = (max) => [
+  'error',
+  {
+    max,
+    skipBlankLines: true,
+    skipComments: true,
+  },
+];
+
 module.exports = [
   {
     ignores: ['android/**', 'coverage/**', 'dist/**', 'node_modules/**', 'out-tsc/**', 'www/**'],
@@ -153,12 +162,14 @@ module.exports = [
   {
     files: ['**/*.spec.ts'],
     rules: {
+      'max-lines': 'off',
       'max-lines-per-function': 'off',
     },
   },
   {
     files: ['src/app/features/*/domain/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(180),
       'no-restricted-imports': [
         'error',
         {
@@ -187,6 +198,7 @@ module.exports = [
   {
     files: ['src/app/features/*/application/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(260),
       'no-restricted-imports': [
         'error',
         {
@@ -213,6 +225,7 @@ module.exports = [
   {
     files: ['src/app/features/*/application/ports/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(180),
       'no-restricted-imports': [
         'error',
         {
@@ -237,11 +250,24 @@ module.exports = [
     },
   },
   {
+    files: ['src/app/features/*/application/**/*.facade.ts'],
+    rules: {
+      'max-lines': fileSizeBudget(650),
+    },
+  },
+  {
+    files: ['src/app/features/*/application/**/*.use-case.ts'],
+    rules: {
+      'max-lines': fileSizeBudget(180),
+    },
+  },
+  {
     files: [
       'src/app/features/*/presentation/pages/**/*.ts',
       'src/app/features/*/presentation/components/**/*.ts',
     ],
     rules: {
+      'max-lines': fileSizeBudget(320),
       'no-restricted-imports': [
         'error',
         {
@@ -259,6 +285,12 @@ module.exports = [
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['src/app/features/*/presentation/*.routes.ts'],
+    rules: {
+      'max-lines': fileSizeBudget(120),
     },
   },
   {
@@ -284,6 +316,7 @@ module.exports = [
   {
     files: ['src/app/features/*/infrastructure/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(450),
       'no-restricted-imports': [
         'error',
         {
@@ -309,6 +342,7 @@ module.exports = [
     files: ['src/app/core/**/*.ts'],
     ignores: ['src/app/core/config/**'],
     rules: {
+      'max-lines': fileSizeBudget(260),
       'no-restricted-imports': [
         'error',
         {
@@ -333,6 +367,7 @@ module.exports = [
   {
     files: ['src/app/shared/domain/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(180),
       'no-restricted-imports': [
         'error',
         {
@@ -358,6 +393,7 @@ module.exports = [
   {
     files: ['src/app/shared/application/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(260),
       'no-restricted-imports': [
         'error',
         {
@@ -382,6 +418,7 @@ module.exports = [
   {
     files: ['src/app/shared/presentation/**/*.ts'],
     rules: {
+      'max-lines': fileSizeBudget(320),
       'no-restricted-imports': [
         'error',
         {
@@ -406,6 +443,13 @@ module.exports = [
     files: ['capacitor.config.ts'],
     rules: {
       'no-restricted-imports': 'off',
+    },
+  },
+  {
+    files: ['**/*.spec.ts'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
     },
   },
   {
