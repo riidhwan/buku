@@ -6,6 +6,7 @@ import { LibrarySeries } from '../../../domain/library-series';
 import { LibrarySeriesDetailPage } from './library-series-detail.page';
 
 let routeSeriesId = 'series-1';
+let getSeriesCalls: number;
 let series: LibrarySeries | null = {
   id: 'series-1',
   title: 'The Clockwork Archive',
@@ -23,8 +24,13 @@ let series: LibrarySeries | null = {
 
 class FakeLibraryFacade {
   public getSeries(seriesId: string): Promise<LibrarySeries | null> {
+    getSeriesCalls += 1;
     return Promise.resolve(series !== null && seriesId === series.id ? series : null);
   }
+}
+
+interface RefreshableLibrarySeriesDetailPage {
+  refreshSeries(event: CustomEvent): Promise<void>;
 }
 
 describe('LibrarySeriesDetailPage', () => {
@@ -32,6 +38,7 @@ describe('LibrarySeriesDetailPage', () => {
 
   beforeEach(async () => {
     routeSeriesId = 'series-1';
+    getSeriesCalls = 0;
     series = {
       id: 'series-1',
       title: 'The Clockwork Archive',
@@ -68,6 +75,7 @@ describe('LibrarySeriesDetailPage', () => {
   });
 
   it('renders the selected Series and its entries', async () => {
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -96,6 +104,7 @@ describe('LibrarySeriesDetailPage', () => {
     };
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
     fixture.detectChanges();
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -108,6 +117,7 @@ describe('LibrarySeriesDetailPage', () => {
     series = null;
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
     fixture.detectChanges();
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -125,6 +135,7 @@ describe('LibrarySeriesDetailPage', () => {
     };
     fixture = TestBed.createComponent(LibrarySeriesDetailPage);
     fixture.detectChanges();
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -153,11 +164,40 @@ describe('LibrarySeriesDetailPage', () => {
 
     const missingFixture = TestBed.createComponent(LibrarySeriesDetailPage);
     missingFixture.detectChanges();
+    missingFixture.componentInstance.ionViewWillEnter();
     await missingFixture.whenStable();
     missingFixture.detectChanges();
 
     const nativeElement = missingFixture.nativeElement as HTMLElement;
 
     expect(nativeElement.textContent).toContain('This Series is not in the Library.');
+  });
+
+  it('reloads the Series when the page enters', async () => {
+    fixture.componentInstance.ionViewWillEnter();
+    await fixture.whenStable();
+    fixture.componentInstance.ionViewWillEnter();
+    await fixture.whenStable();
+
+    expect(getSeriesCalls).toBe(2);
+  });
+
+  it('reloads the Series and completes pull-to-refresh', async () => {
+    let completed = false;
+    const event = new CustomEvent('ionRefresh');
+    Object.defineProperty(event, 'target', {
+      value: {
+        complete: () => {
+          completed = true;
+        },
+      },
+    });
+
+    await (
+      fixture.componentInstance as unknown as RefreshableLibrarySeriesDetailPage
+    ).refreshSeries(event);
+
+    expect(getSeriesCalls).toBe(1);
+    expect(completed).toBe(true);
   });
 });

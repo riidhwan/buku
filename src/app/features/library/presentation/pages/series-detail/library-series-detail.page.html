@@ -8,6 +8,10 @@
 </ion-header>
 
 <ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshSeries($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   @if (series(); as selectedSeries) {
   <ion-list>
     @for (entry of selectedSeries.entries; track entry.id) {
