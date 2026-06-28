@@ -13,17 +13,17 @@ export const sqliteLibraryStatements = {
   selectSeriesById: `
     SELECT id, title, created_at, updated_at
     FROM library_series
-    WHERE id = ?;
+    WHERE id = :seriesId;
   `,
   selectSeriesByNormalizedTitle: `
     SELECT id, title, created_at, updated_at
     FROM library_series
-    WHERE normalized_title = ?;
+    WHERE normalized_title = :normalizedTitle;
   `,
   listSeriesEntries: `
     SELECT id, series_id, display_title, source_host, created_at, updated_at
     FROM library_series_entries
-    WHERE series_id = ?
+    WHERE series_id = :seriesId
     ORDER BY created_at ASC;
   `,
   selectEntryById: `
@@ -43,20 +43,20 @@ export const sqliteLibraryStatements = {
       entries.updated_at
     FROM library_series_entries entries
     INNER JOIN library_series series ON series.id = entries.series_id
-    WHERE entries.series_id = ? AND entries.id = ?;
+    WHERE entries.series_id = :seriesId AND entries.id = :entryId;
   `,
   selectEntryBySourceUrl: `
     SELECT id, series_id, display_title, source_host, created_at, updated_at
     FROM library_series_entries
-    WHERE series_id = ? AND source_url = ?;
+    WHERE series_id = :seriesId AND source_url = :sourceUrl;
   `,
   insertSeries: `
     INSERT INTO library_series (id, title, normalized_title, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?);
+    VALUES (:id, :title, :normalizedTitle, :createdAt, :updatedAt);
   `,
   insertSeriesIgnore: `
     INSERT OR IGNORE INTO library_series (id, title, normalized_title, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?);
+    VALUES (:id, :title, :normalizedTitle, :createdAt, :updatedAt);
   `,
   insertEntry: `
     INSERT INTO library_series_entries (
@@ -73,6 +73,19 @@ export const sqliteLibraryStatements = {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (
+      :id,
+      :seriesId,
+      :displayTitle,
+      :sourceUrl,
+      :sourceHost,
+      :articleTitle,
+      :byline,
+      :siteName,
+      :publishedTime,
+      :contentHtml,
+      :createdAt,
+      :updatedAt
+    );
   `,
 } as const;

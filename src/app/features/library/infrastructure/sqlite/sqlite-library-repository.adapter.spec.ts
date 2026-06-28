@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 
+import { bindSqliteStatement } from '@core/storage/sqlite/sqlite-bindings';
 import { SqliteDatabase } from '@core/storage/sqlite/sqlite-database';
 import { SQLITE_DATABASE } from '@core/storage/sqlite/sqlite-database.token';
-import { SqliteRow, SqliteValues } from '@core/storage/sqlite/sqlite-value';
+import { SqliteRow, SqliteStatementValues, SqliteValues } from '@core/storage/sqlite/sqlite-value';
 
 import { LIBRARY_CLOCK, LibraryClock } from '../../application/ports/library-clock.port';
 import { SaveLibraryEntryInput } from '../../application/ports/library-repository.port';
@@ -314,20 +315,22 @@ class FakeSqliteDatabase implements SqliteDatabase {
 
   public query<Row extends SqliteRow>(
     statement: string,
-    values: SqliteValues = [],
+    values: SqliteStatementValues = [],
   ): Promise<readonly Row[]> {
     if (this.failQueries) {
       return Promise.reject(new Error('query failed'));
     }
-    return Promise.resolve(this.queryRows(statement, values) as readonly Row[]);
+    const bound = bindSqliteStatement(statement, values);
+    return Promise.resolve(this.queryRows(bound.statement, bound.values) as readonly Row[]);
   }
 
-  public run(statement: string, values: SqliteValues = []): Promise<void> {
-    if (statement.includes('library_series_entries')) {
-      this.insertEntry(values);
+  public run(statement: string, values: SqliteStatementValues = []): Promise<void> {
+    const bound = bindSqliteStatement(statement, values);
+    if (bound.statement.includes('library_series_entries')) {
+      this.insertEntry(bound.values);
       return Promise.resolve();
     }
-    this.insertSeries(statement, values);
+    this.insertSeries(bound.statement, bound.values);
     return Promise.resolve();
   }
 

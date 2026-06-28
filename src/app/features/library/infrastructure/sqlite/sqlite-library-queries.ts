@@ -63,10 +63,10 @@ export class SqliteLibraryQueries {
 
   public async getEntry(seriesId: string, entryId: string): Promise<LibrarySeriesEntry | null> {
     const row = first(
-      await this.database.query<EntryRow>(sqliteLibraryStatements.selectEntryById, [
+      await this.database.query<EntryRow>(sqliteLibraryStatements.selectEntryById, {
         seriesId,
         entryId,
-      ]),
+      }),
     );
     return row === null ? null : toEntry(row);
   }
@@ -97,13 +97,13 @@ export class SqliteLibraryQueries {
     const normalizedTitle = normalizeTitleKey(series.title);
     const createdAt = oldestCreatedAt(series.entries) ?? fallbackTime;
     const updatedAt = newestUpdatedAt(series.entries) ?? createdAt;
-    await this.database.run(sqliteLibraryStatements.insertSeriesIgnore, [
-      series.id,
-      series.title,
+    await this.database.run(sqliteLibraryStatements.insertSeriesIgnore, {
+      id: series.id,
+      title: series.title,
       normalizedTitle,
       createdAt,
       updatedAt,
-    ]);
+    });
     const persisted = await this.selectSeriesByNormalizedTitle(normalizedTitle);
     if (persisted === null) {
       throw new Error('Could not import legacy Library Series.');
@@ -113,20 +113,20 @@ export class SqliteLibraryQueries {
   }
 
   public async insertEntry(seriesId: string, entry: LibraryEntryToSave): Promise<void> {
-    await this.database.run(sqliteLibraryStatements.insertEntry, [
-      entry.id,
+    await this.database.run(sqliteLibraryStatements.insertEntry, {
+      id: entry.id,
       seriesId,
-      entry.displayTitle,
-      entry.sourceUrl,
-      entry.sourceHost,
-      entry.articleTitle,
-      entry.byline,
-      entry.siteName,
-      entry.publishedTime,
-      entry.contentHtml,
-      entry.createdAt,
-      entry.updatedAt,
-    ]);
+      displayTitle: entry.displayTitle,
+      sourceUrl: entry.sourceUrl,
+      sourceHost: entry.sourceHost,
+      articleTitle: entry.articleTitle,
+      byline: entry.byline,
+      siteName: entry.siteName,
+      publishedTime: entry.publishedTime,
+      contentHtml: entry.contentHtml,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    });
   }
 
   private async resolveTargetSeries(target: SaveLibraryEntryTarget): Promise<SeriesRow | null> {
@@ -139,20 +139,20 @@ export class SqliteLibraryQueries {
       return existing;
     }
 
-    await this.database.run(sqliteLibraryStatements.insertSeries, [
-      target.seriesId,
-      target.title,
-      target.normalizedTitle,
-      target.createdAt,
-      target.createdAt,
-    ]);
+    await this.database.run(sqliteLibraryStatements.insertSeries, {
+      id: target.seriesId,
+      title: target.title,
+      normalizedTitle: target.normalizedTitle,
+      createdAt: target.createdAt,
+      updatedAt: target.createdAt,
+    });
     return this.selectSeriesById(target.seriesId);
   }
 
   private async toSeries(row: SeriesRow): Promise<LibrarySeries> {
     const entries = await this.database.query<EntrySummaryRow>(
       sqliteLibraryStatements.listSeriesEntries,
-      [row.id],
+      { seriesId: row.id },
     );
     return {
       id: row.id,
@@ -170,15 +170,15 @@ export class SqliteLibraryQueries {
 
   private async selectSeriesById(seriesId: string): Promise<SeriesRow | null> {
     return first(
-      await this.database.query<SeriesRow>(sqliteLibraryStatements.selectSeriesById, [seriesId]),
+      await this.database.query<SeriesRow>(sqliteLibraryStatements.selectSeriesById, { seriesId }),
     );
   }
 
   private async selectSeriesByNormalizedTitle(normalizedTitle: string): Promise<SeriesRow | null> {
     return first(
-      await this.database.query<SeriesRow>(sqliteLibraryStatements.selectSeriesByNormalizedTitle, [
+      await this.database.query<SeriesRow>(sqliteLibraryStatements.selectSeriesByNormalizedTitle, {
         normalizedTitle,
-      ]),
+      }),
     );
   }
 
@@ -187,10 +187,10 @@ export class SqliteLibraryQueries {
     sourceUrl: string,
   ): Promise<EntrySummaryRow | null> {
     return first(
-      await this.database.query<EntrySummaryRow>(sqliteLibraryStatements.selectEntryBySourceUrl, [
+      await this.database.query<EntrySummaryRow>(sqliteLibraryStatements.selectEntryBySourceUrl, {
         seriesId,
         sourceUrl,
-      ]),
+      }),
     );
   }
 }
