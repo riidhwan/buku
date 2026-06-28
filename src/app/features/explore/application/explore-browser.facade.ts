@@ -1,10 +1,6 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
-import {
-  type ReadingChapterDirection,
-  browserNoticeForReadingModeResult,
-  resolveReadingModeTargetUrl,
-} from './explore-browser-reading-mode-policy';
+import type { ReadingChapterDirection } from './explore-browser-reading-mode-policy';
 import type {
   BrowserOpenResult,
   BrowserReadingChapterNavigationResult,
@@ -14,6 +10,7 @@ import { reduceBrowserViewportEvent } from './explore-browser-viewport-event-red
 import { ExploreBrowserViewportActions } from './explore-browser-viewport-actions';
 import { ExploreBrowserFacadeState } from './explore-browser.facade-state';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
+import { ExploreReadingModeActions } from './explore-reading-mode-actions';
 import {
   closeExploreBrowserTab,
   selectExploreBrowserTab,
@@ -53,6 +50,13 @@ export class ExploreBrowserFacade implements OnDestroy {
     viewport: this.viewport,
     externalUrlOpener: this.externalUrlOpener,
     loadSelectedTabUrl: (url) => this.loadSelectedTabUrl(url),
+  });
+  private readonly readingModeActions = new ExploreReadingModeActions({
+    state: this.state,
+    viewport: this.viewport,
+    urlPolicy: this.urlPolicy,
+    chapterNavigator: this.chapterNavigator,
+    loadNormalizedUrl: (url) => this.loadNormalizedUrl(url),
   });
   private readonly viewportSubscription: Subscription;
 
@@ -243,27 +247,11 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async openReadingMode(): Promise<BrowserReadingModeResult> {
-    const currentUrl = this.state.currentUrlSignal();
-    if (currentUrl === null || this.state.loadingSignal()) {
-      return { ok: false };
-    }
-
-    const result = await this.viewport.extractArticle();
-    switch (result.status) {
-      case 'ok':
-        this.state.readingArticleSignal.set(result.article);
-        this.state.noticeSignal.set(null);
-        await this.viewport.hide();
-        return { ok: true };
-      case 'unavailable':
-      case 'failed':
-        this.state.noticeSignal.set(browserNoticeForReadingModeResult(result, currentUrl));
-        return { ok: false };
-    }
+    return this.readingModeActions.openReadingMode();
   }
 
   public closeReadingMode(): void {
-    this.state.readingArticleSignal.set(null);
+    this.readingModeActions.closeReadingMode();
   }
 
   public async rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
@@ -278,57 +266,13 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async openReadingModeLink(href: string): Promise<BrowserOpenResult> {
-    const article = this.state.readingArticleSignal();
-    if (article === null) {
-      return { ok: false };
-    }
-
-    const targetUrl = resolveReadingModeTargetUrl(href, article.url, this.urlPolicy);
-    if (!targetUrl.ok) {
-      this.state.noticeSignal.set(targetUrl.notice);
-      return { ok: false };
-    }
-
-    this.state.readingArticleSignal.set(null);
-    await this.loadNormalizedUrl(targetUrl.url);
-    return { ok: true };
+    return this.readingModeActions.openReadingModeLink(href);
   }
 
   public async navigateReadingChapter(
     direction: ReadingChapterDirection,
   ): Promise<BrowserReadingChapterNavigationResult> {
-    const article = this.state.readingArticleSignal();
-    if (
-      article === null ||
-      this.state.loadingSignal() ||
-      this.state.chapterNavigationLoadingSignal()
-    ) {
-      return { ok: false };
-    }
-
-    this.state.chapterNavigationLoadingSignal.set(true);
-    try {
-      const result = await this.chapterNavigator.navigate(article, direction);
-      if (!result.ok) {
-        this.state.noticeSignal.set(result.notice);
-        return { ok: false };
-      }
-
-      if (result.destination === 'reader') {
-        this.state.readingArticleSignal.set(result.article);
-        this.state.noticeSignal.set(null);
-        await this.viewport.hide();
-        return { ok: true, destination: 'reader' };
-      }
-
-      this.state.readingArticleSignal.set(null);
-      if (result.notice !== null) {
-        this.state.noticeSignal.set(result.notice);
-      }
-      return { ok: true, destination: 'browser' };
-    } finally {
-      this.state.chapterNavigationLoadingSignal.set(false);
-    }
+    return this.readingModeActions.navigateReadingChapter(direction);
   }
 
   public dismissNotice(): void {
