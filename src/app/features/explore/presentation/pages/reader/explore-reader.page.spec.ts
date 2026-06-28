@@ -33,12 +33,20 @@ const articleSnapshot: ReadingArticleSnapshot = {
 class FakeExploreBrowserFacade {
   public readonly readingArticle = signal<ReadingArticleSnapshot | null>(articleSnapshot);
   public readonly chapterNavigationLoading = signal(false);
+  public readonly activeTab = signal({
+    id: 'tab-1',
+    url: 'https://example.com/article',
+    pageTitle: 'Readable article',
+    backStack: [],
+    lastLibrarySeriesTitle: null as string | null,
+  });
   public hidden = 0;
   public closed = 0;
   public openedHref: string | null = null;
   public chapterDirection: 'previous' | 'next' | null = null;
   public linkResult = true;
   public chapterDestination: 'reader' | 'browser' = 'reader';
+  public rememberedSeriesTitle: string | null = null;
 
   public hideViewport(): Promise<void> {
     this.hidden += 1;
@@ -48,6 +56,12 @@ class FakeExploreBrowserFacade {
   public closeReadingMode(): Promise<void> {
     this.closed += 1;
     this.readingArticle.set(null);
+    return Promise.resolve();
+  }
+
+  public rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
+    this.rememberedSeriesTitle = title;
+    this.activeTab.update((tab) => ({ ...tab, lastLibrarySeriesTitle: title }));
     return Promise.resolve();
   }
 
@@ -396,6 +410,20 @@ describe('ExploreReaderPage', () => {
     expect(component.seriesInput).toBe('');
   });
 
+  it('prefills the save modal with the active tab remembered Series', async () => {
+    browser.activeTab.update((tab) => ({
+      ...tab,
+      lastLibrarySeriesTitle: 'Existing Series',
+    }));
+    createPage();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
+    await component.openSaveModal();
+
+    expect(component.seriesInput).toBe('Existing Series');
+  });
+
   it('does not open the save modal while article state is unavailable', async () => {
     browser.chapterNavigationLoading.set(true);
     createPage();
@@ -493,6 +521,7 @@ describe('ExploreReaderPage', () => {
     await component.saveToLibrary();
 
     expect(librarySave.savedInputs.length).toBe(1);
+    expect(browser.rememberedSeriesTitle).toBe('Existing Series');
     expect(component.saveModalOpen()).toBeFalse();
     expect(component.saveConfirmed()).toBeTrue();
     expect(router.navigations).toEqual([]);

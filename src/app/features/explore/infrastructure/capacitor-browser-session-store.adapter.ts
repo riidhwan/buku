@@ -93,6 +93,7 @@ export class CapacitorBrowserSessionStoreAdapter implements BrowserSessionStoreP
       url: value['url'],
       pageTitle: this.parsePageTitle(value['pageTitle']),
       backStack: this.parseBackStack(value['backStack']),
+      lastLibrarySeriesTitle: this.parseLibrarySeriesTitle(value['lastLibrarySeriesTitle']),
     };
   }
 
@@ -110,6 +111,12 @@ export class CapacitorBrowserSessionStoreAdapter implements BrowserSessionStoreP
     }
 
     return value;
+  }
+
+  private parseLibrarySeriesTitle(value: unknown): string | null {
+    return typeof value === 'string' && value.trim().length > 0
+      ? value.trim().replace(/\s+/g, ' ')
+      : null;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

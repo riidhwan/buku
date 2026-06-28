@@ -60,6 +60,7 @@ export function createExploreBrowserTab(url: string | null): ExploreBrowserTab {
     url,
     pageTitle: null,
     backStack: [],
+    lastLibrarySeriesTitle: null,
   };
 }
 
@@ -148,8 +149,29 @@ export function commitExploreBrowserNavigation(params: {
   };
 }
 
+export function rememberExploreBrowserTabLibrarySeriesTitle(params: {
+  readonly tabs: readonly ExploreBrowserTab[];
+  readonly selectedTabId: string | null;
+  readonly title: string;
+}): readonly ExploreBrowserTab[] {
+  const selectedTabId = params.selectedTabId;
+  if (selectedTabId === null) {
+    return params.tabs;
+  }
+
+  return updateSelectedTab(params.tabs, selectedTabId, (tab) => ({
+    ...tab,
+    lastLibrarySeriesTitle: normalizeLibrarySeriesTitle(params.title),
+  }));
+}
+
 export function normalizePageTitle(title: string | null): string | null {
   const normalized = title?.trim() ?? '';
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeLibrarySeriesTitle(title: string): string | null {
+  const normalized = title.trim().replace(/\s+/g, ' ');
   return normalized.length > 0 ? normalized : null;
 }
 

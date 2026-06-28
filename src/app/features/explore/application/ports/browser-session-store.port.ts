@@ -5,6 +5,7 @@ export interface ExploreBrowserTab {
   readonly url: string | null;
   readonly pageTitle: string | null;
   readonly backStack: readonly string[];
+  readonly lastLibrarySeriesTitle: string | null;
 }
 
 export interface BrowserTabSession {
