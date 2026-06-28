@@ -138,12 +138,15 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     this.scheduleViewportRectUpdate();
   }
 
+  public ionViewWillLeave(): void {
+    this.clearViewportUpdateTimer();
+    void this.browser.hideViewport();
+  }
+
   public ngOnDestroy(): void {
     this.backButtonSubscription.unsubscribe();
     window.removeEventListener('resize', this.resizeListener);
-    if (this.viewportUpdateTimer !== null) {
-      window.clearTimeout(this.viewportUpdateTimer);
-    }
+    this.clearViewportUpdateTimer();
     void this.browser.hideViewport();
   }
 
@@ -245,14 +248,19 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   }
 
   private scheduleViewportRectUpdate(): void {
-    if (this.viewportUpdateTimer !== null) {
-      window.clearTimeout(this.viewportUpdateTimer);
-    }
+    this.clearViewportUpdateTimer();
 
     this.viewportUpdateTimer = window.setTimeout(() => {
       this.viewportUpdateTimer = null;
       void this.updateViewportRect();
     });
+  }
+
+  private clearViewportUpdateTimer(): void {
+    if (this.viewportUpdateTimer !== null) {
+      window.clearTimeout(this.viewportUpdateTimer);
+      this.viewportUpdateTimer = null;
+    }
   }
 
   private async updateViewportRect(): Promise<void> {

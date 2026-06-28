@@ -214,6 +214,7 @@ class FakePlatform {
 
 interface ExploreBrowserPageHarness {
   readonly readerSave: ExploreBrowserReaderSaveActions;
+  ionViewWillLeave(): void;
   openReadingMode(): Promise<void>;
   openReaderLink(event: Event): Promise<void>;
   navigateChapter(direction: 'previous' | 'next'): Promise<void>;
@@ -418,6 +419,14 @@ describe('ExploreBrowserPage', () => {
     await waitForViewportTimer();
 
     expect(browser.showCount).toBe(initialShowCount + 1);
+  });
+
+  it('hides the native viewport before Ionic leaves the cached browser page', () => {
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    component.ionViewWillLeave();
+
+    expect(browser.hidden).toBe(1);
   });
 
   it('keeps only the latest pending viewport reposition timer', async () => {
