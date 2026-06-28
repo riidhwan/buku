@@ -20,6 +20,10 @@ export interface NativeBrowserNavigationState {
   readonly canGoForward: boolean;
 }
 
+export interface NativeBrowserHistoryNavigationResult {
+  readonly didNavigate: boolean;
+}
+
 export interface NativeBrowserLoadFailedEvent {
   readonly url: string;
   readonly description: string;
@@ -69,7 +73,7 @@ export interface ExploreBrowserPlugin {
   load(options: { readonly url: string }): Promise<void>;
   stop(): Promise<void>;
   reload(): Promise<void>;
-  back(): Promise<void>;
+  back(): Promise<NativeBrowserHistoryNavigationResult>;
   forward(): Promise<void>;
   copyUrl(options: { readonly url: string }): Promise<void>;
   openExternal(options: { readonly url: string }): Promise<void>;

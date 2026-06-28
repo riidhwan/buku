@@ -26,6 +26,10 @@ export interface BrowserNavigationState {
   readonly canGoForward: boolean;
 }
 
+export interface BrowserHistoryNavigationResult {
+  readonly didNavigate: boolean;
+}
+
 export interface BrowserLoadFailedEvent {
   readonly url: string;
   readonly description: string;
@@ -72,7 +76,7 @@ export interface BrowserViewportPort {
   load(url: string): Promise<void>;
   stop(): Promise<void>;
   reload(): Promise<void>;
-  back(): Promise<void>;
+  back(): Promise<BrowserHistoryNavigationResult>;
   forward(): Promise<void>;
   copyUrl(url: string): Promise<void>;
   extractArticle(): Promise<BrowserArticleExtractionResult>;

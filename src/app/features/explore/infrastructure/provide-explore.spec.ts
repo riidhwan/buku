@@ -11,6 +11,7 @@ import {
   ExploreBrowserPlugin,
   NativeArticleExtractionResult,
   NativeBrowserCapabilityEvent,
+  NativeBrowserHistoryNavigationResult,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
 } from './capacitor-explore-browser';
@@ -35,8 +36,8 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public reload(): Promise<void> {
     return Promise.resolve();
   }
-  public back(): Promise<void> {
-    return Promise.resolve();
+  public back(): Promise<NativeBrowserHistoryNavigationResult> {
+    return Promise.resolve({ didNavigate: false });
   }
   public forward(): Promise<void> {
     return Promise.resolve();

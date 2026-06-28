@@ -18,6 +18,7 @@ import {
   IonInput,
   IonText,
   IonToolbar,
+  Platform,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -34,6 +35,7 @@ import {
   tabletLandscapeOutline,
   warningOutline,
 } from 'ionicons/icons';
+import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
 
@@ -60,6 +62,8 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
   private readonly router = inject(Router);
+  private readonly platform = inject(Platform);
+  private readonly backButtonSubscription: Subscription;
   private viewportUpdateTimer: number | null = null;
   private readonly resizeListener = (): void => {
     void this.updateViewportRect();
@@ -80,6 +84,9 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
       tabletLandscapeOutline,
       warningOutline,
     });
+    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => {
+      void this.handleHardwareBackButton();
+    });
   }
 
   public ngAfterViewInit(): void {
@@ -92,6 +99,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    this.backButtonSubscription.unsubscribe();
     window.removeEventListener('resize', this.resizeListener);
     if (this.viewportUpdateTimer !== null) {
       window.clearTimeout(this.viewportUpdateTimer);
@@ -139,6 +147,23 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
 
   public closeActions(): void {
     this.actionsOpen.set(false);
+  }
+
+  private async handleHardwareBackButton(): Promise<void> {
+    if (this.actionsOpen()) {
+      this.closeActions();
+      this.scheduleViewportRectUpdate();
+      return;
+    }
+
+    if (this.browser.canGoBack()) {
+      const result = await this.browser.goBack();
+      if (result.didNavigate) {
+        return;
+      }
+    }
+
+    await this.close();
   }
 
   private scheduleViewportRectUpdate(): void {

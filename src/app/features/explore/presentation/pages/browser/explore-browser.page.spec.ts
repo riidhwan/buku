@@ -1,9 +1,13 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { Platform } from '@ionic/angular/standalone';
+import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
 import { ExploreBrowserPage } from './explore-browser.page';
+
+type BackButtonCallback = (processNextHandler: () => void) => Promise<unknown> | undefined;
 
 class FakeExploreBrowserFacade {
   public readonly inputValue = signal('https://example.com/');
@@ -24,6 +28,8 @@ class FakeExploreBrowserFacade {
   public dismissed = 0;
   public closed = 0;
   public copied = 0;
+  public backNavigations = 0;
+  public backDidNavigate = true;
   public reloads = 0;
   public readingModeOpens = 0;
   public readingModeResult = true;
@@ -53,8 +59,9 @@ class FakeExploreBrowserFacade {
     return Promise.resolve();
   }
 
-  public goBack(): Promise<void> {
-    return Promise.resolve();
+  public goBack(): Promise<{ readonly didNavigate: boolean }> {
+    this.backNavigations += 1;
+    return Promise.resolve({ didNavigate: this.backDidNavigate });
   }
 
   public goForward(): Promise<void> {
@@ -95,6 +102,34 @@ class FakeRouter {
   }
 }
 
+class FakeBackButton {
+  private callback: BackButtonCallback | null = null;
+  public priority: number | null = null;
+  public processNextCalls = 0;
+  public unsubscribed = false;
+
+  public subscribeWithPriority(priority: number, callback: BackButtonCallback): Subscription {
+    this.priority = priority;
+    this.callback = callback;
+    return new Subscription(() => {
+      this.unsubscribed = true;
+      if (this.callback === callback) {
+        this.callback = null;
+      }
+    });
+  }
+
+  public async trigger(): Promise<void> {
+    await this.callback?.(() => {
+      this.processNextCalls += 1;
+    });
+  }
+}
+
+class FakePlatform {
+  public readonly backButton = new FakeBackButton();
+}
+
 function isIonButtonDisabled(button: Element): boolean {
   return (
     button.hasAttribute('disabled') ||
@@ -116,16 +151,19 @@ describe('ExploreBrowserPage', () => {
   let fixture: ComponentFixture<ExploreBrowserPage>;
   let browser: FakeExploreBrowserFacade;
   let router: FakeRouter;
+  let platform: FakePlatform;
 
   beforeEach(async () => {
     browser = new FakeExploreBrowserFacade();
     router = new FakeRouter();
+    platform = new FakePlatform();
 
     await TestBed.configureTestingModule({
       imports: [ExploreBrowserPage],
       providers: [
         { provide: ExploreBrowserFacade, useValue: browser },
         { provide: Router, useValue: router },
+        { provide: Platform, useValue: platform },
       ],
     }).compileComponents();
 
@@ -191,6 +229,14 @@ describe('ExploreBrowserPage', () => {
     expect(browser.hidden).toBe(1);
   });
 
+  it('subscribes to Android back above route navigation while the browser page exists', () => {
+    expect(platform.backButton.priority).toBe(10);
+
+    fixture.destroy();
+
+    expect(platform.backButton.unsubscribed).toBeTrue();
+  });
+
   it('hides browser controls until the overflow button opens them', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
 
@@ -214,6 +260,54 @@ describe('ExploreBrowserPage', () => {
     await waitForViewportTimer();
 
     expect(browser.showCount).toBeGreaterThan(initialShowCount);
+  });
+
+  it('closes browser controls before navigating WebView history from Android back', async () => {
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+    const initialShowCount = browser.showCount;
+
+    await platform.backButton.trigger();
+    fixture.detectChanges();
+    await waitForViewportTimer();
+
+    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(browser.backNavigations).toBe(0);
+    expect(browser.closed).toBe(0);
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
+    expect(platform.backButton.processNextCalls).toBe(0);
+  });
+
+  it('navigates WebView history from Android back when available', async () => {
+    browser.canGoBack.set(true);
+
+    await platform.backButton.trigger();
+
+    expect(browser.backNavigations).toBe(1);
+    expect(browser.closed).toBe(0);
+    expect(router.navigations).toEqual([]);
+    expect(platform.backButton.processNextCalls).toBe(0);
+  });
+
+  it('closes from Android back when stale history state no longer navigates', async () => {
+    browser.canGoBack.set(true);
+    browser.backDidNavigate = false;
+
+    await platform.backButton.trigger();
+
+    expect(browser.backNavigations).toBe(1);
+    expect(browser.closed).toBe(1);
+    expect(router.navigations).toEqual([['explore']]);
+    expect(platform.backButton.processNextCalls).toBe(0);
+  });
+
+  it('closes back to Explore from Android back when WebView history is exhausted', async () => {
+    await platform.backButton.trigger();
+
+    expect(browser.backNavigations).toBe(0);
+    expect(browser.closed).toBe(1);
+    expect(router.navigations).toEqual([['explore']]);
+    expect(platform.backButton.processNextCalls).toBe(0);
   });
 
   it('refreshes the native viewport after Ionic finishes entering the browser page', async () => {

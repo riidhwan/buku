@@ -3,6 +3,7 @@ import { Subject } from 'rxjs';
 import {
   BrowserArticleExtractionResult,
   BrowserCapability,
+  BrowserHistoryNavigationResult,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
@@ -62,8 +63,8 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
     await this.plugin.reload();
   }
 
-  public async back(): Promise<void> {
-    await this.plugin.back();
+  public async back(): Promise<BrowserHistoryNavigationResult> {
+    return this.plugin.back();
   }
 
   public async forward(): Promise<void> {

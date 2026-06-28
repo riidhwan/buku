@@ -5,6 +5,7 @@ import {
   NativeArticleExtractionResult,
   ExploreBrowserPlugin,
   NativeBrowserCapabilityEvent,
+  NativeBrowserHistoryNavigationResult,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
   NativeBrowserViewportRect,
@@ -24,6 +25,7 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public loadedUrl: string | null = null;
   public copiedUrl: string | null = null;
   public script: string | null = null;
+  public backResult: NativeBrowserHistoryNavigationResult = { didNavigate: true };
   public articleExtractionResult: NativeArticleExtractionResult = {
     status: 'unavailable',
   };
@@ -60,9 +62,9 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     return Promise.resolve();
   }
 
-  public back(): Promise<void> {
+  public back(): Promise<NativeBrowserHistoryNavigationResult> {
     this.calls.push('back');
-    return Promise.resolve();
+    return Promise.resolve(this.backResult);
   }
 
   public forward(): Promise<void> {
@@ -169,7 +171,7 @@ describe('CapacitorBrowserViewportAdapter', () => {
     await adapter.load('https://example.com/');
     await adapter.stop();
     await adapter.reload();
-    await adapter.back();
+    const backResult = await adapter.back();
     await adapter.forward();
     await adapter.copyUrl('https://example.com/');
     await adapter.hide();
@@ -189,6 +191,15 @@ describe('CapacitorBrowserViewportAdapter', () => {
     expect(plugin.shownRect).toEqual(rect);
     expect(plugin.loadedUrl).toBe('https://example.com/');
     expect(plugin.copiedUrl).toBe('https://example.com/');
+    expect(backResult).toEqual({ didNavigate: true });
+  });
+
+  it('preserves native browser back no-op results', async () => {
+    plugin.backResult = { didNavigate: false };
+
+    const result = await adapter.back();
+
+    expect(result).toEqual({ didNavigate: false });
   });
 
   it('loads Readability and maps successful article extraction', async () => {

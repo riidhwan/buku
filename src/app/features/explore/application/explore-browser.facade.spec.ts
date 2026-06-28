@@ -10,6 +10,7 @@ import {
 import {
   BrowserArticleExtractionResult,
   BROWSER_VIEWPORT,
+  BrowserHistoryNavigationResult,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
@@ -48,6 +49,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   public stopCount = 0;
   public reloadCount = 0;
   public backCount = 0;
+  public backResult: BrowserHistoryNavigationResult = { didNavigate: true };
   public forwardCount = 0;
   public articleExtractionResult: BrowserArticleExtractionResult = {
     status: 'unavailable',
@@ -93,9 +95,9 @@ class FakeBrowserViewport implements BrowserViewportPort {
     return Promise.resolve();
   }
 
-  public back(): Promise<void> {
+  public back(): Promise<BrowserHistoryNavigationResult> {
     this.backCount += 1;
-    return Promise.resolve();
+    return Promise.resolve(this.backResult);
   }
 
   public forward(): Promise<void> {
@@ -500,13 +502,40 @@ describe('ExploreBrowserFacade', () => {
 
     await facade.stopOrReload();
     await facade.stopOrReload();
-    await facade.goBack();
+    const backResult = await facade.goBack();
     await facade.goForward();
 
     expect(viewport.stopCount).toBe(1);
     expect(viewport.reloadCount).toBe(1);
     expect(viewport.backCount).toBe(1);
+    expect(backResult).toEqual({ didNavigate: true });
     expect(viewport.forwardCount).toBe(1);
+  });
+
+  it('reports that browser back did not navigate when history state is unavailable', async () => {
+    const result = await facade.goBack();
+
+    expect(result).toEqual({ didNavigate: false });
+    expect(viewport.backCount).toBe(0);
+  });
+
+  it('passes through native browser back no-op results', async () => {
+    viewport.backResult = { didNavigate: false };
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/',
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+      },
+    });
+
+    const result = await facade.goBack();
+
+    expect(result).toEqual({ didNavigate: false });
+    expect(viewport.backCount).toBe(1);
   });
 
   it('shows load failure notices and can retry the current URL', async () => {
