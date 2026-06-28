@@ -43,8 +43,8 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
   it('writes and reads tab sessions', async () => {
     const session = {
       tabs: [
-        { id: 'tab-1', url: 'https://example.com/' },
-        { id: 'tab-2', url: null },
+        { id: 'tab-1', url: 'https://example.com/', backStack: ['https://previous.example/'] },
+        { id: 'tab-2', url: null, backStack: [] },
       ],
       selectedTabId: 'tab-1',
     };
@@ -99,8 +99,29 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
     );
 
     await expectAsync(adapter.readTabSession()).toBeResolvedTo({
-      tabs: [{ id: 'tab-1', url: 'https://example.com/' }],
+      tabs: [{ id: 'tab-1', url: 'https://example.com/', backStack: [] }],
       selectedTabId: null,
+    });
+  });
+
+  it('returns an empty back stack for malformed tab back stacks', async () => {
+    preferences.values.set(
+      'explore.browser.tabs',
+      JSON.stringify({
+        tabs: [
+          { id: 'tab-1', url: 'https://one.example/', backStack: 'invalid' },
+          { id: 'tab-2', url: 'https://two.example/', backStack: ['https://ok.example/', 1] },
+        ],
+        selectedTabId: 'tab-1',
+      }),
+    );
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [
+        { id: 'tab-1', url: 'https://one.example/', backStack: [] },
+        { id: 'tab-2', url: 'https://two.example/', backStack: [] },
+      ],
+      selectedTabId: 'tab-1',
     });
   });
 

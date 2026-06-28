@@ -61,6 +61,8 @@ const capabilityMessages: Record<BrowserCapability, string> = {
   newWindow: 'Pop-up windows are opened in the current Explore Browser session when possible.',
   unknown: 'This page requested something Explore Browser does not support.',
 };
+const maxBackStackEntries = 25;
+type PendingBackNavigationKind = 'native' | 'fallback';
 
 @Injectable()
 export class ExploreBrowserFacade implements OnDestroy {
@@ -75,12 +77,14 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly tabsSignal = signal<readonly ExploreBrowserTab[]>([]);
   private readonly selectedTabIdSignal = signal<string | null>(null);
   private readonly loadingSignal = signal(false);
-  private readonly canGoBackSignal = signal(false);
+  private readonly nativeCanGoBackSignal = signal(false);
   private readonly canGoForwardSignal = signal(false);
   private readonly validationErrorSignal = signal<string | null>(null);
   private readonly noticeSignal = signal<BrowserNotice | null>(null);
   private readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
   private readonly chapterNavigationLoadingSignal = signal(false);
+  private readonly pendingBackNavigationKinds: PendingBackNavigationKind[] = [];
+  private fallbackBackCreatedNativeHistory = false;
 
   public readonly inputValue = this.inputValueSignal.asReadonly();
   public readonly currentUrl = this.currentUrlSignal.asReadonly();
@@ -102,7 +106,9 @@ export class ExploreBrowserFacade implements OnDestroy {
     return lastTab.url;
   });
   public readonly loading = this.loadingSignal.asReadonly();
-  public readonly canGoBack = this.canGoBackSignal.asReadonly();
+  public readonly canGoBack = computed(
+    () => this.activeBackStack().length > 0 || this.canUseNativeBack(),
+  );
   public readonly canGoForward = this.canGoForwardSignal.asReadonly();
   public readonly validationError = this.validationErrorSignal.asReadonly();
   public readonly notice = this.noticeSignal.asReadonly();
@@ -266,8 +272,32 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async goBack(): Promise<BrowserHistoryNavigationResult> {
-    if (this.canGoBackSignal()) {
-      return this.viewport.back();
+    if (this.canUseNativeBack()) {
+      const result = await this.viewport.back();
+      if (result.didNavigate) {
+        this.pendingBackNavigationKinds.push('native');
+      }
+
+      return result;
+    }
+
+    const activeBackStack = this.activeBackStack();
+    const backTarget = activeBackStack[activeBackStack.length - 1];
+    if (backTarget !== undefined) {
+      try {
+        this.pendingBackNavigationKinds.push('fallback');
+        await this.loadSelectedTabUrl(backTarget);
+        return { didNavigate: true };
+      } catch (error) {
+        this.pendingBackNavigationKinds.pop();
+        const message = this.loadFailureMessage(error);
+        this.noticeSignal.set({
+          kind: 'loadFailed',
+          message: `Page failed to load: ${message}`,
+          url: backTarget,
+        });
+        return { didNavigate: false };
+      }
     }
 
     return { didNavigate: false };
@@ -441,23 +471,19 @@ export class ExploreBrowserFacade implements OnDestroy {
 
     this.validationErrorSignal.set(null);
     if (target === 'new') {
-      const tab = this.createTab(normalized.url);
+      const tab = this.createTab(null);
       this.tabsSignal.update((tabs) => [...tabs, tab]);
       this.selectedTabIdSignal.set(tab.id);
     } else {
       this.ensureActiveTab();
-      this.updateActiveTabUrl(normalized.url);
     }
 
-    await this.persistTabs();
     await this.loadSelectedTabUrl(normalized.url);
     return { ok: true };
   }
 
   private async loadNormalizedUrl(url: string): Promise<void> {
     this.ensureActiveTab();
-    this.updateActiveTabUrl(url);
-    await this.persistTabs();
     await this.loadSelectedTabUrl(url);
   }
 
@@ -472,8 +498,9 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.inputValueSignal.set('');
     this.currentUrlSignal.set(null);
     this.loadingSignal.set(false);
-    this.canGoBackSignal.set(false);
+    this.nativeCanGoBackSignal.set(false);
     this.canGoForwardSignal.set(false);
+    this.fallbackBackCreatedNativeHistory = false;
     this.validationErrorSignal.set(null);
     await this.viewport.hide();
     await this.viewport.destroy();
@@ -559,10 +586,10 @@ export class ExploreBrowserFacade implements OnDestroy {
         this.currentUrlSignal.set(event.state.url);
         this.inputValueSignal.set(event.state.url);
         this.loadingSignal.set(event.state.loading);
-        this.canGoBackSignal.set(event.state.canGoBack);
+        this.nativeCanGoBackSignal.set(event.state.canGoBack);
         this.canGoForwardSignal.set(event.state.canGoForward);
         if (event.committed) {
-          this.updateActiveTabUrl(event.state.url);
+          this.commitActiveTabUrl(event.state.url);
           void this.persistTabs();
         }
         break;
@@ -643,21 +670,81 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.inputValueSignal.set('');
   }
 
-  private updateActiveTabUrl(url: string): void {
+  private commitActiveTabUrl(url: string): void {
     const selectedTabId = this.selectedTabIdSignal();
     if (selectedTabId === null) {
       return;
     }
 
+    const pendingBackNavigationKind = this.pendingBackNavigationKinds.shift();
+    if (pendingBackNavigationKind !== undefined) {
+      if (pendingBackNavigationKind === 'fallback') {
+        this.fallbackBackCreatedNativeHistory = true;
+      }
+
+      this.popActiveBackStackForCommittedUrl(url);
+      return;
+    }
+
+    const previousUrl = this.findActiveTab()?.url ?? null;
     this.tabsSignal.update((tabs) =>
-      tabs.map((tab) => (tab.id === selectedTabId ? { ...tab, url } : tab)),
+      tabs.map((tab) =>
+        tab.id === selectedTabId
+          ? {
+              ...tab,
+              url,
+              backStack: this.stackWithPreviousUrl(tab.backStack, previousUrl, url),
+            }
+          : tab,
+      ),
     );
+  }
+
+  private popActiveBackStackForCommittedUrl(url: string): void {
+    const selectedTabId = this.selectedTabIdSignal();
+    this.tabsSignal.update((tabs) =>
+      tabs.map((tab) =>
+        tab.id === selectedTabId
+          ? {
+              ...tab,
+              url,
+              backStack: tab.backStack.slice(0, -1),
+            }
+          : tab,
+      ),
+    );
+  }
+
+  private stackWithPreviousUrl(
+    backStack: readonly string[],
+    previousUrl: string | null,
+    committedUrl: string,
+  ): readonly string[] {
+    if (previousUrl === null || previousUrl === committedUrl) {
+      return backStack;
+    }
+
+    const lastEntry = backStack[backStack.length - 1];
+    if (lastEntry === previousUrl) {
+      return backStack;
+    }
+
+    return [...backStack, previousUrl].slice(-maxBackStackEntries);
+  }
+
+  private activeBackStack(): readonly string[] {
+    return this.findActiveTab()?.backStack ?? [];
+  }
+
+  private canUseNativeBack(): boolean {
+    return this.nativeCanGoBackSignal() && !this.fallbackBackCreatedNativeHistory;
   }
 
   private createTab(url: string | null): ExploreBrowserTab {
     return {
       id: `explore-tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
       url,
+      backStack: [],
     };
   }
 
