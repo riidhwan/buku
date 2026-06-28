@@ -91,7 +91,7 @@ export class ExploreReaderPage implements OnInit {
 
   protected async close(): Promise<void> {
     this.browser.closeReadingMode();
-    await this.router.navigate(['explore', 'browser']);
+    await this.router.navigate(['explore']);
   }
 
   protected async openReaderLink(event: Event): Promise<void> {
@@ -109,14 +109,14 @@ export class ExploreReaderPage implements OnInit {
     event.preventDefault();
     const result = await this.browser.openReadingModeLink(href);
     if (result.ok) {
-      await this.router.navigate(['explore', 'browser']);
+      await this.router.navigate(['explore']);
     }
   }
 
   protected async navigateChapter(direction: ReadingChapterDirection): Promise<void> {
     const result = await this.browser.navigateReadingChapter(direction);
     if (result.ok && result.destination === 'browser') {
-      await this.router.navigate(['explore', 'browser']);
+      await this.router.navigate(['explore']);
     }
   }
 

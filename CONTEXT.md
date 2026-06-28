@@ -23,11 +23,11 @@ _Avoid_: source chapter discovery, browser reading, reading history
 The browsing-oriented area for discovering readable or book-related content on the net from inside Buku. Explore may navigate to ordinary web pages, but it is product-framed around content discovery rather than being a standalone browser.
 
 **Explore Browser**:
-The in-app web navigation surface within Explore for visiting ordinary web pages during content discovery.
+The primary in-app web navigation surface shown when opening Explore for visiting ordinary web pages during content discovery.
 _Avoid_: Buku Browser, standalone browser
 
 **Explore Browser Tab**:
-A lightweight saved URL slot within the Explore Browser. It lets the user keep multiple discovery destinations and switch between them, without promising separate live browser sessions or full browser-style tab history.
+A lightweight saved URL slot within the Explore Browser. It lets the user keep multiple discovery destinations and switch between them, without promising separate live browser sessions or full browser-style tab history. A blank Explore Browser Tab is a valid selected tab when the user has not loaded a page yet.
 A loaded Explore Browser Tab is labelled by the latest loaded page title when the page provides one; before a page has loaded, its URL remains the fallback label.
 _Avoid_: browser tab, WebView session, reading history entry
 

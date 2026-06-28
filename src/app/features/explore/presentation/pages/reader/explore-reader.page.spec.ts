@@ -233,7 +233,7 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     expect(browser.closed).toBe(1);
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('always renders chapter buttons and disables unavailable directions', async () => {
@@ -311,7 +311,7 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     expect(browser.chapterDirection).toBe('previous');
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('opens article links through the Explore Browser', async () => {
@@ -326,7 +326,7 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
 
     expect(browser.openedHref).toBe('/next');
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('stays in the reader when a reader link cannot be opened', async () => {

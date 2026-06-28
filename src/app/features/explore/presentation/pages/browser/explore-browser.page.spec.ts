@@ -68,6 +68,12 @@ class FakeExploreBrowserFacade {
   public openedHref: string | null = null;
   public chapterDirection: 'previous' | 'next' | null = null;
   public rememberedSeriesTitle: string | null = null;
+  public initializeCount = 0;
+
+  public initialize(): Promise<void> {
+    this.initializeCount += 1;
+    return Promise.resolve();
+  }
 
   public updateInputValue(value: string): void {
     this.inputValue.set(value);
@@ -268,6 +274,7 @@ describe('ExploreBrowserPage', () => {
 
   it('shows the native viewport inside the page content rectangle', () => {
     expect(browser.shownRect).not.toBeNull();
+    expect(browser.initializeCount).toBe(1);
   });
 
   it('lets the application URL policy validate bare domains in the address bar', () => {
@@ -391,25 +398,25 @@ describe('ExploreBrowserPage', () => {
     expect(platform.backButton.processNextCalls).toBe(0);
   });
 
-  it('closes from Android back when stale history state no longer navigates', async () => {
+  it('passes Android back to the tab shell when stale history state no longer navigates', async () => {
     browser.canGoBack.set(true);
     browser.backDidNavigate = false;
 
     await platform.backButton.trigger();
 
     expect(browser.backNavigations).toBe(1);
-    expect(browser.closed).toBe(1);
-    expect(router.navigations).toEqual([['explore']]);
-    expect(platform.backButton.processNextCalls).toBe(0);
+    expect(browser.closed).toBe(0);
+    expect(router.navigations).toEqual([]);
+    expect(platform.backButton.processNextCalls).toBe(1);
   });
 
-  it('closes back to Explore from Android back when WebView history is exhausted', async () => {
+  it('passes Android back to the tab shell when WebView history is exhausted', async () => {
     await platform.backButton.trigger();
 
     expect(browser.backNavigations).toBe(0);
-    expect(browser.closed).toBe(1);
-    expect(router.navigations).toEqual([['explore']]);
-    expect(platform.backButton.processNextCalls).toBe(0);
+    expect(browser.closed).toBe(0);
+    expect(router.navigations).toEqual([]);
+    expect(platform.backButton.processNextCalls).toBe(1);
   });
 
   it('refreshes the native viewport after Ionic finishes entering the browser page', async () => {
@@ -680,17 +687,6 @@ describe('ExploreBrowserPage', () => {
 
     expect(browser.readingModeOpens).toBe(1);
     expect(router.navigations).toEqual([]);
-  });
-
-  it('closes back to Explore', async () => {
-    const nativeElement = fixture.nativeElement as HTMLElement;
-    const closeButton = nativeElement.querySelectorAll('ion-header ion-button').item(0);
-
-    closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await fixture.whenStable();
-
-    expect(browser.closed).toBe(1);
-    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('offers notice recovery actions', async () => {

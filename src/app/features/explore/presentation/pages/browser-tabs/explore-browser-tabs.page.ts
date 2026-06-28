@@ -48,12 +48,12 @@ export class ExploreBrowserTabsPage {
 
   protected async createBlankTab(): Promise<void> {
     await this.browser.createBlankTab();
-    await this.router.navigate(['explore', 'browser']);
+    await this.router.navigate(['explore']);
   }
 
   protected async selectTab(tabId: string): Promise<void> {
     await this.browser.selectTab(tabId);
-    await this.router.navigate(['explore', 'browser']);
+    await this.router.navigate(['explore']);
   }
 
   protected async closeTab(event: Event, tabId: string): Promise<void> {
@@ -62,7 +62,7 @@ export class ExploreBrowserTabsPage {
   }
 
   protected async close(): Promise<void> {
-    await this.router.navigate(['explore', 'browser']);
+    await this.router.navigate(['explore']);
   }
 
   protected tabLabel(tab: Pick<ExploreBrowserTab, 'url' | 'pageTitle'>): string {
