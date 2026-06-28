@@ -1,6 +1,6 @@
 {
   "name": "buku",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Android-first Ionic Angular app.",
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@10.20.0",
