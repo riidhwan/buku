@@ -8,6 +8,7 @@ import {
   ReadingLibrarySeriesOption,
 } from '../../../application/ports/reading-library-save.port';
 import { ExploreReaderPage } from './explore-reader.page';
+import { ExploreReaderSaveForm } from './explore-reader-save-form';
 
 const articleSnapshot: ReadingArticleSnapshot = {
   url: 'https://example.com/article',
@@ -137,20 +138,8 @@ class FakeReadingLibrarySave {
   }
 }
 
-interface SignalHarness<T> {
-  (): T;
-  set(value: T): void;
-}
-
 interface ExploreReaderPageHarness {
-  readonly saveModalOpen: SignalHarness<boolean>;
-  readonly saving: SignalHarness<boolean>;
-  readonly saveError: SignalHarness<string | null>;
-  readonly saveConfirmed: SignalHarness<boolean>;
-  readonly existingSeries: SignalHarness<readonly ReadingLibrarySeriesOption[]>;
-  seriesInput: string;
-  entryTitleInput: string;
-  selectedSeriesId: string | null;
+  readonly saveForm: ExploreReaderSaveForm;
   openSaveModal(): Promise<void>;
   closeSaveModal(): void;
   selectSeries(series: ReadingLibrarySeriesOption): void;
@@ -404,10 +393,12 @@ describe('ExploreReaderPage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(component.saveModalOpen()).toBeTrue();
-    expect(component.existingSeries().map((series) => series.title)).toEqual(['Existing Series']);
-    expect(component.entryTitleInput).toBe('Readable article');
-    expect(component.seriesInput).toBe('');
+    expect(component.saveForm.modalOpen()).toBeTrue();
+    expect(component.saveForm.existingSeries().map((series) => series.title)).toEqual([
+      'Existing Series',
+    ]);
+    expect(component.saveForm.entryTitleInput).toBe('Readable article');
+    expect(component.saveForm.seriesInput).toBe('');
   });
 
   it('prefills the save modal with the active tab remembered Series', async () => {
@@ -421,7 +412,7 @@ describe('ExploreReaderPage', () => {
     const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
     await component.openSaveModal();
 
-    expect(component.seriesInput).toBe('Existing Series');
+    expect(component.saveForm.seriesInput).toBe('Existing Series');
   });
 
   it('does not open the save modal while article state is unavailable', async () => {
@@ -432,14 +423,14 @@ describe('ExploreReaderPage', () => {
     const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
     await component.openSaveModal();
 
-    expect(component.saveModalOpen()).toBeFalse();
+    expect(component.saveForm.modalOpen()).toBeFalse();
     expect(librarySave.listSeriesCount).toBe(0);
 
     browser.chapterNavigationLoading.set(false);
     browser.readingArticle.set(null);
     await component.openSaveModal();
 
-    expect(component.saveModalOpen()).toBeFalse();
+    expect(component.saveForm.modalOpen()).toBeFalse();
     expect(librarySave.listSeriesCount).toBe(0);
   });
 
@@ -478,7 +469,7 @@ describe('ExploreReaderPage', () => {
 
     const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
     await component.openSaveModal();
-    const series = component.existingSeries()[0];
+    const series = component.saveForm.existingSeries()[0];
     if (series === undefined) {
       fail('Expected existing Series option.');
       return;
@@ -486,16 +477,16 @@ describe('ExploreReaderPage', () => {
 
     component.selectSeries(series);
 
-    expect(component.seriesInput).toBe('Existing Series');
-    expect(component.selectedSeriesId).toBe('series-1');
+    expect(component.saveForm.seriesInput).toBe('Existing Series');
+    expect(component.saveForm.selectedSeriesId).toBe('series-1');
 
-    component.saving.set(true);
+    component.saveForm.saving.set(true);
     component.closeSaveModal();
-    expect(component.saveModalOpen()).toBeTrue();
+    expect(component.saveForm.modalOpen()).toBeTrue();
 
-    component.saving.set(false);
+    component.saveForm.saving.set(false);
     component.closeSaveModal();
-    expect(component.saveModalOpen()).toBeFalse();
+    expect(component.saveForm.modalOpen()).toBeFalse();
   });
 
   it('treats nullish form values as empty input', async () => {
@@ -507,8 +498,8 @@ describe('ExploreReaderPage', () => {
     component.updateSeriesInput(null);
     component.updateEntryTitle(undefined);
 
-    expect(component.seriesInput).toBe('');
-    expect(component.entryTitleInput).toBe('');
+    expect(component.saveForm.seriesInput).toBe('');
+    expect(component.saveForm.entryTitleInput).toBe('');
   });
 
   it('saves without navigating away from Reading Mode', async () => {
@@ -522,8 +513,8 @@ describe('ExploreReaderPage', () => {
 
     expect(librarySave.savedInputs.length).toBe(1);
     expect(browser.rememberedSeriesTitle).toBe('Existing Series');
-    expect(component.saveModalOpen()).toBeFalse();
-    expect(component.saveConfirmed()).toBeTrue();
+    expect(component.saveForm.modalOpen()).toBeFalse();
+    expect(component.saveForm.confirmed()).toBeTrue();
     expect(router.navigations).toEqual([]);
   });
 
@@ -549,7 +540,7 @@ describe('ExploreReaderPage', () => {
 
     const component = fixture.componentInstance as unknown as ExploreReaderPageHarness;
     await component.openSaveModal();
-    const series = component.existingSeries()[0];
+    const series = component.saveForm.existingSeries()[0];
     if (series === undefined) {
       fail('Expected existing Series option.');
       return;
@@ -574,12 +565,12 @@ describe('ExploreReaderPage', () => {
     component.updateSeriesInput('Existing Series');
     librarySave.saveStatus = 'duplicate';
     await component.saveToLibrary();
-    expect(component.saveModalOpen()).toBeTrue();
-    expect(component.saveError()).toContain('already saved');
+    expect(component.saveForm.modalOpen()).toBeTrue();
+    expect(component.saveForm.error()).toContain('already saved');
 
     librarySave.saveStatus = 'persistenceFailed';
     await component.saveToLibrary();
-    expect(component.saveError()).toContain('could not save');
+    expect(component.saveForm.error()).toContain('could not save');
   });
 
   it('keeps validation failures inline and creates a title target for new Series', async () => {
@@ -597,7 +588,7 @@ describe('ExploreReaderPage', () => {
         target: { kind: 'title', title: 'Brand New Series' },
       }),
     );
-    expect(component.saveError()).toBe('Invalid save input.');
+    expect(component.saveForm.error()).toBe('Invalid save input.');
   });
 
   it('uses a fallback validation message when the save boundary omits one', async () => {
@@ -610,7 +601,7 @@ describe('ExploreReaderPage', () => {
     librarySave.saveStatus = 'validationFailedWithoutMessage';
     await component.saveToLibrary();
 
-    expect(component.saveError()).toBe('Series and entry title are required.');
+    expect(component.saveForm.error()).toBe('Series and entry title are required.');
   });
 });
 

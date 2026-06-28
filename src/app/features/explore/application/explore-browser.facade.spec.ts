@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { ExploreBrowserFacade } from './explore-browser.facade';
+import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
 import {
   BROWSER_SESSION_STORE,
   BrowserSessionStorePort,
@@ -190,6 +191,7 @@ describe('ExploreBrowserFacade', () => {
     TestBed.configureTestingModule({
       providers: [
         BrowserUrlPolicy,
+        ExploreReadingChapterNavigator,
         ExploreBrowserFacade,
         { provide: BROWSER_SESSION_STORE, useValue: store },
         { provide: BROWSER_VIEWPORT, useValue: viewport },

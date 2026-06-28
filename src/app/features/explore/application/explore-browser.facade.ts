@@ -1,16 +1,16 @@
 import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
-import { filter, firstValueFrom, Subscription, take } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ReadingArticleSnapshot } from '../domain/reading-article';
 import {
   browserNoticeForLoadFailure,
   browserNoticeForReadingModeResult,
   browserNoticeForUnsupportedCapability,
-  readingChapterLinkForDirection,
   resolveReadingModeTargetUrl,
   type BrowserNotice,
   type BrowserNoticeKind,
   type ReadingChapterDirection,
 } from './explore-browser-reading-mode-policy';
+import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
 import {
   canUseNativeBackNavigation,
   discardLatestBackNavigationAttempt,
@@ -70,6 +70,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly sessionStore = inject<BrowserSessionStorePort>(BROWSER_SESSION_STORE);
   private readonly viewport = inject<BrowserViewportPort>(BROWSER_VIEWPORT);
   private readonly externalUrlOpener = inject<ExternalUrlOpenerPort>(EXTERNAL_URL_OPENER);
+  private readonly chapterNavigator = inject(ExploreReadingChapterNavigator);
   private readonly viewportSubscription: Subscription;
 
   private readonly inputValueSignal = signal('');
@@ -376,32 +377,25 @@ export class ExploreBrowserFacade implements OnDestroy {
       return { ok: false };
     }
 
-    const chapter = readingChapterLinkForDirection(article, direction);
-    if (chapter === undefined) {
-      return { ok: false };
-    }
-
-    const targetUrl = resolveReadingModeTargetUrl(chapter.href, article.url, this.urlPolicy);
-    if (!targetUrl.ok) {
-      this.noticeSignal.set(targetUrl.notice);
-      return { ok: false };
-    }
-
     this.chapterNavigationLoadingSignal.set(true);
     try {
-      const navigationResultPromise = this.waitForChapterNavigation();
-      await this.viewport.load(targetUrl.url);
-      const navigationResult = await navigationResultPromise;
-      if (navigationResult === 'failed') {
-        this.readingArticleSignal.set(null);
-        return { ok: true, destination: 'browser' };
+      const result = await this.chapterNavigator.navigate(article, direction);
+      if (!result.ok) {
+        this.noticeSignal.set(result.notice);
+        return { ok: false };
       }
 
-      return await this.replaceReadingArticleFromCurrentPage(targetUrl.url);
-    } catch (error) {
+      if (result.destination === 'reader') {
+        this.readingArticleSignal.set(result.article);
+        this.noticeSignal.set(null);
+        await this.viewport.hide();
+        return { ok: true, destination: 'reader' };
+      }
+
       this.readingArticleSignal.set(null);
-      const message = this.loadFailureMessage(error);
-      this.noticeSignal.set(browserNoticeForLoadFailure(message, targetUrl.url));
+      if (result.notice !== null) {
+        this.noticeSignal.set(result.notice);
+      }
       return { ok: true, destination: 'browser' };
     } finally {
       this.chapterNavigationLoadingSignal.set(false);
@@ -464,37 +458,6 @@ export class ExploreBrowserFacade implements OnDestroy {
     }
 
     return error.message;
-  }
-
-  private waitForChapterNavigation(): Promise<'loaded' | 'failed'> {
-    return firstValueFrom(
-      this.viewport.events$.pipe(
-        filter(
-          (event) =>
-            event.type === 'loadFailed' ||
-            (event.type === 'navigation' && event.committed && !event.state.loading),
-        ),
-        take(1),
-      ),
-    ).then((event) => (event.type === 'loadFailed' ? 'failed' : 'loaded'));
-  }
-
-  private async replaceReadingArticleFromCurrentPage(
-    fallbackUrl: string,
-  ): Promise<BrowserReadingChapterNavigationResult> {
-    const result = await this.viewport.extractArticle();
-    switch (result.status) {
-      case 'ok':
-        this.readingArticleSignal.set(result.article);
-        this.noticeSignal.set(null);
-        await this.viewport.hide();
-        return { ok: true, destination: 'reader' };
-      case 'unavailable':
-      case 'failed':
-        this.readingArticleSignal.set(null);
-        this.noticeSignal.set(browserNoticeForReadingModeResult(result, fallbackUrl));
-        return { ok: true, destination: 'browser' };
-    }
   }
 
   private handleViewportEvent(event: BrowserViewportEvent): void {

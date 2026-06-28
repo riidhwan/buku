@@ -68,7 +68,7 @@
   }
 </ion-content>
 
-<ion-modal [isOpen]="saveModalOpen()" (didDismiss)="closeSaveModal()">
+<ion-modal [isOpen]="saveForm.modalOpen()" (didDismiss)="closeSaveModal()">
   <ng-template>
     <ion-header>
       <ion-toolbar>
@@ -76,7 +76,7 @@
         <ion-buttons slot="end">
           <ion-button
             aria-label="Close add to Library"
-            [disabled]="saving()"
+            [disabled]="saveForm.saving()"
             (click)="closeSaveModal()"
           >
             <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
@@ -91,7 +91,7 @@
           <ion-input
             label="Series"
             labelPlacement="stacked"
-            [ngModel]="seriesInput"
+            [ngModel]="saveForm.seriesInput"
             (ngModelChange)="updateSeriesInput($event)"
           ></ion-input>
         </ion-item>
@@ -99,7 +99,7 @@
           <ion-input
             label="Entry title"
             labelPlacement="stacked"
-            [ngModel]="entryTitleInput"
+            [ngModel]="saveForm.entryTitleInput"
             (ngModelChange)="updateEntryTitle($event)"
           ></ion-input>
         </ion-item>
@@ -116,13 +116,13 @@
         } @if (showCreateSeries()) {
         <ion-item button="true" [detail]="false">
           <ion-label>
-            <h2>Create "{{ seriesInput.trim() }}"</h2>
+            <h2>Create "{{ saveForm.seriesInput.trim() }}"</h2>
           </ion-label>
         </ion-item>
         }
       </ion-list>
 
-      @if (saveError(); as error) {
+      @if (saveForm.error(); as error) {
       <ion-note class="reader-save-error" color="danger">{{ error }}</ion-note>
       }
     </ion-content>
@@ -130,7 +130,7 @@
     <ion-footer>
       <ion-toolbar>
         <ion-button expand="block" [disabled]="!canSave()" (click)="saveToLibrary()">
-          @if (saving()) {
+          @if (saveForm.saving()) {
           <ion-spinner name="crescent" aria-label="Saving"></ion-spinner>
           } @else { Save }
         </ion-button>
@@ -141,7 +141,7 @@
 
 <ion-toast
   message="Saved to Library."
-  [isOpen]="saveConfirmed()"
+  [isOpen]="saveForm.confirmed()"
   [duration]="1800"
-  (didDismiss)="saveConfirmed.set(false)"
+  (didDismiss)="saveForm.confirmed.set(false)"
 ></ion-toast>
