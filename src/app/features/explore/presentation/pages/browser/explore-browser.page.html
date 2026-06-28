@@ -1,11 +1,5 @@
 <ion-header>
   <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-button aria-label="Close browser" (click)="close()">
-        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-
     <form class="browser-url-form" (submit)="openUrl(); $event.preventDefault()">
       <ion-input
         aria-label="Web address"

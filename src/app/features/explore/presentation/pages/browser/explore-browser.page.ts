@@ -2,6 +2,7 @@ import {
   AfterViewInit,
   Component,
   ElementRef,
+  OnInit,
   OnDestroy,
   ViewEncapsulation,
   ViewChild,
@@ -81,7 +82,7 @@ import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-a
     IonToolbar,
   ],
 })
-export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
+export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('viewportHost', { static: true })
   private readonly viewportHost!: ElementRef<HTMLElement>;
 
@@ -124,9 +125,16 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
       tabletLandscapeOutline,
       warningOutline,
     });
-    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => {
-      void this.handleHardwareBackButton();
-    });
+    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(
+      10,
+      (processNextHandler) => {
+        void this.handleHardwareBackButton(processNextHandler);
+      },
+    );
+  }
+
+  public ngOnInit(): void {
+    void this.browser.initialize();
   }
 
   public ngAfterViewInit(): void {
@@ -156,12 +164,6 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
 
   protected async openUrl(): Promise<void> {
     await this.browser.openInput();
-  }
-
-  protected async close(): Promise<void> {
-    await this.browser.closeBrowser();
-    this.closeActions();
-    await this.router.navigate(['explore']);
   }
 
   protected async openTabs(): Promise<void> {
@@ -224,7 +226,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     this.actionsOpen.set(false);
   }
 
-  private async handleHardwareBackButton(): Promise<void> {
+  private async handleHardwareBackButton(processNextHandler: () => void): Promise<void> {
     if (this.actionsOpen()) {
       this.closeActions();
       this.scheduleViewportRectUpdate();
@@ -244,7 +246,7 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
       }
     }
 
-    await this.close();
+    processNextHandler();
   }
 
   private scheduleViewportRectUpdate(): void {

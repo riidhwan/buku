@@ -8,10 +8,6 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        loadComponent: () => import('./pages/explore.page').then((module) => module.ExplorePage),
-      },
-      {
-        path: 'browser',
         loadComponent: () =>
           import('./pages/browser/explore-browser.page').then(
             (module) => module.ExploreBrowserPage,
@@ -25,8 +21,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'browser',
+        redirectTo: '',
+        pathMatch: 'full',
+      },
+      {
         path: 'reader',
-        redirectTo: 'browser',
+        redirectTo: '',
         pathMatch: 'full',
       },
     ],

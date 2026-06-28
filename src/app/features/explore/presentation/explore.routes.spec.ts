@@ -9,17 +9,22 @@ describe('Explore routes', () => {
     const tabsRoute = children.find((route) => route.path === 'browser/tabs');
 
     expect(await landingRoute?.loadComponent?.()).toBeTruthy();
-    expect(await browserRoute?.loadComponent?.()).toBeTruthy();
     expect(await tabsRoute?.loadComponent?.()).toBeTruthy();
+    expect(browserRoute).toEqual(
+      jasmine.objectContaining({
+        redirectTo: '',
+        pathMatch: 'full',
+      }),
+    );
   });
 
-  it('redirects the legacy reader route to the Explore Browser', () => {
+  it('redirects the legacy reader route to the Explore Browser landing route', () => {
     const shell = routes[0];
     const readerRoute = shell?.children?.find((route) => route.path === 'reader');
 
     expect(readerRoute).toEqual(
       jasmine.objectContaining({
-        redirectTo: 'browser',
+        redirectTo: '',
         pathMatch: 'full',
       }),
     );

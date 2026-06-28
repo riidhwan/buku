@@ -111,6 +111,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     const session = await this.sessionStore.readTabSession();
     if (session.tabs.length > 0) {
       this.applySession(session);
+      await this.loadActiveTabUrl();
       return;
     }
 
@@ -119,6 +120,7 @@ export class ExploreBrowserFacade implements OnDestroy {
       const tab = createExploreBrowserTab(legacyLastUrl);
       this.applySession({ tabs: [tab], selectedTabId: tab.id });
       await this.persistTabs();
+      await this.loadActiveTabUrl();
       return;
     }
 
@@ -325,6 +327,15 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.state.currentUrlSignal.set(url);
     this.state.loadingSignal.set(true);
     await this.viewport.load(url);
+  }
+
+  private async loadActiveTabUrl(): Promise<void> {
+    const url = this.state.findActiveTab()?.url ?? null;
+    if (url === null) {
+      return;
+    }
+
+    await this.loadSelectedTabUrl(url);
   }
 
   private async clearVisiblePageForBlankTab(): Promise<void> {

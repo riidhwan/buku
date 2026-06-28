@@ -217,6 +217,7 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.activeTab()).toEqual(browserTab('tab-2', 'https://buku.example/'));
     expect(facade.inputValue()).toBe('https://buku.example/');
     expect(facade.lastUrl()).toBe('https://buku.example/');
+    expect(viewport.loadedUrls).toEqual(['https://buku.example/']);
   });
 
   it('remembers the Library Series title on the active tab and persists the session', async () => {
@@ -320,7 +321,7 @@ describe('ExploreBrowserFacade', () => {
 
     expect(result.ok).toBeTrue();
     expect(facade.inputValue()).toBe('https://buku.example/');
-    expect(viewport.loadedUrls).toEqual(['https://buku.example/']);
+    expect(viewport.loadedUrls).toEqual(['https://example.com/', 'https://buku.example/']);
   });
 
   it('does not resume when there is no last URL', async () => {
@@ -341,7 +342,7 @@ describe('ExploreBrowserFacade', () => {
 
     expect((await facade.resumeTab('missing-tab')).ok).toBeFalse();
     expect((await facade.resumeTab('tab-2')).ok).toBeFalse();
-    expect(viewport.loadedUrls).toEqual([]);
+    expect(viewport.loadedUrls).toEqual(['https://example.com/']);
   });
 
   it('opens landing-page URLs in a new selected tab', async () => {
@@ -402,7 +403,7 @@ describe('ExploreBrowserFacade', () => {
     await facade.selectTab('tab-2');
 
     expect(facade.activeTab()?.id).toBe('tab-2');
-    expect(viewport.loadedUrls).toEqual(['https://buku.example/']);
+    expect(viewport.loadedUrls).toEqual(['https://example.com/', 'https://buku.example/']);
   });
 
   it('switches to blank tabs by clearing input and unloading the viewport', async () => {
@@ -456,7 +457,7 @@ describe('ExploreBrowserFacade', () => {
     await facade.closeTab('tab-2');
 
     expect(facade.activeTab()?.id).toBe('tab-1');
-    expect(viewport.loadedUrls).toEqual(['https://one.example/']);
+    expect(viewport.loadedUrls).toEqual(['https://two.example/', 'https://one.example/']);
   });
 
   it('closing the first active tab clears the viewport when the next tab is blank', async () => {
@@ -473,7 +474,7 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.currentUrl()).toBeNull();
     expect(viewport.hideCount).toBe(1);
     expect(viewport.destroyCount).toBe(1);
-    expect(viewport.loadedUrls).toEqual([]);
+    expect(viewport.loadedUrls).toEqual(['https://one.example/']);
   });
 
   it('closing the final tab creates a selected blank tab', async () => {
@@ -503,7 +504,7 @@ describe('ExploreBrowserFacade', () => {
     await facade.closeTab('tab-2');
 
     expect(facade.activeTab()?.id).toBe('tab-1');
-    expect(viewport.loadedUrls).toEqual([]);
+    expect(viewport.loadedUrls).toEqual(['https://one.example/']);
     expect(store.writes[store.writes.length - 1]?.tabs).toEqual([
       browserTab('tab-1', 'https://one.example/'),
     ]);
@@ -816,7 +817,7 @@ describe('ExploreBrowserFacade', () => {
     const result = await facade.goBack();
 
     expect(result).toEqual({ didNavigate: true });
-    expect(viewport.loadedUrls).toEqual(['https://two.example/']);
+    expect(viewport.loadedUrls).toEqual(['https://three.example/', 'https://two.example/']);
     expect(facade.activeTab()?.backStack).toEqual(['https://one.example/', 'https://two.example/']);
 
     viewport.emit({
@@ -893,7 +894,11 @@ describe('ExploreBrowserFacade', () => {
     expect(await facade.goBack()).toEqual({ didNavigate: true });
 
     expect(viewport.backCount).toBe(0);
-    expect(viewport.loadedUrls).toEqual(['https://two.example/', 'https://one.example/']);
+    expect(viewport.loadedUrls).toEqual([
+      'https://three.example/',
+      'https://two.example/',
+      'https://one.example/',
+    ]);
 
     viewport.emit({
       type: 'navigation',

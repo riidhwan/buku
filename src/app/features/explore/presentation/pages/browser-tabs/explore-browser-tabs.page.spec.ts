@@ -104,7 +104,7 @@ describe('ExploreBrowserTabsPage', () => {
     await fixture.whenStable();
 
     expect(browser.blankTabs).toBe(1);
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('selects a tab and returns to the browser view', async () => {
@@ -115,7 +115,7 @@ describe('ExploreBrowserTabsPage', () => {
     await fixture.whenStable();
 
     expect(browser.selectedTabId).toBe('tab-1');
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 
   it('closes a tab without also selecting it', async () => {
@@ -137,6 +137,6 @@ describe('ExploreBrowserTabsPage', () => {
     closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
-    expect(router.navigations).toEqual([['explore', 'browser']]);
+    expect(router.navigations).toEqual([['explore']]);
   });
 });
