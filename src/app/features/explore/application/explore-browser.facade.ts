@@ -12,21 +12,22 @@ import {
   type ReadingChapterDirection,
 } from './explore-browser-reading-mode-policy';
 import {
-  blankExploreBrowserTabSession,
   canUseNativeBackNavigation,
-  commitExploreBrowserNavigation,
-  createExploreBrowserTab,
   discardLatestBackNavigationAttempt,
-  findExploreBrowserTab,
   initialExploreBrowserBackNavigationState,
-  lastExploreBrowserUrl,
-  recentExploreBrowserTabs,
   recordFallbackBackNavigationAttempt,
   recordNativeBackNavigation,
-  rememberExploreBrowserTabLibrarySeriesTitle,
-  resetExploreBrowserBackNavigationState,
-  selectedTabIdForBrowserSession,
   type ExploreBrowserBackNavigationState,
+} from './explore-browser-back-navigation-policy';
+import {
+  blankExploreBrowserTabSession,
+  commitExploreBrowserNavigation,
+  createExploreBrowserTab,
+  findExploreBrowserTab,
+  lastExploreBrowserUrl,
+  recentExploreBrowserTabs,
+  rememberExploreBrowserTabLibrarySeriesTitle,
+  selectedTabIdForBrowserSession,
 } from './explore-browser-session-policy';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import {
@@ -450,7 +451,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.loadingSignal.set(false);
     this.nativeCanGoBackSignal.set(false);
     this.canGoForwardSignal.set(false);
-    this.backNavigationState = resetExploreBrowserBackNavigationState();
+    this.backNavigationState = initialExploreBrowserBackNavigationState();
     this.validationErrorSignal.set(null);
     await this.viewport.hide();
     await this.viewport.destroy();
