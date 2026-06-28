@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, ViewChild, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   IonContent,
@@ -7,6 +7,8 @@ import {
   IonLabel,
   IonList,
   IonNote,
+  IonRefresher,
+  IonRefresherContent,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -24,13 +26,18 @@ import { LibrarySeriesSummary } from '../../domain/library-series';
     IonLabel,
     IonList,
     IonNote,
+    IonRefresher,
+    IonRefresherContent,
     IonTitle,
     IonToolbar,
     RouterLink,
   ],
 })
-export class LibraryPage implements OnInit {
+export class LibraryPage {
   private readonly library = inject(LibraryFacade);
+
+  @ViewChild(IonContent)
+  private readonly content?: IonContent;
 
   protected readonly series = signal<readonly LibrarySeriesSummary[]>([]);
 
@@ -40,8 +47,17 @@ export class LibraryPage implements OnInit {
     year: 'numeric',
   });
 
-  public ngOnInit(): void {
+  public ionViewWillEnter(): void {
     void this.loadSeries();
+  }
+
+  protected async refreshSeries(event: CustomEvent): Promise<void> {
+    try {
+      await this.loadSeries();
+      await this.content?.scrollToTop(0);
+    } finally {
+      await this.completeRefresh(event);
+    }
   }
 
   protected formatSeriesSummary(entryCount: number, lastSavedAt: string): string {
@@ -60,5 +76,10 @@ export class LibraryPage implements OnInit {
 
   private async loadSeries(): Promise<void> {
     this.series.set(await this.library.listSeries());
+  }
+
+  private async completeRefresh(event: CustomEvent): Promise<void> {
+    const refresher = event.target as HTMLIonRefresherElement | null;
+    await refresher?.complete();
   }
 }

@@ -5,6 +5,10 @@
 </ion-header>
 
 <ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshSeries($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <ion-list>
     @for (seriesItem of series(); track seriesItem.id) {
     <ion-item [routerLink]="['/library', 'series', seriesItem.id]" detail="true">

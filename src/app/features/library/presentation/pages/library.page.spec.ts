@@ -5,17 +5,24 @@ import { LibraryFacade } from '../../application/library.facade';
 import { LibraryPage } from './library.page';
 
 let seriesSummaries: readonly LibrarySeriesSummary[];
+let listSeriesCalls: number;
 
 class FakeLibraryFacade {
   public listSeries(): Promise<readonly LibrarySeriesSummary[]> {
+    listSeriesCalls += 1;
     return Promise.resolve(seriesSummaries);
   }
+}
+
+interface RefreshableLibraryPage {
+  refreshSeries(event: CustomEvent): Promise<void>;
 }
 
 describe('LibraryPage', () => {
   let fixture: ComponentFixture<LibraryPage>;
 
   beforeEach(async () => {
+    listSeriesCalls = 0;
     seriesSummaries = [
       {
         id: 'series-1',
@@ -42,6 +49,7 @@ describe('LibraryPage', () => {
   });
 
   it('renders Series summaries', async () => {
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -62,6 +70,7 @@ describe('LibraryPage', () => {
     ];
     fixture = TestBed.createComponent(LibraryPage);
     fixture.detectChanges();
+    fixture.componentInstance.ionViewWillEnter();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -70,5 +79,31 @@ describe('LibraryPage', () => {
 
     expect(item?.textContent).toContain('1 entry');
     expect(item?.textContent).toContain('unknown date');
+  });
+
+  it('reloads Series when the page enters', async () => {
+    fixture.componentInstance.ionViewWillEnter();
+    await fixture.whenStable();
+    fixture.componentInstance.ionViewWillEnter();
+    await fixture.whenStable();
+
+    expect(listSeriesCalls).toBe(2);
+  });
+
+  it('reloads Series and completes pull-to-refresh', async () => {
+    let completed = false;
+    const event = new CustomEvent('ionRefresh');
+    Object.defineProperty(event, 'target', {
+      value: {
+        complete: () => {
+          completed = true;
+        },
+      },
+    });
+
+    await (fixture.componentInstance as unknown as RefreshableLibraryPage).refreshSeries(event);
+
+    expect(listSeriesCalls).toBe(1);
+    expect(completed).toBe(true);
   });
 });
