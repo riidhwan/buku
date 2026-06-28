@@ -41,6 +41,28 @@ describe('CapacitorSqliteDatabaseAdapter', () => {
     expect(database.executeTransactions).toEqual([true]);
   });
 
+  it('converts named parameters before sending statements to Capacitor SQLite', async () => {
+    const { adapter, database } = setup();
+    await adapter.initialize();
+    database.resetCapturedStatements();
+
+    await adapter.run(
+      'INSERT INTO library_series (id, title, normalized_title) VALUES (:id, :title, :title);',
+      {
+        id: 'series-1',
+        title: 'Series',
+      },
+    );
+    await adapter.query('SELECT * FROM library_series WHERE id = :id;', { id: 'series-1' });
+
+    expect(database.runStatements).toEqual([
+      'INSERT INTO library_series (id, title, normalized_title) VALUES (?, ?, ?);',
+    ]);
+    expect(database.runValues).toEqual([['series-1', 'Series', 'Series']]);
+    expect(database.queryStatements).toEqual(['SELECT * FROM library_series WHERE id = ?;']);
+    expect(database.queryValues).toEqual([['series-1']]);
+  });
+
   it('rolls back failed transactions and restores standalone statement behavior', async () => {
     const { adapter, database } = setup();
     await adapter.initialize();
@@ -258,6 +280,10 @@ class FakeSqliteConnection {
   public commitTransactionCount = 0;
   public rollbackTransactionCount = 0;
   public queryResult: DBSQLiteValues = { values: [] };
+  public readonly queryStatements: string[] = [];
+  public readonly queryValues: unknown[][] = [];
+  public readonly runStatements: string[] = [];
+  public readonly runValues: unknown[][] = [];
   public readonly runTransactions: boolean[] = [];
   public readonly executeTransactions: boolean[] = [];
 
@@ -265,15 +291,19 @@ class FakeSqliteConnection {
     return Promise.resolve();
   }
 
-  public query(): Promise<DBSQLiteValues> {
+  public query(statement: string, values?: readonly unknown[]): Promise<DBSQLiteValues> {
+    this.queryStatements.push(statement);
+    this.queryValues.push([...(values ?? [])]);
     return Promise.resolve(this.queryResult);
   }
 
   public run(
-    _statement: string,
-    _values?: readonly unknown[],
+    statement: string,
+    values?: readonly unknown[],
     transaction = true,
   ): Promise<capSQLiteChanges> {
+    this.runStatements.push(statement);
+    this.runValues.push([...(values ?? [])]);
     this.runTransactions.push(transaction);
     return Promise.resolve({});
   }
@@ -299,6 +329,10 @@ class FakeSqliteConnection {
   }
 
   public resetCapturedStatements(): void {
+    this.queryStatements.length = 0;
+    this.queryValues.length = 0;
+    this.runStatements.length = 0;
+    this.runValues.length = 0;
     this.runTransactions.length = 0;
     this.executeTransactions.length = 0;
   }

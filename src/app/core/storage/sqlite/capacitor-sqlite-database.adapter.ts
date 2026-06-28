@@ -8,7 +8,8 @@ import { CAPACITOR_SQLITE_CONNECTION } from './capacitor-sqlite-connection.token
 import { SqliteDatabase } from './sqlite-database';
 import { SQLITE_DATABASE } from './sqlite-database.token';
 import { SQLITE_MIGRATIONS, SqliteMigration } from './sqlite-migration';
-import { SqliteRow, SqliteValue, SqliteValues } from './sqlite-value';
+import { bindSqliteStatement } from './sqlite-bindings';
+import { SqliteRow, SqliteStatementValues, SqliteValue } from './sqlite-value';
 
 const databaseName = 'buku';
 const sqliteMode = 'no-encryption';
@@ -37,16 +38,18 @@ export class CapacitorSqliteDatabaseAdapter implements SqliteDatabase {
 
   public async query<Row extends SqliteRow>(
     statement: string,
-    values: SqliteValues = [],
+    values: SqliteStatementValues = [],
   ): Promise<readonly Row[]> {
     const database = await this.database();
-    const result = await database.query(statement, [...values]);
+    const bound = bindSqliteStatement(statement, values);
+    const result = await database.query(bound.statement, [...bound.values]);
     return toRows(result.values) as readonly Row[];
   }
 
-  public async run(statement: string, values: SqliteValues = []): Promise<void> {
+  public async run(statement: string, values: SqliteStatementValues = []): Promise<void> {
     const database = await this.database();
-    await database.run(statement, [...values], this.transactionDepth === 0);
+    const bound = bindSqliteStatement(statement, values);
+    await database.run(bound.statement, [...bound.values], this.transactionDepth === 0);
   }
 
   public async execute(statements: string): Promise<void> {
