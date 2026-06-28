@@ -7,6 +7,7 @@ import {
   lastExploreBrowserUrl,
   recordFallbackBackNavigationAttempt,
   recordNativeBackNavigation,
+  rememberExploreBrowserTabLibrarySeriesTitle,
   selectedTabIdForBrowserSession,
 } from './explore-browser-session-policy';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
@@ -17,7 +18,7 @@ function browserTab(
   backStack: readonly string[] = [],
   pageTitle: string | null = null,
 ): ExploreBrowserTab {
-  return { id, url, pageTitle, backStack };
+  return { id, url, pageTitle, backStack, lastLibrarySeriesTitle: null };
 }
 
 describe('Explore browser session policy', () => {
@@ -67,6 +68,52 @@ describe('Explore browser session policy', () => {
     expect(commit.tabs).toEqual([
       browserTab('tab-1', 'https://two.example/', ['https://one.example/'], 'Two'),
     ]);
+  });
+
+  it('remembers the normalized Library Series title for the selected tab', () => {
+    expect(
+      rememberExploreBrowserTabLibrarySeriesTitle({
+        tabs: [
+          browserTab('tab-1', 'https://one.example/'),
+          browserTab('tab-2', 'https://two.example/'),
+        ],
+        selectedTabId: 'tab-2',
+        title: '  Existing   Series  ',
+      }),
+    ).toEqual([
+      browserTab('tab-1', 'https://one.example/'),
+      {
+        ...browserTab('tab-2', 'https://two.example/'),
+        lastLibrarySeriesTitle: 'Existing Series',
+      },
+    ]);
+  });
+
+  it('does not remember a Library Series title without a selected tab', () => {
+    const tabs = [browserTab('tab-1', 'https://one.example/')];
+
+    expect(
+      rememberExploreBrowserTabLibrarySeriesTitle({
+        tabs,
+        selectedTabId: null,
+        title: 'Existing Series',
+      }),
+    ).toBe(tabs);
+  });
+
+  it('clears the remembered Library Series title for blank input', () => {
+    const tab = {
+      ...browserTab('tab-1', 'https://one.example/'),
+      lastLibrarySeriesTitle: 'Existing Series',
+    };
+
+    expect(
+      rememberExploreBrowserTabLibrarySeriesTitle({
+        tabs: [tab],
+        selectedTabId: 'tab-1',
+        title: '   ',
+      }),
+    ).toEqual([browserTab('tab-1', 'https://one.example/')]);
   });
 
   it('collapses duplicate back-stack entries and caps the stack', () => {

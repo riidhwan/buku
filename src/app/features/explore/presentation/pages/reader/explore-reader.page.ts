@@ -143,7 +143,7 @@ export class ExploreReaderPage implements OnInit {
       return;
     }
 
-    this.seriesInput = '';
+    this.seriesInput = this.browser.activeTab()?.lastLibrarySeriesTitle ?? '';
     this.entryTitleInput = article.title;
     this.selectedSeriesId = null;
     this.saveError.set(null);
@@ -193,6 +193,9 @@ export class ExploreReaderPage implements OnInit {
       entryTitle: this.entryTitleInput,
       target: this.seriesTarget(),
     });
+    if (result.status === 'saved') {
+      await this.browser.rememberActiveTabLibrarySeriesTitle(this.normalizedSeriesInput());
+    }
     this.saving.set(false);
     this.handleSaveResult(result.status, 'message' in result ? result.message : null);
   }

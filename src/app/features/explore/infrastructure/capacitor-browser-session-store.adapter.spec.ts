@@ -48,8 +48,9 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
           url: 'https://example.com/',
           pageTitle: 'Example Page',
           backStack: ['https://previous.example/'],
+          lastLibrarySeriesTitle: 'Existing Series',
         },
-        { id: 'tab-2', url: null, pageTitle: null, backStack: [] },
+        { id: 'tab-2', url: null, pageTitle: null, backStack: [], lastLibrarySeriesTitle: null },
       ],
       selectedTabId: 'tab-1',
     };
@@ -104,7 +105,15 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
     );
 
     await expectAsync(adapter.readTabSession()).toBeResolvedTo({
-      tabs: [{ id: 'tab-1', url: 'https://example.com/', pageTitle: null, backStack: [] }],
+      tabs: [
+        {
+          id: 'tab-1',
+          url: 'https://example.com/',
+          pageTitle: null,
+          backStack: [],
+          lastLibrarySeriesTitle: null,
+        },
+      ],
       selectedTabId: null,
     });
   });
@@ -119,6 +128,7 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
             url: 'https://one.example/',
             pageTitle: 'One Page',
             backStack: [],
+            lastLibrarySeriesTitle: '  Story   Series  ',
           },
           { id: 'tab-2', url: 'https://two.example/', pageTitle: '  ', backStack: [] },
         ],
@@ -133,8 +143,15 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
           url: 'https://one.example/',
           pageTitle: 'One Page',
           backStack: [],
+          lastLibrarySeriesTitle: 'Story Series',
         },
-        { id: 'tab-2', url: 'https://two.example/', pageTitle: null, backStack: [] },
+        {
+          id: 'tab-2',
+          url: 'https://two.example/',
+          pageTitle: null,
+          backStack: [],
+          lastLibrarySeriesTitle: null,
+        },
       ],
       selectedTabId: 'tab-1',
     });
@@ -154,8 +171,20 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
 
     await expectAsync(adapter.readTabSession()).toBeResolvedTo({
       tabs: [
-        { id: 'tab-1', url: 'https://one.example/', pageTitle: null, backStack: [] },
-        { id: 'tab-2', url: 'https://two.example/', pageTitle: null, backStack: [] },
+        {
+          id: 'tab-1',
+          url: 'https://one.example/',
+          pageTitle: null,
+          backStack: [],
+          lastLibrarySeriesTitle: null,
+        },
+        {
+          id: 'tab-2',
+          url: 'https://two.example/',
+          pageTitle: null,
+          backStack: [],
+          lastLibrarySeriesTitle: null,
+        },
       ],
       selectedTabId: 'tab-1',
     });

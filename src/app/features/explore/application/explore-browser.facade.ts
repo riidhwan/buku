@@ -23,6 +23,7 @@ import {
   recentExploreBrowserTabs,
   recordFallbackBackNavigationAttempt,
   recordNativeBackNavigation,
+  rememberExploreBrowserTabLibrarySeriesTitle,
   resetExploreBrowserBackNavigationState,
   selectedTabIdForBrowserSession,
   type ExploreBrowserBackNavigationState,
@@ -336,6 +337,17 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   public closeReadingMode(): void {
     this.readingArticleSignal.set(null);
+  }
+
+  public async rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
+    this.tabsSignal.set(
+      rememberExploreBrowserTabLibrarySeriesTitle({
+        tabs: this.tabsSignal(),
+        selectedTabId: this.selectedTabIdSignal(),
+        title,
+      }),
+    );
+    await this.persistTabs();
   }
 
   public async openReadingModeLink(href: string): Promise<BrowserOpenResult> {

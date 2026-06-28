@@ -156,7 +156,7 @@ function browserTab(
   backStack: readonly string[] = [],
   pageTitle: string | null = null,
 ): ExploreBrowserTab {
-  return { id, url, pageTitle, backStack };
+  return { id, url, pageTitle, backStack, lastLibrarySeriesTitle: null };
 }
 
 class Deferred<T> {
@@ -215,6 +215,24 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.activeTab()).toEqual(browserTab('tab-2', 'https://buku.example/'));
     expect(facade.inputValue()).toBe('https://buku.example/');
     expect(facade.lastUrl()).toBe('https://buku.example/');
+  });
+
+  it('remembers the Library Series title on the active tab and persists the session', async () => {
+    store.session = {
+      tabs: [
+        browserTab('tab-1', 'https://example.com/'),
+        browserTab('tab-2', 'https://buku.example/'),
+      ],
+      selectedTabId: 'tab-2',
+    };
+
+    await facade.initialize();
+    await facade.rememberActiveTabLibrarySeriesTitle('  Existing   Series  ');
+
+    expect(facade.activeTab()?.lastLibrarySeriesTitle).toBe('Existing Series');
+    expect(store.writes[store.writes.length - 1]?.tabs[1]?.lastLibrarySeriesTitle).toBe(
+      'Existing Series',
+    );
   });
 
   it('falls back to the first tab when the persisted selected tab is missing', async () => {
