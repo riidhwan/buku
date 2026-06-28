@@ -459,6 +459,23 @@ describe('ExploreBrowserFacade', () => {
     expect(viewport.loadedUrls).toEqual(['https://one.example/']);
   });
 
+  it('closing the first active tab clears the viewport when the next tab is blank', async () => {
+    store.session = {
+      tabs: [browserTab('tab-1', 'https://one.example/'), browserTab('tab-2', null)],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.closeTab('tab-1');
+
+    expect(facade.activeTab()).toEqual(browserTab('tab-2', null));
+    expect(facade.inputValue()).toBe('');
+    expect(facade.currentUrl()).toBeNull();
+    expect(viewport.hideCount).toBe(1);
+    expect(viewport.destroyCount).toBe(1);
+    expect(viewport.loadedUrls).toEqual([]);
+  });
+
   it('closing the final tab creates a selected blank tab', async () => {
     store.session = {
       tabs: [browserTab('tab-1', 'https://one.example/')],
