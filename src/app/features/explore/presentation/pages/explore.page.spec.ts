@@ -7,7 +7,11 @@ import { ExplorePage } from './explore.page';
 class FakeExploreBrowserFacade {
   public readonly inputValue = signal('');
   public readonly recentTabs = signal<
-    readonly { readonly id: string; readonly url: string | null }[]
+    readonly {
+      readonly id: string;
+      readonly url: string | null;
+      readonly pageTitle: string | null;
+    }[]
   >([]);
   public readonly validationError = signal<string | null>(null);
   public updatedValue = '';
@@ -156,7 +160,9 @@ describe('ExplorePage', () => {
   });
 
   it('renders and resumes recent tab rows', async () => {
-    browser.recentTabs.set([{ id: 'tab-1', url: 'https://example.com/path' }]);
+    browser.recentTabs.set([
+      { id: 'tab-1', url: 'https://example.com/path', pageTitle: 'Example Path' },
+    ]);
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -164,7 +170,7 @@ describe('ExplorePage', () => {
     row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
-    expect(row.textContent).toContain('example.com/path');
+    expect(row.textContent).toContain('Example Path');
     expect(row.textContent).toContain('https://example.com/');
     expect(browser.resumeCount).toBe(1);
     expect(browser.resumedTabId).toBe('tab-1');
@@ -173,8 +179,8 @@ describe('ExplorePage', () => {
 
   it('renders URL labels for root and blank tab rows', () => {
     browser.recentTabs.set([
-      { id: 'tab-1', url: 'https://example.com/' },
-      { id: 'tab-2', url: null },
+      { id: 'tab-1', url: 'https://example.com/', pageTitle: null },
+      { id: 'tab-2', url: null, pageTitle: null },
     ]);
     fixture.detectChanges();
 
@@ -183,5 +189,15 @@ describe('ExplorePage', () => {
 
     expect(rows.item(0).querySelector('h2')?.textContent).toBe('example.com');
     expect(rows.item(1).textContent).toContain('Blank tab');
+  });
+
+  it('renders URL path labels before a page title is available', () => {
+    browser.recentTabs.set([{ id: 'tab-1', url: 'https://example.com/path', pageTitle: null }]);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const row = queryRequired(nativeElement, '.recent-tabs ion-item');
+
+    expect(row.querySelector('h2')?.textContent).toBe('example.com/path');
   });
 });

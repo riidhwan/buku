@@ -3,6 +3,7 @@ import { InjectionToken } from '@angular/core';
 export interface ExploreBrowserTab {
   readonly id: string;
   readonly url: string | null;
+  readonly pageTitle: string | null;
   readonly backStack: readonly string[];
 }
 

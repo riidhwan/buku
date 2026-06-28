@@ -15,6 +15,7 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, checkmarkCircleOutline, closeOutline } from 'ionicons/icons';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
 
 @Component({
   selector: 'app-explore-browser-tabs-page',
@@ -64,12 +65,16 @@ export class ExploreBrowserTabsPage {
     await this.router.navigate(['explore', 'browser']);
   }
 
-  protected tabLabel(url: string | null): string {
-    if (url === null) {
+  protected tabLabel(tab: Pick<ExploreBrowserTab, 'url' | 'pageTitle'>): string {
+    if (tab.pageTitle !== null) {
+      return tab.pageTitle;
+    }
+
+    if (tab.url === null) {
       return 'Blank tab';
     }
 
-    const parsedUrl = new URL(url);
+    const parsedUrl = new URL(tab.url);
     return `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}`;
   }
 }

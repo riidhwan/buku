@@ -91,8 +91,13 @@ export class CapacitorBrowserSessionStoreAdapter implements BrowserSessionStoreP
     return {
       id: value['id'],
       url: value['url'],
+      pageTitle: this.parsePageTitle(value['pageTitle']),
       backStack: this.parseBackStack(value['backStack']),
     };
+  }
+
+  private parsePageTitle(value: unknown): string | null {
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
   }
 
   private parseBackStack(value: unknown): readonly string[] {

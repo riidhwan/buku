@@ -29,7 +29,7 @@
     @for (tab of browser.recentTabs(); track tab.id) {
     <ion-item button="true" detail="true" (click)="resumeTab(tab.id)">
       <ion-label>
-        <h2>{{ tabLabel(tab.url) }}</h2>
+        <h2>{{ tabLabel(tab) }}</h2>
         <p>{{ tab.url }}</p>
       </ion-label>
     </ion-item>

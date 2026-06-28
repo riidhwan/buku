@@ -589,7 +589,7 @@ export class ExploreBrowserFacade implements OnDestroy {
         this.nativeCanGoBackSignal.set(event.state.canGoBack);
         this.canGoForwardSignal.set(event.state.canGoForward);
         if (event.committed) {
-          this.commitActiveTabUrl(event.state.url);
+          this.commitActiveTabUrl(event.state.url, event.state.title ?? null);
           void this.persistTabs();
         }
         break;
@@ -670,7 +670,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.inputValueSignal.set('');
   }
 
-  private commitActiveTabUrl(url: string): void {
+  private commitActiveTabUrl(url: string, title: string | null): void {
     const selectedTabId = this.selectedTabIdSignal();
     if (selectedTabId === null) {
       return;
@@ -683,16 +683,19 @@ export class ExploreBrowserFacade implements OnDestroy {
       }
 
       this.popActiveBackStackForCommittedUrl(url);
+      this.updateActiveTabTitle(title);
       return;
     }
 
     const previousUrl = this.findActiveTab()?.url ?? null;
+    const pageTitle = this.normalizePageTitle(title);
     this.tabsSignal.update((tabs) =>
       tabs.map((tab) =>
         tab.id === selectedTabId
           ? {
               ...tab,
               url,
+              pageTitle,
               backStack: this.stackWithPreviousUrl(tab.backStack, previousUrl, url),
             }
           : tab,
@@ -713,6 +716,19 @@ export class ExploreBrowserFacade implements OnDestroy {
           : tab,
       ),
     );
+  }
+
+  private updateActiveTabTitle(title: string | null): void {
+    const selectedTabId = this.selectedTabIdSignal();
+    const pageTitle = this.normalizePageTitle(title);
+    this.tabsSignal.update((tabs) =>
+      tabs.map((tab) => (tab.id === selectedTabId ? { ...tab, pageTitle } : tab)),
+    );
+  }
+
+  private normalizePageTitle(title: string | null): string | null {
+    const normalized = title?.trim() ?? '';
+    return normalized.length > 0 ? normalized : null;
   }
 
   private stackWithPreviousUrl(
@@ -744,6 +760,7 @@ export class ExploreBrowserFacade implements OnDestroy {
     return {
       id: `explore-tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
       url,
+      pageTitle: null,
       backStack: [],
     };
   }

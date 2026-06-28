@@ -5,10 +5,16 @@ import { ExploreBrowserFacade } from '../../../application/explore-browser.facad
 import { ExploreBrowserTabsPage } from './explore-browser-tabs.page';
 
 class FakeExploreBrowserFacade {
-  public readonly tabs = signal<readonly { readonly id: string; readonly url: string | null }[]>([
-    { id: 'tab-1', url: 'https://example.com/' },
-    { id: 'tab-2', url: 'https://buku.example/articles' },
-    { id: 'tab-3', url: null },
+  public readonly tabs = signal<
+    readonly {
+      readonly id: string;
+      readonly url: string | null;
+      readonly pageTitle: string | null;
+    }[]
+  >([
+    { id: 'tab-1', url: 'https://example.com/', pageTitle: null },
+    { id: 'tab-2', url: 'https://buku.example/articles', pageTitle: 'Buku Articles' },
+    { id: 'tab-3', url: null, pageTitle: null },
   ]);
   public readonly activeTab = computed(
     () => this.tabs().find((tab) => tab.id === this.activeTabId) ?? null,
@@ -21,7 +27,7 @@ class FakeExploreBrowserFacade {
   public createBlankTab(): Promise<void> {
     this.blankTabs += 1;
     this.activeTabId = 'tab-blank';
-    this.tabs.set([...this.tabs(), { id: 'tab-blank', url: null }]);
+    this.tabs.set([...this.tabs(), { id: 'tab-blank', url: null, pageTitle: null }]);
     return Promise.resolve();
   }
 
@@ -75,9 +81,19 @@ describe('ExploreBrowserTabsPage', () => {
 
     expect(rows.length).toBe(3);
     expect(rows.item(0).textContent).toContain('example.com');
-    expect(rows.item(1).textContent).toContain('buku.example/articles');
+    expect(rows.item(1).textContent).toContain('Buku Articles');
     expect(rows.item(2).textContent).toContain('Blank tab');
     expect(rows.item(1).classList.contains('tab-list-active')).toBeTrue();
+  });
+
+  it('renders URL path labels before a page title is available', () => {
+    browser.tabs.set([{ id: 'tab-1', url: 'https://example.com/path', pageTitle: null }]);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const row = nativeElement.querySelector('.tab-list ion-item');
+
+    expect(row?.querySelector('h2')?.textContent).toBe('example.com/path');
   });
 
   it('creates a blank tab and returns to the browser view', async () => {
