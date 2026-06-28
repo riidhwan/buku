@@ -97,6 +97,14 @@ describe('ExplorePage', () => {
     expect(input.classList.contains('ion-invalid')).toBeTrue();
   });
 
+  it('lets the application URL policy validate bare domains', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = queryRequired(nativeElement, 'ion-input');
+
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('inputmode')).toBe('url');
+  });
+
   it('updates URL input state from Ionic input events', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const input = queryRequired(nativeElement, 'ion-input');
