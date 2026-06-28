@@ -44,6 +44,11 @@ export class ExploreBrowserViewportActions {
   }
 
   public async showViewport(rect: BrowserViewportRect): Promise<void> {
+    if (this.state.readingModeActiveSignal()) {
+      await this.viewport.hide();
+      return;
+    }
+
     await this.viewport.show(rect);
   }
 
@@ -52,11 +57,14 @@ export class ExploreBrowserViewportActions {
   }
 
   public async closeBrowser(): Promise<void> {
+    this.state.readingModeActiveSignal.set(false);
     this.state.readingArticleSignal.set(null);
     await this.viewport.hide();
   }
 
   public async stopOrReload(): Promise<void> {
+    this.state.readingModeActiveSignal.set(false);
+    this.state.readingArticleSignal.set(null);
     if (this.state.loadingSignal()) {
       await this.viewport.stop();
       this.state.loadingSignal.set(false);
@@ -67,6 +75,8 @@ export class ExploreBrowserViewportActions {
   }
 
   public async goBack(): Promise<BrowserHistoryNavigationResult> {
+    this.state.readingModeActiveSignal.set(false);
+    this.state.readingArticleSignal.set(null);
     if (this.canUseNativeBack()) {
       const result = await this.viewport.back();
       this.state.backNavigationState = recordNativeBackNavigation(
@@ -101,6 +111,8 @@ export class ExploreBrowserViewportActions {
   }
 
   public async goForward(): Promise<void> {
+    this.state.readingModeActiveSignal.set(false);
+    this.state.readingArticleSignal.set(null);
     if (this.state.canGoForwardSignal()) {
       await this.viewport.forward();
     }

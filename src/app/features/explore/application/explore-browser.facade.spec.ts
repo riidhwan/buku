@@ -1152,6 +1152,29 @@ describe('ExploreBrowserFacade', () => {
     expect(viewport.hideCount).toBe(1);
   });
 
+  it('keeps the native viewport hidden when the browser page reports its rectangle during Reading Mode', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+    await facade.openReadingMode();
+
+    await facade.showViewport({ left: 1, top: 2, width: 3, height: 4 });
+
+    expect(viewport.shownRect).toBeNull();
+    expect(viewport.hideCount).toBe(2);
+  });
+
   it('does not try reading mode without a current URL or while loading', async () => {
     expect((await facade.openReadingMode()).ok).toBeFalse();
 
@@ -1241,8 +1264,34 @@ describe('ExploreBrowserFacade', () => {
     await facade.openReadingMode();
     facade.closeReadingMode();
 
-    expect(facade.readingArticle()).toBeNull();
+    expect(facade.readingModeActive()).toBeFalse();
+    expect(facade.readingArticle()).toEqual(articleSnapshot);
     expect(facade.currentUrl()).toBe('https://example.com/article');
+  });
+
+  it('reopens a retained article without extracting again', async () => {
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+
+    await facade.openReadingMode();
+    await facade.openReadingMode();
+    await facade.openReadingMode();
+
+    expect(facade.readingModeActive()).toBeTrue();
+    expect(facade.readingArticle()).toEqual(articleSnapshot);
+    expect(viewport.extractCount).toBe(1);
   });
 
   it('opens reader links through the Explore Browser session', async () => {

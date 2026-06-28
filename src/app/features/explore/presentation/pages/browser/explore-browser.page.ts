@@ -3,10 +3,12 @@ import {
   Component,
   ElementRef,
   OnDestroy,
+  ViewEncapsulation,
   ViewChild,
   inject,
   signal,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonButton,
@@ -16,7 +18,15 @@ import {
   IonHeader,
   IonIcon,
   IonInput,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonModal,
+  IonNote,
+  IonSpinner,
   IonText,
+  IonTitle,
+  IonToast,
   IonToolbar,
   Platform,
 } from '@ionic/angular/standalone';
@@ -24,6 +34,9 @@ import { addIcons } from 'ionicons';
 import {
   arrowBackOutline,
   arrowForwardOutline,
+  bookmarkOutline,
+  chevronBackOutline,
+  chevronForwardOutline,
   closeOutline,
   copyOutline,
   ellipsisVerticalOutline,
@@ -37,13 +50,18 @@ import {
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
 import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
+import { READING_LIBRARY_SAVE } from '../../../application/ports/reading-library-save.port';
+import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
 
 @Component({
   selector: 'app-explore-browser-page',
   templateUrl: './explore-browser.page.html',
   styleUrl: './explore-browser.page.scss',
+  encapsulation: ViewEncapsulation.None,
   imports: [
+    FormsModule,
     IonButton,
     IonButtons,
     IonContent,
@@ -51,7 +69,15 @@ import { BrowserViewportRect } from '../../../application/ports/browser-viewport
     IonHeader,
     IonIcon,
     IonInput,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonModal,
+    IonNote,
+    IonSpinner,
     IonText,
+    IonTitle,
+    IonToast,
     IonToolbar,
   ],
 })
@@ -61,8 +87,19 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
 
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
+  private readonly librarySave = inject(READING_LIBRARY_SAVE);
+  protected readonly readerSave = new ExploreBrowserReaderSaveActions(
+    this.browser,
+    this.librarySave,
+  );
   private readonly router = inject(Router);
   private readonly platform = inject(Platform);
+  private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+    year: 'numeric',
+  });
   private readonly backButtonSubscription: Subscription;
   private viewportUpdateTimer: number | null = null;
   private readonly resizeListener = (): void => {
@@ -73,6 +110,9 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
     addIcons({
       arrowBackOutline,
       arrowForwardOutline,
+      bookmarkOutline,
+      chevronBackOutline,
+      chevronForwardOutline,
       closeOutline,
       copyOutline,
       ellipsisVerticalOutline,
@@ -133,11 +173,43 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   }
 
   protected async openReadingMode(): Promise<void> {
+    const wasActive = this.browser.readingModeActive();
     const result = await this.browser.openReadingMode();
     this.closeActions();
-    if (result.ok) {
-      await this.router.navigate(['explore', 'reader']);
+    if (result.ok && wasActive) {
+      this.scheduleViewportRectUpdate();
     }
+  }
+
+  protected async openReaderLink(event: Event): Promise<void> {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const link = target.closest('a');
+    const href = link?.getAttribute('href') ?? null;
+    if (href === null) {
+      return;
+    }
+
+    event.preventDefault();
+    await this.browser.openReadingModeLink(href);
+    this.scheduleViewportRectUpdate();
+  }
+
+  protected async navigateChapter(direction: ReadingChapterDirection): Promise<void> {
+    await this.browser.navigateReadingChapter(direction);
+    this.scheduleViewportRectUpdate();
+  }
+
+  protected formatPublishedTime(publishedTime: string): string {
+    const date = new Date(publishedTime);
+    if (Number.isNaN(date.getTime())) {
+      return publishedTime;
+    }
+
+    return this.publishedTimeFormatter.format(date);
   }
 
   public openActions(): void {
@@ -152,6 +224,12 @@ export class ExploreBrowserPage implements AfterViewInit, OnDestroy {
   private async handleHardwareBackButton(): Promise<void> {
     if (this.actionsOpen()) {
       this.closeActions();
+      this.scheduleViewportRectUpdate();
+      return;
+    }
+
+    if (this.browser.readingModeActive()) {
+      this.browser.closeReadingMode();
       this.scheduleViewportRectUpdate();
       return;
     }

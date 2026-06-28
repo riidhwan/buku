@@ -36,7 +36,7 @@ A capped per-tab list of recently visited Explore Browser URLs used to keep back
 _Avoid_: browser history, tab history, WebView session history
 
 **Reading Mode**:
-A Buku-rendered reader view created from article content extracted from the current Explore Browser page.
+A Buku-rendered reader mode within the Explore Browser, created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling
 
 **Chapter Navigation**:

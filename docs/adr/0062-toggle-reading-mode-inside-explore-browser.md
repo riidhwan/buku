@@ -1,0 +1,7 @@
+# Toggle Reading Mode inside Explore Browser
+
+Reading Mode is a mode inside the Explore Browser surface instead of a separate reader screen. The Explore Browser address bar remains visible and continues to show the source page URL; turning Reading Mode on hides the WebView and renders the extracted article under the same browser chrome, with reader-only actions in a contextual toolbar below the address bar. Only one secondary toolbar is shown at a time: browser actions take precedence while the overflow is open, otherwise the reader toolbar appears during Reading Mode.
+
+Toggling Reading Mode off hides the retained article view and shows the existing WebView without reloading it; toggling Reading Mode back on for the same page shows the retained article instead of re-extracting. Submitting a new address, opening an ordinary reader link, switching tabs, closing the browser, invoking browser back, browser forward, or reload, or observing a committed WebView navigation for a different current URL exits Reading Mode and discards the retained article before returning to WebView navigation. Android back exits Reading Mode before applying normal Explore Browser back behavior. Chapter Navigation remains the reader-specific exception: previous and next chapter actions may load a chapter URL and replace the retained article when extraction succeeds.
+
+The old `/explore/reader` route may remain temporarily as a compatibility redirect to `/explore/browser`, but it should no longer own a real Reading Mode screen.
