@@ -46,7 +46,6 @@ import {
   readerOutline,
   refreshOutline,
   stopOutline,
-  tabletLandscapeOutline,
   warningOutline,
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
@@ -88,6 +87,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
+  public readonly addressBarFocused = signal(false);
   private readonly librarySave = inject(READING_LIBRARY_SAVE);
   protected readonly readerSave = new ExploreBrowserReaderSaveActions(
     this.browser,
@@ -122,7 +122,6 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
       readerOutline,
       refreshOutline,
       stopOutline,
-      tabletLandscapeOutline,
       warningOutline,
     });
     this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(
@@ -164,6 +163,23 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
   protected async openUrl(): Promise<void> {
     await this.browser.openInput();
+  }
+
+  public focusAddressBar(): void {
+    this.addressBarFocused.set(true);
+    if (this.actionsOpen()) {
+      this.closeActions();
+      this.scheduleViewportRectUpdate();
+    }
+  }
+
+  public blurAddressBar(): void {
+    this.addressBarFocused.set(false);
+    this.browser.updateInputValue(this.browser.currentUrl() ?? '');
+  }
+
+  public clearAddressBar(): void {
+    this.browser.updateInputValue('');
   }
 
   protected async openTabs(): Promise<void> {

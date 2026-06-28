@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Platform } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
 import {
   READING_LIBRARY_SAVE,
   ReadingLibrarySeriesOption,
@@ -42,6 +43,15 @@ class FakeExploreBrowserFacade {
   public readonly readingModeActive = signal(false);
   public readonly readingArticle = signal<ReadingArticleSnapshot | null>(null);
   public readonly chapterNavigationLoading = signal(false);
+  public readonly tabs = signal<readonly ExploreBrowserTab[]>([
+    {
+      id: 'tab-1',
+      url: 'https://example.com/',
+      pageTitle: 'Example',
+      backStack: [],
+      lastLibrarySeriesTitle: null as string | null,
+    },
+  ]);
   public readonly activeTab = signal({
     id: 'tab-1',
     url: 'https://example.com/',
@@ -238,6 +248,27 @@ function getEndToolbarButtons(nativeElement: HTMLElement): NodeListOf<Element> {
   return nativeElement.querySelectorAll('ion-toolbar ion-buttons[slot="end"] ion-button');
 }
 
+function getReadingModeButton(nativeElement: HTMLElement): Element {
+  return getEndToolbarButtons(nativeElement).item(0);
+}
+
+function getTabsButton(nativeElement: HTMLElement): Element {
+  return getEndToolbarButtons(nativeElement).item(1);
+}
+
+function getOverflowButton(nativeElement: HTMLElement): Element {
+  return getEndToolbarButtons(nativeElement).item(2);
+}
+
+function getTabsIcon(button: Element): Element {
+  const icon = button.querySelector('.tab-count-icon');
+  if (icon === null) {
+    throw new Error('Expected the tabs button to render a tab count icon.');
+  }
+
+  return icon;
+}
+
 function waitForViewportTimer(): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve);
@@ -305,13 +336,136 @@ describe('ExploreBrowserPage', () => {
 
   it('opens the dedicated tabs view from the toolbar', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const tabsButton = getEndToolbarButtons(nativeElement).item(2);
+    const tabsButton = getTabsButton(nativeElement);
 
     tabsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
 
     expect(browser.hidden).toBe(1);
     expect(router.navigations).toEqual([['explore', 'browser', 'tabs']]);
+  });
+
+  it('keeps the overflow toolbar menu at the right edge', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const buttons = getEndToolbarButtons(nativeElement);
+
+    expect(buttons.item(0).querySelector('ion-icon')?.getAttribute('name')).toBe('reader-outline');
+    expect(getTabsIcon(buttons.item(1)).textContent.trim()).toBe('1');
+    expect(buttons.item(2).querySelector('ion-icon')?.getAttribute('name')).toBe(
+      'ellipsis-vertical-outline',
+    );
+  });
+
+  it('shows the tab count in the tabs toolbar button', () => {
+    browser.tabs.set([
+      {
+        id: 'tab-1',
+        url: 'https://example.com/',
+        pageTitle: 'Example',
+        backStack: [],
+        lastLibrarySeriesTitle: null,
+      },
+      {
+        id: 'tab-2',
+        url: null,
+        pageTitle: null,
+        backStack: [],
+        lastLibrarySeriesTitle: null,
+      },
+    ]);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const tabsButton = getTabsButton(nativeElement);
+
+    expect(tabsButton.getAttribute('aria-label')).toBe('Open tabs, 2 tabs');
+    expect(getTabsIcon(tabsButton).textContent.trim()).toBe('2');
+  });
+
+  it('shows only the clear button while the address input is focused', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+
+    const focusedButtons = getEndToolbarButtons(nativeElement);
+    expect(focusedButtons.length).toBe(1);
+    expect(focusedButtons.item(0).querySelector('ion-icon')?.getAttribute('name')).toBe(
+      'close-outline',
+    );
+
+    input.dispatchEvent(new CustomEvent('ionBlur', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(getEndToolbarButtons(nativeElement).length).toBe(3);
+  });
+
+  it('clears the address input from the focused toolbar button', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    browser.inputValue.set('https://edited.example/');
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+
+    getEndToolbarButtons(nativeElement)
+      .item(0)
+      .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+
+    expect(browser.inputValue()).toBe('');
+  });
+
+  it('restores the loaded URL when edited address input loses focus without submit', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    browser.currentUrl.set('https://loaded.example/');
+    input.dispatchEvent(
+      new CustomEvent('ionInput', {
+        bubbles: true,
+        detail: { value: 'https://draft.example/' },
+      }),
+    );
+    input.dispatchEvent(new CustomEvent('ionBlur', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(browser.inputValue()).toBe('https://loaded.example/');
+  });
+
+  it('restores an empty address when a blank tab address input loses focus', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    browser.currentUrl.set(null);
+    input.dispatchEvent(
+      new CustomEvent('ionInput', {
+        bubbles: true,
+        detail: { value: 'https://draft.example/' },
+      }),
+    );
+    input.dispatchEvent(new CustomEvent('ionBlur', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(browser.inputValue()).toBe('');
+  });
+
+  it('closes browser controls when the address input is focused', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    fixture.componentInstance.openActions();
+    fixture.detectChanges();
+    expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
+    const initialShowCount = browser.showCount;
+
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+    await waitForViewportTimer();
+
+    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(nativeElement.querySelector('.browser-controls')).toBeNull();
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
   });
 
   it('treats empty browser URL input event values as an empty string', () => {
@@ -351,7 +505,7 @@ describe('ExploreBrowserPage', () => {
 
     expect(nativeElement.querySelector('.browser-controls')).toBeNull();
 
-    const overflowButton = getEndToolbarButtons(nativeElement).item(1);
+    const overflowButton = getOverflowButton(nativeElement);
 
     overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
@@ -449,7 +603,7 @@ describe('ExploreBrowserPage', () => {
 
   it('disables unavailable toolbar navigation controls after overflow opens', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const overflowButton = getEndToolbarButtons(nativeElement).item(1);
+    const overflowButton = getOverflowButton(nativeElement);
 
     overflowButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
@@ -463,14 +617,14 @@ describe('ExploreBrowserPage', () => {
 
   it('enables reading mode only when a current URL is not loading', () => {
     let nativeElement = fixture.nativeElement as HTMLElement;
-    let readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    let readingModeButton = getReadingModeButton(nativeElement);
     expect(isIonButtonDisabled(readingModeButton)).toBeFalse();
 
     browser.loading.set(true);
     fixture.detectChanges();
 
     nativeElement = fixture.nativeElement as HTMLElement;
-    readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    readingModeButton = getReadingModeButton(nativeElement);
     expect(isIonButtonDisabled(readingModeButton)).toBeTrue();
 
     browser.loading.set(false);
@@ -478,7 +632,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
 
     nativeElement = fixture.nativeElement as HTMLElement;
-    readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    readingModeButton = getReadingModeButton(nativeElement);
     expect(isIonButtonDisabled(readingModeButton)).toBeTrue();
   });
 
@@ -505,7 +659,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    const readingModeButton = getReadingModeButton(nativeElement);
 
     readingModeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
@@ -680,7 +834,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const readingModeButton = getEndToolbarButtons(nativeElement).item(0);
+    const readingModeButton = getReadingModeButton(nativeElement);
 
     readingModeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();

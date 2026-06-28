@@ -10,6 +10,8 @@
         [errorText]="browser.validationError() ?? ''"
         [class.ion-invalid]="browser.validationError() !== null"
         (ionInput)="updateUrl($event)"
+        (ionFocus)="focusAddressBar()"
+        (ionBlur)="blurAddressBar()"
       >
         <ion-icon
           slot="start"
@@ -20,6 +22,17 @@
       </ion-input>
     </form>
 
+    @if (addressBarFocused()) {
+    <ion-buttons slot="end">
+      <ion-button
+        aria-label="Clear address"
+        (pointerdown)="clearAddressBar(); $event.preventDefault()"
+        (click)="clearAddressBar()"
+      >
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    } @else {
     <ion-buttons slot="end">
       <ion-button
         [attr.aria-label]="browser.readingModeActive() ? 'Close reading mode' : 'Open reading mode'"
@@ -30,6 +43,13 @@
         <ion-icon name="reader-outline" aria-hidden="true"></ion-icon>
       </ion-button>
       <ion-button
+        class="tab-count-button"
+        [attr.aria-label]="'Open tabs, ' + browser.tabs().length + ' tabs'"
+        (click)="openTabs()"
+      >
+        <span class="tab-count-icon" aria-hidden="true">{{ browser.tabs().length }}</span>
+      </ion-button>
+      <ion-button
         aria-label="Open browser actions"
         [disabled]="browser.currentUrl() === null"
         [attr.aria-expanded]="actionsOpen()"
@@ -37,10 +57,8 @@
       >
         <ion-icon name="ellipsis-vertical-outline" aria-hidden="true"></ion-icon>
       </ion-button>
-      <ion-button aria-label="Open tabs" (click)="openTabs()">
-        <ion-icon name="tablet-landscape-outline" aria-hidden="true"></ion-icon>
-      </ion-button>
     </ion-buttons>
+    }
   </ion-toolbar>
 
   @if (actionsOpen()) {
