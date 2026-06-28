@@ -27,10 +27,8 @@ import {
   chevronForwardOutline,
   closeOutline,
 } from 'ionicons/icons';
-import {
-  ExploreBrowserFacade,
-  ReadingChapterDirection,
-} from '../../../application/explore-browser.facade';
+import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
 import {
   READING_LIBRARY_SAVE,
   ReadingLibrarySeriesOption,

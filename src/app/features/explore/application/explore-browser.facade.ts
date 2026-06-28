@@ -1,31 +1,28 @@
-import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
+import { inject, Injectable, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { ReadingArticleSnapshot } from '../domain/reading-article';
 import {
-  browserNoticeForLoadFailure,
-  browserNoticeForReadingModeResult,
-  browserNoticeForUnsupportedCapability,
-  resolveReadingModeTargetUrl,
-  type BrowserNotice,
-  type BrowserNoticeKind,
   type ReadingChapterDirection,
+  browserNoticeForReadingModeResult,
+  resolveReadingModeTargetUrl,
 } from './explore-browser-reading-mode-policy';
+import type {
+  BrowserOpenResult,
+  BrowserReadingChapterNavigationResult,
+  BrowserReadingModeResult,
+} from './explore-browser-results';
+import { reduceBrowserViewportEvent } from './explore-browser-viewport-event-reducer';
+import { ExploreBrowserViewportActions } from './explore-browser-viewport-actions';
+import { ExploreBrowserFacadeState } from './explore-browser.facade-state';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
 import {
-  canUseNativeBackNavigation,
-  discardLatestBackNavigationAttempt,
-  initialExploreBrowserBackNavigationState,
-  recordFallbackBackNavigationAttempt,
-  recordNativeBackNavigation,
-  type ExploreBrowserBackNavigationState,
-} from './explore-browser-back-navigation-policy';
+  closeExploreBrowserTab,
+  selectExploreBrowserTab,
+} from './explore-browser-tab-lifecycle-policy';
+import { initialExploreBrowserBackNavigationState } from './explore-browser-back-navigation-policy';
 import {
   blankExploreBrowserTabSession,
   commitExploreBrowserNavigation,
   createExploreBrowserTab,
-  findExploreBrowserTab,
-  lastExploreBrowserUrl,
-  recentExploreBrowserTabs,
   rememberExploreBrowserTabLibrarySeriesTitle,
   selectedTabIdForBrowserSession,
 } from './explore-browser-session-policy';
@@ -34,35 +31,14 @@ import {
   BROWSER_SESSION_STORE,
   type BrowserSessionStorePort,
   type BrowserTabSession,
-  type ExploreBrowserTab,
 } from './ports/browser-session-store.port';
 import {
   BROWSER_VIEWPORT,
   type BrowserHistoryNavigationResult,
-  type BrowserViewportEvent,
   type BrowserViewportPort,
   type BrowserViewportRect,
 } from './ports/browser-viewport.port';
 import { EXTERNAL_URL_OPENER, type ExternalUrlOpenerPort } from './ports/external-url-opener.port';
-
-export type { BrowserNotice, BrowserNoticeKind, ReadingChapterDirection };
-
-export interface BrowserOpenResult {
-  readonly ok: boolean;
-}
-
-export interface BrowserReadingModeResult {
-  readonly ok: boolean;
-}
-
-export type BrowserReadingChapterNavigationResult =
-  | {
-      readonly ok: true;
-      readonly destination: 'reader' | 'browser';
-    }
-  | {
-      readonly ok: false;
-    };
 
 @Injectable()
 export class ExploreBrowserFacade implements OnDestroy {
@@ -71,47 +47,51 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly viewport = inject<BrowserViewportPort>(BROWSER_VIEWPORT);
   private readonly externalUrlOpener = inject<ExternalUrlOpenerPort>(EXTERNAL_URL_OPENER);
   private readonly chapterNavigator = inject(ExploreReadingChapterNavigator);
+  private readonly state = new ExploreBrowserFacadeState();
+  private readonly viewportActions = new ExploreBrowserViewportActions({
+    state: this.state,
+    viewport: this.viewport,
+    externalUrlOpener: this.externalUrlOpener,
+    loadSelectedTabUrl: (url) => this.loadSelectedTabUrl(url),
+  });
   private readonly viewportSubscription: Subscription;
 
-  private readonly inputValueSignal = signal('');
-  private readonly currentUrlSignal = signal<string | null>(null);
-  private readonly tabsSignal = signal<readonly ExploreBrowserTab[]>([]);
-  private readonly selectedTabIdSignal = signal<string | null>(null);
-  private readonly loadingSignal = signal(false);
-  private readonly nativeCanGoBackSignal = signal(false);
-  private readonly canGoForwardSignal = signal(false);
-  private readonly validationErrorSignal = signal<string | null>(null);
-  private readonly noticeSignal = signal<BrowserNotice | null>(null);
-  private readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
-  private readonly chapterNavigationLoadingSignal = signal(false);
-  private backNavigationState: ExploreBrowserBackNavigationState =
-    initialExploreBrowserBackNavigationState();
-
-  public readonly inputValue = this.inputValueSignal.asReadonly();
-  public readonly currentUrl = this.currentUrlSignal.asReadonly();
-  public readonly tabs = this.tabsSignal.asReadonly();
-  public readonly activeTab = computed(() => this.findActiveTab());
-  public readonly recentTabs = computed(() => recentExploreBrowserTabs(this.tabsSignal()));
-  public readonly lastUrl = computed(() => lastExploreBrowserUrl(this.tabsSignal()));
-  public readonly loading = this.loadingSignal.asReadonly();
-  public readonly canGoBack = computed(
-    () => this.activeBackStack().length > 0 || this.canUseNativeBack(),
-  );
-  public readonly canGoForward = this.canGoForwardSignal.asReadonly();
-  public readonly validationError = this.validationErrorSignal.asReadonly();
-  public readonly notice = this.noticeSignal.asReadonly();
-  public readonly readingArticle = this.readingArticleSignal.asReadonly();
-  public readonly chapterNavigationLoading = this.chapterNavigationLoadingSignal.asReadonly();
-  public readonly isSecure = computed(
-    () => this.currentUrlSignal()?.startsWith('https://') ?? false,
-  );
-  public readonly isInsecure = computed(
-    () => this.currentUrlSignal()?.startsWith('http://') ?? false,
-  );
+  public readonly inputValue = this.state.inputValue;
+  public readonly currentUrl = this.state.currentUrl;
+  public readonly tabs = this.state.tabs;
+  public readonly activeTab = this.state.activeTab;
+  public readonly recentTabs = this.state.recentTabs;
+  public readonly lastUrl = this.state.lastUrl;
+  public readonly loading = this.state.loading;
+  public readonly canGoBack = this.state.canGoBack;
+  public readonly canGoForward = this.state.canGoForward;
+  public readonly validationError = this.state.validationError;
+  public readonly notice = this.state.notice;
+  public readonly readingArticle = this.state.readingArticle;
+  public readonly chapterNavigationLoading = this.state.chapterNavigationLoading;
+  public readonly isSecure = this.state.isSecure;
+  public readonly isInsecure = this.state.isInsecure;
 
   public constructor() {
     this.viewportSubscription = this.viewport.events$.subscribe((event) => {
-      this.handleViewportEvent(event);
+      const reduction = reduceBrowserViewportEvent(event);
+      this.state.inputValueSignal.set(reduction.inputValue ?? this.state.inputValueSignal());
+      this.state.currentUrlSignal.set(reduction.currentUrl ?? this.state.currentUrlSignal());
+      this.state.loadingSignal.set(reduction.loading ?? this.state.loadingSignal());
+      this.state.nativeCanGoBackSignal.set(
+        reduction.nativeCanGoBack ?? this.state.nativeCanGoBackSignal(),
+      );
+      this.state.canGoForwardSignal.set(reduction.canGoForward ?? this.state.canGoForwardSignal());
+      if (reduction.notice !== undefined) {
+        this.state.noticeSignal.set(reduction.notice);
+      }
+      if (reduction.committedNavigation !== undefined) {
+        this.commitActiveTabUrl(
+          reduction.committedNavigation.url,
+          reduction.committedNavigation.title,
+        );
+        void this.persistTabs();
+      }
     });
   }
 
@@ -138,20 +118,20 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public updateInputValue(value: string): void {
-    this.inputValueSignal.set(value);
-    this.validationErrorSignal.set(null);
+    this.state.inputValueSignal.set(value);
+    this.state.validationErrorSignal.set(null);
   }
 
   public async openInput(): Promise<BrowserOpenResult> {
-    return this.openRawValue(this.inputValueSignal(), 'active');
+    return this.openRawValue(this.state.inputValueSignal(), 'active');
   }
 
   public async openInputInNewTab(): Promise<BrowserOpenResult> {
-    return this.openRawValue(this.inputValueSignal(), 'new');
+    return this.openRawValue(this.state.inputValueSignal(), 'new');
   }
 
   public async resumeTab(tabId: string): Promise<BrowserOpenResult> {
-    const tab = this.tabsSignal().find((candidate) => candidate.id === tabId);
+    const tab = this.state.tabsSignal().find((candidate) => candidate.id === tabId);
     if (tab?.url === undefined || tab.url === null) {
       return { ok: false };
     }
@@ -172,180 +152,125 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   public async createBlankTab(): Promise<void> {
     const tab = createExploreBrowserTab(null);
-    this.tabsSignal.update((tabs) => [...tabs, tab]);
-    this.selectedTabIdSignal.set(tab.id);
+    this.state.tabsSignal.update((tabs) => [...tabs, tab]);
+    this.state.selectedTabIdSignal.set(tab.id);
     await this.clearVisiblePageForBlankTab();
     await this.persistTabs();
   }
 
   public async selectTab(tabId: string): Promise<void> {
-    const tab = this.tabsSignal().find((candidate) => candidate.id === tabId);
-    if (tab === undefined) {
+    const result = selectExploreBrowserTab({ tabs: this.state.tabsSignal(), tabId });
+    if (result.status === 'missing') {
       return;
     }
 
-    this.selectedTabIdSignal.set(tab.id);
+    this.applySession(result.session);
     await this.persistTabs();
-    if (tab.url === null) {
+    if (result.status === 'blank') {
       await this.clearVisiblePageForBlankTab();
       return;
     }
 
-    await this.loadSelectedTabUrl(tab.url);
+    await this.loadSelectedTabUrl(result.url);
   }
 
   public async closeTab(tabId: string): Promise<void> {
-    const tabs = this.tabsSignal();
-    const closedIndex = tabs.findIndex((tab) => tab.id === tabId);
-    if (closedIndex === -1) {
+    const result = closeExploreBrowserTab({
+      tabs: this.state.tabsSignal(),
+      selectedTabId: this.state.selectedTabIdSignal(),
+      tabId,
+    });
+
+    if (result.status === 'missing') {
       return;
     }
 
-    const wasSelected = this.selectedTabIdSignal() === tabId;
-    const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
-    if (remainingTabs.length === 0) {
-      this.replaceWithBlankTab();
+    this.applySession(result.session);
+    if (result.status === 'blank') {
       await this.clearVisiblePageForBlankTab();
       await this.persistTabs();
       return;
     }
 
-    this.tabsSignal.set(remainingTabs);
-    if (!wasSelected) {
+    if (result.status === 'closed-inactive') {
       await this.persistTabs();
       return;
     }
 
-    const nextIndex = Math.max(0, closedIndex - 1);
-    const nextTab = remainingTabs[nextIndex];
-    /* istanbul ignore if -- guarded by remaining tab length and bounded nextIndex. */
-    if (nextTab === undefined) {
+    await this.persistTabs();
+    if (result.url === null) {
+      await this.clearVisiblePageForBlankTab();
       return;
     }
 
-    await this.selectTab(nextTab.id);
+    await this.loadSelectedTabUrl(result.url);
   }
 
   public async retryCurrentUrl(): Promise<BrowserOpenResult> {
-    const currentUrl = this.currentUrlSignal();
-    if (currentUrl === null) {
-      return { ok: false };
-    }
-
-    await this.viewport.load(currentUrl);
-    return { ok: true };
+    return this.viewportActions.retryCurrentUrl();
   }
 
   public async showViewport(rect: BrowserViewportRect): Promise<void> {
-    await this.viewport.show(rect);
+    await this.viewportActions.showViewport(rect);
   }
 
   public async hideViewport(): Promise<void> {
-    await this.viewport.hide();
+    await this.viewportActions.hideViewport();
   }
 
   public async closeBrowser(): Promise<void> {
-    this.readingArticleSignal.set(null);
-    await this.viewport.hide();
+    await this.viewportActions.closeBrowser();
   }
 
   public async stopOrReload(): Promise<void> {
-    if (this.loadingSignal()) {
-      await this.viewport.stop();
-      this.loadingSignal.set(false);
-      return;
-    }
-
-    await this.viewport.reload();
+    await this.viewportActions.stopOrReload();
   }
 
   public async goBack(): Promise<BrowserHistoryNavigationResult> {
-    if (this.canUseNativeBack()) {
-      const result = await this.viewport.back();
-      this.backNavigationState = recordNativeBackNavigation(
-        this.backNavigationState,
-        result.didNavigate,
-      );
-
-      return result;
-    }
-
-    const activeBackStack = this.activeBackStack();
-    const backTarget = activeBackStack[activeBackStack.length - 1];
-    if (backTarget !== undefined) {
-      try {
-        this.backNavigationState = recordFallbackBackNavigationAttempt(this.backNavigationState);
-        await this.loadSelectedTabUrl(backTarget);
-        return { didNavigate: true };
-      } catch (error) {
-        this.backNavigationState = discardLatestBackNavigationAttempt(this.backNavigationState);
-        const message = this.loadFailureMessage(error);
-        this.noticeSignal.set(browserNoticeForLoadFailure(message, backTarget));
-        return { didNavigate: false };
-      }
-    }
-
-    return { didNavigate: false };
+    return this.viewportActions.goBack();
   }
 
   public async goForward(): Promise<void> {
-    if (this.canGoForwardSignal()) {
-      await this.viewport.forward();
-    }
+    await this.viewportActions.goForward();
   }
 
   public async copyCurrentUrl(): Promise<void> {
-    const currentUrl = this.currentUrlSignal();
-    if (currentUrl === null) {
-      return;
-    }
-
-    await this.viewport.copyUrl(currentUrl);
-    this.noticeSignal.set({
-      kind: 'copied',
-      message: 'URL copied.',
-      url: currentUrl,
-    });
+    await this.viewportActions.copyCurrentUrl();
   }
 
   public async openCurrentUrlExternally(): Promise<void> {
-    const currentUrl = this.currentUrlSignal();
-    if (currentUrl === null) {
-      return;
-    }
-
-    await this.externalUrlOpener.open(currentUrl);
+    await this.viewportActions.openCurrentUrlExternally();
   }
 
   public async openReadingMode(): Promise<BrowserReadingModeResult> {
-    const currentUrl = this.currentUrlSignal();
-    if (currentUrl === null || this.loadingSignal()) {
+    const currentUrl = this.state.currentUrlSignal();
+    if (currentUrl === null || this.state.loadingSignal()) {
       return { ok: false };
     }
 
     const result = await this.viewport.extractArticle();
     switch (result.status) {
       case 'ok':
-        this.readingArticleSignal.set(result.article);
-        this.noticeSignal.set(null);
+        this.state.readingArticleSignal.set(result.article);
+        this.state.noticeSignal.set(null);
         await this.viewport.hide();
         return { ok: true };
       case 'unavailable':
       case 'failed':
-        this.noticeSignal.set(browserNoticeForReadingModeResult(result, currentUrl));
+        this.state.noticeSignal.set(browserNoticeForReadingModeResult(result, currentUrl));
         return { ok: false };
     }
   }
 
   public closeReadingMode(): void {
-    this.readingArticleSignal.set(null);
+    this.state.readingArticleSignal.set(null);
   }
 
   public async rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
-    this.tabsSignal.set(
+    this.state.tabsSignal.set(
       rememberExploreBrowserTabLibrarySeriesTitle({
-        tabs: this.tabsSignal(),
-        selectedTabId: this.selectedTabIdSignal(),
+        tabs: this.state.tabsSignal(),
+        selectedTabId: this.state.selectedTabIdSignal(),
         title,
       }),
     );
@@ -353,18 +278,18 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async openReadingModeLink(href: string): Promise<BrowserOpenResult> {
-    const article = this.readingArticleSignal();
+    const article = this.state.readingArticleSignal();
     if (article === null) {
       return { ok: false };
     }
 
     const targetUrl = resolveReadingModeTargetUrl(href, article.url, this.urlPolicy);
     if (!targetUrl.ok) {
-      this.noticeSignal.set(targetUrl.notice);
+      this.state.noticeSignal.set(targetUrl.notice);
       return { ok: false };
     }
 
-    this.readingArticleSignal.set(null);
+    this.state.readingArticleSignal.set(null);
     await this.loadNormalizedUrl(targetUrl.url);
     return { ok: true };
   }
@@ -372,53 +297,57 @@ export class ExploreBrowserFacade implements OnDestroy {
   public async navigateReadingChapter(
     direction: ReadingChapterDirection,
   ): Promise<BrowserReadingChapterNavigationResult> {
-    const article = this.readingArticleSignal();
-    if (article === null || this.loadingSignal() || this.chapterNavigationLoadingSignal()) {
+    const article = this.state.readingArticleSignal();
+    if (
+      article === null ||
+      this.state.loadingSignal() ||
+      this.state.chapterNavigationLoadingSignal()
+    ) {
       return { ok: false };
     }
 
-    this.chapterNavigationLoadingSignal.set(true);
+    this.state.chapterNavigationLoadingSignal.set(true);
     try {
       const result = await this.chapterNavigator.navigate(article, direction);
       if (!result.ok) {
-        this.noticeSignal.set(result.notice);
+        this.state.noticeSignal.set(result.notice);
         return { ok: false };
       }
 
       if (result.destination === 'reader') {
-        this.readingArticleSignal.set(result.article);
-        this.noticeSignal.set(null);
+        this.state.readingArticleSignal.set(result.article);
+        this.state.noticeSignal.set(null);
         await this.viewport.hide();
         return { ok: true, destination: 'reader' };
       }
 
-      this.readingArticleSignal.set(null);
+      this.state.readingArticleSignal.set(null);
       if (result.notice !== null) {
-        this.noticeSignal.set(result.notice);
+        this.state.noticeSignal.set(result.notice);
       }
       return { ok: true, destination: 'browser' };
     } finally {
-      this.chapterNavigationLoadingSignal.set(false);
+      this.state.chapterNavigationLoadingSignal.set(false);
     }
   }
 
   public dismissNotice(): void {
-    this.noticeSignal.set(null);
+    this.state.noticeSignal.set(null);
   }
 
   private async openRawValue(value: string, target: 'active' | 'new'): Promise<BrowserOpenResult> {
     const normalized = this.urlPolicy.normalize(value);
 
     if (!normalized.ok) {
-      this.validationErrorSignal.set(normalized.message);
+      this.state.validationErrorSignal.set(normalized.message);
       return { ok: false };
     }
 
-    this.validationErrorSignal.set(null);
+    this.state.validationErrorSignal.set(null);
     if (target === 'new') {
       const tab = createExploreBrowserTab(null);
-      this.tabsSignal.update((tabs) => [...tabs, tab]);
-      this.selectedTabIdSignal.set(tab.id);
+      this.state.tabsSignal.update((tabs) => [...tabs, tab]);
+      this.state.selectedTabIdSignal.set(tab.id);
     } else {
       this.ensureActiveTab();
     }
@@ -433,83 +362,43 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private async loadSelectedTabUrl(url: string): Promise<void> {
-    this.inputValueSignal.set(url);
-    this.currentUrlSignal.set(url);
-    this.loadingSignal.set(true);
+    this.state.inputValueSignal.set(url);
+    this.state.currentUrlSignal.set(url);
+    this.state.loadingSignal.set(true);
     await this.viewport.load(url);
   }
 
   private async clearVisiblePageForBlankTab(): Promise<void> {
-    this.inputValueSignal.set('');
-    this.currentUrlSignal.set(null);
-    this.loadingSignal.set(false);
-    this.nativeCanGoBackSignal.set(false);
-    this.canGoForwardSignal.set(false);
-    this.backNavigationState = initialExploreBrowserBackNavigationState();
-    this.validationErrorSignal.set(null);
+    this.state.inputValueSignal.set('');
+    this.state.currentUrlSignal.set(null);
+    this.state.loadingSignal.set(false);
+    this.state.nativeCanGoBackSignal.set(false);
+    this.state.canGoForwardSignal.set(false);
+    this.state.backNavigationState = initialExploreBrowserBackNavigationState();
+    this.state.validationErrorSignal.set(null);
     await this.viewport.hide();
     await this.viewport.destroy();
   }
 
-  private loadFailureMessage(error: unknown): string {
-    /* istanbul ignore if */
-    if (!(error instanceof Error)) {
-      return 'Unknown error';
-    }
-
-    return error.message;
-  }
-
-  private handleViewportEvent(event: BrowserViewportEvent): void {
-    switch (event.type) {
-      case 'navigation':
-        this.currentUrlSignal.set(event.state.url);
-        this.inputValueSignal.set(event.state.url);
-        this.loadingSignal.set(event.state.loading);
-        this.nativeCanGoBackSignal.set(event.state.canGoBack);
-        this.canGoForwardSignal.set(event.state.canGoForward);
-        if (event.committed) {
-          this.commitActiveTabUrl(event.state.url, event.state.title ?? null);
-          void this.persistTabs();
-        }
-        break;
-      case 'loadFailed':
-        this.loadingSignal.set(false);
-        this.noticeSignal.set(
-          browserNoticeForLoadFailure(event.event.description, event.event.url),
-        );
-        break;
-      case 'capabilityUnsupported':
-        this.noticeSignal.set(
-          browserNoticeForUnsupportedCapability(event.event.capability, event.event.url),
-        );
-        break;
-    }
-  }
-
   private applySession(session: BrowserTabSession): void {
     const selectedTabId = selectedTabIdForBrowserSession(session);
-    this.tabsSignal.set(session.tabs);
-    this.selectedTabIdSignal.set(selectedTabId);
+    this.state.tabsSignal.set(session.tabs);
+    this.state.selectedTabIdSignal.set(selectedTabId);
 
-    const activeTab = this.findActiveTab();
+    const activeTab = this.state.findActiveTab();
     /* istanbul ignore if -- selectedTabIdForSession always returns a tab from this session. */
     if (activeTab === null) {
-      this.currentUrlSignal.set(null);
-      this.inputValueSignal.set('');
+      this.state.currentUrlSignal.set(null);
+      this.state.inputValueSignal.set('');
       return;
     }
 
-    this.currentUrlSignal.set(activeTab.url);
-    this.inputValueSignal.set(activeTab.url ?? '');
-  }
-
-  private findActiveTab(): ExploreBrowserTab | null {
-    return findExploreBrowserTab(this.tabsSignal(), this.selectedTabIdSignal());
+    this.state.currentUrlSignal.set(activeTab.url);
+    this.state.inputValueSignal.set(activeTab.url ?? '');
   }
 
   private ensureActiveTab(): void {
-    if (this.findActiveTab() !== null) {
+    if (this.state.findActiveTab() !== null) {
       return;
     }
 
@@ -518,36 +407,28 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   private replaceWithBlankTab(): void {
     const session = blankExploreBrowserTabSession();
-    this.tabsSignal.set(session.tabs);
-    this.selectedTabIdSignal.set(session.selectedTabId);
-    this.currentUrlSignal.set(null);
-    this.inputValueSignal.set('');
+    this.state.tabsSignal.set(session.tabs);
+    this.state.selectedTabIdSignal.set(session.selectedTabId);
+    this.state.currentUrlSignal.set(null);
+    this.state.inputValueSignal.set('');
   }
 
   private commitActiveTabUrl(url: string, title: string | null): void {
     const commit = commitExploreBrowserNavigation({
-      tabs: this.tabsSignal(),
-      selectedTabId: this.selectedTabIdSignal(),
+      tabs: this.state.tabsSignal(),
+      selectedTabId: this.state.selectedTabIdSignal(),
       url,
       title,
-      backNavigationState: this.backNavigationState,
+      backNavigationState: this.state.backNavigationState,
     });
-    this.tabsSignal.set(commit.tabs);
-    this.backNavigationState = commit.backNavigationState;
-  }
-
-  private activeBackStack(): readonly string[] {
-    return this.findActiveTab()?.backStack ?? [];
-  }
-
-  private canUseNativeBack(): boolean {
-    return canUseNativeBackNavigation(this.nativeCanGoBackSignal(), this.backNavigationState);
+    this.state.tabsSignal.set(commit.tabs);
+    this.state.backNavigationState = commit.backNavigationState;
   }
 
   private async persistTabs(): Promise<void> {
     await this.sessionStore.writeTabSession({
-      tabs: this.tabsSignal(),
-      selectedTabId: this.selectedTabIdSignal(),
+      tabs: this.state.tabsSignal(),
+      selectedTabId: this.state.selectedTabIdSignal(),
     });
   }
 }
