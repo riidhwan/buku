@@ -9,6 +9,11 @@ app-library-entry-reader-page {
   padding: 24px 18px 40px;
 }
 
+.library-reader-article-continued {
+  border-top: 1px solid var(--ion-color-step-150, #d7d8da);
+  padding-top: 40px;
+}
+
 .library-reader-header {
   margin-bottom: 24px;
 }
@@ -65,4 +70,16 @@ app-library-entry-reader-page {
 .library-reader-empty {
   display: block;
   padding: 24px 16px;
+}
+
+.library-reader-boundary {
+  box-sizing: border-box;
+  display: flex;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 18px 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
 }

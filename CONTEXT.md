@@ -15,6 +15,10 @@ _Avoid_: collection, folder, book
 A persisted Reading Mode snapshot saved inside a Series. Buku treats Series Entries generically even when the source calls them chapters, volumes, parts, or another content unit.
 _Avoid_: library item, bookmark, reading history entry, saved URL
 
+**Series Entry Reading**:
+The Library reading experience that starts from a selected Series Entry and continues forward through later saved Series Entries in the same Series.
+_Avoid_: source chapter discovery, browser reading, reading history
+
 **Explore**:
 The browsing-oriented area for discovering readable or book-related content on the net from inside Buku. Explore may navigate to ordinary web pages, but it is product-framed around content discovery rather than being a standalone browser.
 
