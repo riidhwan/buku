@@ -611,6 +611,37 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.activeTab()?.backStack).toEqual(['https://one.example/', 'https://two.example/']);
   });
 
+  it('does not append the previous URL when it is already the latest stack entry', async () => {
+    store.session = {
+      tabs: [
+        browserTab('tab-1', 'https://two.example/', [
+          'https://one.example/',
+          'https://two.example/',
+        ]),
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://three.example/',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect(facade.activeTab()).toEqual(
+      browserTab('tab-1', 'https://three.example/', [
+        'https://one.example/',
+        'https://two.example/',
+      ]),
+    );
+  });
+
   it('caps each tab back stack at 25 entries', async () => {
     store.session = {
       tabs: [browserTab('tab-1', 'https://page-0.example/')],
@@ -710,6 +741,37 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.activeTab()).toEqual(
       browserTab('tab-1', 'https://two.example/', ['https://one.example/']),
     );
+  });
+
+  it('keeps inactive tab stacks unchanged when fallback back commits', async () => {
+    store.session = {
+      tabs: [
+        browserTab('tab-1', 'https://three.example/', [
+          'https://one.example/',
+          'https://two.example/',
+        ]),
+        browserTab('tab-2', 'https://inactive.example/', ['https://inactive-previous.example/']),
+      ],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    await facade.goBack();
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://two.example/',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect(facade.tabs()).toEqual([
+      browserTab('tab-1', 'https://two.example/', ['https://one.example/']),
+      browserTab('tab-2', 'https://inactive.example/', ['https://inactive-previous.example/']),
+    ]);
   });
 
   it('continues through the persisted stack after a restart fallback creates native history', async () => {

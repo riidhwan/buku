@@ -702,10 +702,6 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   private popActiveBackStackForCommittedUrl(url: string): void {
     const selectedTabId = this.selectedTabIdSignal();
-    if (selectedTabId === null) {
-      return;
-    }
-
     this.tabsSignal.update((tabs) =>
       tabs.map((tab) =>
         tab.id === selectedTabId
