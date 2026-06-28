@@ -176,6 +176,14 @@ describe('ExploreBrowserPage', () => {
     expect(browser.shownRect).not.toBeNull();
   });
 
+  it('lets the application URL policy validate bare domains in the address bar', () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('inputmode')).toBe('url');
+  });
+
   it('updates URL input state and submits edited URLs', async () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const input = nativeElement.querySelectorAll('ion-input').item(0);
