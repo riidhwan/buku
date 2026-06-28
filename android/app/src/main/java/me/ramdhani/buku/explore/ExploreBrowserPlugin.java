@@ -129,10 +129,12 @@ public class ExploreBrowserPlugin extends Plugin {
     public void back(PluginCall call) {
         Activity activity = getActivity();
         activity.runOnUiThread(() -> {
+            boolean didNavigate = false;
             if (webView != null && webView.canGoBack()) {
                 webView.goBack();
+                didNavigate = true;
             }
-            call.resolve();
+            call.resolve(historyNavigationResult(didNavigate));
         });
     }
 
@@ -316,6 +318,12 @@ public class ExploreBrowserPlugin extends Plugin {
         JSObject payload = new JSObject();
         payload.put("status", status);
         payload.put("message", message);
+        return payload;
+    }
+
+    private JSObject historyNavigationResult(boolean didNavigate) {
+        JSObject payload = new JSObject();
+        payload.put("didNavigate", didNavigate);
         return payload;
     }
 

@@ -12,6 +12,7 @@ import {
   BROWSER_VIEWPORT,
   BrowserArticleExtractionResult,
   BrowserCapability,
+  BrowserHistoryNavigationResult,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
@@ -264,10 +265,12 @@ export class ExploreBrowserFacade implements OnDestroy {
     await this.viewport.reload();
   }
 
-  public async goBack(): Promise<void> {
+  public async goBack(): Promise<BrowserHistoryNavigationResult> {
     if (this.canGoBackSignal()) {
-      await this.viewport.back();
+      return this.viewport.back();
     }
+
+    return { didNavigate: false };
   }
 
   public async goForward(): Promise<void> {
