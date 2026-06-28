@@ -1,36 +1,49 @@
 import { computed, inject, Injectable, OnDestroy, signal } from '@angular/core';
 import { filter, firstValueFrom, Subscription, take } from 'rxjs';
-import { ReadingArticleSnapshot, ReadingChapterLink } from '../domain/reading-article';
+import { ReadingArticleSnapshot } from '../domain/reading-article';
+import {
+  browserNoticeForLoadFailure,
+  browserNoticeForReadingModeResult,
+  browserNoticeForUnsupportedCapability,
+  readingChapterLinkForDirection,
+  resolveReadingModeTargetUrl,
+  type BrowserNotice,
+  type BrowserNoticeKind,
+  type ReadingChapterDirection,
+} from './explore-browser-reading-mode-policy';
+import {
+  blankExploreBrowserTabSession,
+  canUseNativeBackNavigation,
+  commitExploreBrowserNavigation,
+  createExploreBrowserTab,
+  discardLatestBackNavigationAttempt,
+  findExploreBrowserTab,
+  initialExploreBrowserBackNavigationState,
+  lastExploreBrowserUrl,
+  recentExploreBrowserTabs,
+  recordFallbackBackNavigationAttempt,
+  recordNativeBackNavigation,
+  resetExploreBrowserBackNavigationState,
+  selectedTabIdForBrowserSession,
+  type ExploreBrowserBackNavigationState,
+} from './explore-browser-session-policy';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import {
   BROWSER_SESSION_STORE,
-  BrowserSessionStorePort,
-  BrowserTabSession,
-  ExploreBrowserTab,
+  type BrowserSessionStorePort,
+  type BrowserTabSession,
+  type ExploreBrowserTab,
 } from './ports/browser-session-store.port';
 import {
   BROWSER_VIEWPORT,
-  BrowserArticleExtractionResult,
-  BrowserCapability,
-  BrowserHistoryNavigationResult,
-  BrowserViewportEvent,
-  BrowserViewportPort,
-  BrowserViewportRect,
+  type BrowserHistoryNavigationResult,
+  type BrowserViewportEvent,
+  type BrowserViewportPort,
+  type BrowserViewportRect,
 } from './ports/browser-viewport.port';
-import { EXTERNAL_URL_OPENER, ExternalUrlOpenerPort } from './ports/external-url-opener.port';
+import { EXTERNAL_URL_OPENER, type ExternalUrlOpenerPort } from './ports/external-url-opener.port';
 
-export type BrowserNoticeKind =
-  | 'loadFailed'
-  | 'unsupportedCapability'
-  | 'copied'
-  | 'readingModeUnavailable'
-  | 'readingModeFailed';
-
-export interface BrowserNotice {
-  readonly kind: BrowserNoticeKind;
-  readonly message: string;
-  readonly url: string | null;
-}
+export type { BrowserNotice, BrowserNoticeKind, ReadingChapterDirection };
 
 export interface BrowserOpenResult {
   readonly ok: boolean;
@@ -40,8 +53,6 @@ export interface BrowserReadingModeResult {
   readonly ok: boolean;
 }
 
-export type ReadingChapterDirection = 'previous' | 'next';
-
 export type BrowserReadingChapterNavigationResult =
   | {
       readonly ok: true;
@@ -50,19 +61,6 @@ export type BrowserReadingChapterNavigationResult =
   | {
       readonly ok: false;
     };
-
-const capabilityMessages: Record<BrowserCapability, string> = {
-  camera: 'Camera access is not supported in Explore Browser.',
-  customScheme: 'This link type is not supported in Explore Browser.',
-  download: 'Downloads are not supported in Explore Browser.',
-  fileUpload: 'File upload is not supported in Explore Browser.',
-  geolocation: 'Location access is not supported in Explore Browser.',
-  microphone: 'Microphone access is not supported in Explore Browser.',
-  newWindow: 'Pop-up windows are opened in the current Explore Browser session when possible.',
-  unknown: 'This page requested something Explore Browser does not support.',
-};
-const maxBackStackEntries = 25;
-type PendingBackNavigationKind = 'native' | 'fallback';
 
 @Injectable()
 export class ExploreBrowserFacade implements OnDestroy {
@@ -83,28 +81,15 @@ export class ExploreBrowserFacade implements OnDestroy {
   private readonly noticeSignal = signal<BrowserNotice | null>(null);
   private readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
   private readonly chapterNavigationLoadingSignal = signal(false);
-  private readonly pendingBackNavigationKinds: PendingBackNavigationKind[] = [];
-  private fallbackBackCreatedNativeHistory = false;
+  private backNavigationState: ExploreBrowserBackNavigationState =
+    initialExploreBrowserBackNavigationState();
 
   public readonly inputValue = this.inputValueSignal.asReadonly();
   public readonly currentUrl = this.currentUrlSignal.asReadonly();
   public readonly tabs = this.tabsSignal.asReadonly();
   public readonly activeTab = computed(() => this.findActiveTab());
-  public readonly recentTabs = computed(() => this.tabsSignal().filter((tab) => tab.url !== null));
-  public readonly lastUrl = computed(() => {
-    const recentTabs = this.recentTabs();
-    if (recentTabs.length === 0) {
-      return null;
-    }
-
-    const lastTab = recentTabs[recentTabs.length - 1];
-    /* istanbul ignore if -- guarded by the length check above. */
-    if (lastTab === undefined) {
-      return null;
-    }
-
-    return lastTab.url;
-  });
+  public readonly recentTabs = computed(() => recentExploreBrowserTabs(this.tabsSignal()));
+  public readonly lastUrl = computed(() => lastExploreBrowserUrl(this.tabsSignal()));
   public readonly loading = this.loadingSignal.asReadonly();
   public readonly canGoBack = computed(
     () => this.activeBackStack().length > 0 || this.canUseNativeBack(),
@@ -140,7 +125,7 @@ export class ExploreBrowserFacade implements OnDestroy {
 
     const legacyLastUrl = await this.sessionStore.readLegacyLastUrl();
     if (legacyLastUrl !== null) {
-      const tab = this.createTab(legacyLastUrl);
+      const tab = createExploreBrowserTab(legacyLastUrl);
       this.applySession({ tabs: [tab], selectedTabId: tab.id });
       await this.persistTabs();
       return;
@@ -183,7 +168,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   public async createBlankTab(): Promise<void> {
-    const tab = this.createTab(null);
+    const tab = createExploreBrowserTab(null);
     this.tabsSignal.update((tabs) => [...tabs, tab]);
     this.selectedTabIdSignal.set(tab.id);
     await this.clearVisiblePageForBlankTab();
@@ -274,9 +259,10 @@ export class ExploreBrowserFacade implements OnDestroy {
   public async goBack(): Promise<BrowserHistoryNavigationResult> {
     if (this.canUseNativeBack()) {
       const result = await this.viewport.back();
-      if (result.didNavigate) {
-        this.pendingBackNavigationKinds.push('native');
-      }
+      this.backNavigationState = recordNativeBackNavigation(
+        this.backNavigationState,
+        result.didNavigate,
+      );
 
       return result;
     }
@@ -285,17 +271,13 @@ export class ExploreBrowserFacade implements OnDestroy {
     const backTarget = activeBackStack[activeBackStack.length - 1];
     if (backTarget !== undefined) {
       try {
-        this.pendingBackNavigationKinds.push('fallback');
+        this.backNavigationState = recordFallbackBackNavigationAttempt(this.backNavigationState);
         await this.loadSelectedTabUrl(backTarget);
         return { didNavigate: true };
       } catch (error) {
-        this.pendingBackNavigationKinds.pop();
+        this.backNavigationState = discardLatestBackNavigationAttempt(this.backNavigationState);
         const message = this.loadFailureMessage(error);
-        this.noticeSignal.set({
-          kind: 'loadFailed',
-          message: `Page failed to load: ${message}`,
-          url: backTarget,
-        });
+        this.noticeSignal.set(browserNoticeForLoadFailure(message, backTarget));
         return { didNavigate: false };
       }
     }
@@ -346,18 +328,8 @@ export class ExploreBrowserFacade implements OnDestroy {
         await this.viewport.hide();
         return { ok: true };
       case 'unavailable':
-        this.noticeSignal.set({
-          kind: 'readingModeUnavailable',
-          message: 'Reading Mode is not available for this page.',
-          url: currentUrl,
-        });
-        return { ok: false };
       case 'failed':
-        this.noticeSignal.set({
-          kind: 'readingModeFailed',
-          message: `Reading Mode failed: ${result.message}`,
-          url: currentUrl,
-        });
+        this.noticeSignal.set(browserNoticeForReadingModeResult(result, currentUrl));
         return { ok: false };
     }
   }
@@ -372,30 +344,14 @@ export class ExploreBrowserFacade implements OnDestroy {
       return { ok: false };
     }
 
-    let targetUrl: string;
-    try {
-      targetUrl = new URL(href, article.url).toString();
-    } catch (_error) {
-      this.noticeSignal.set({
-        kind: 'unsupportedCapability',
-        message: capabilityMessages.customScheme,
-        url: article.url,
-      });
-      return { ok: false };
-    }
-
-    const normalized = this.urlPolicy.normalize(targetUrl);
-    if (!normalized.ok) {
-      this.noticeSignal.set({
-        kind: 'unsupportedCapability',
-        message: normalized.message,
-        url: article.url,
-      });
+    const targetUrl = resolveReadingModeTargetUrl(href, article.url, this.urlPolicy);
+    if (!targetUrl.ok) {
+      this.noticeSignal.set(targetUrl.notice);
       return { ok: false };
     }
 
     this.readingArticleSignal.set(null);
-    await this.loadNormalizedUrl(normalized.url);
+    await this.loadNormalizedUrl(targetUrl.url);
     return { ok: true };
   }
 
@@ -407,50 +363,32 @@ export class ExploreBrowserFacade implements OnDestroy {
       return { ok: false };
     }
 
-    const chapter = this.chapterLinkForDirection(article, direction);
+    const chapter = readingChapterLinkForDirection(article, direction);
     if (chapter === undefined) {
       return { ok: false };
     }
 
-    const targetUrl = this.resolveReadingModeHref(chapter.href, article.url);
-    if (targetUrl === null) {
-      this.noticeSignal.set({
-        kind: 'unsupportedCapability',
-        message: capabilityMessages.customScheme,
-        url: article.url,
-      });
-      return { ok: false };
-    }
-
-    const normalized = this.urlPolicy.normalize(targetUrl);
-    if (!normalized.ok) {
-      this.noticeSignal.set({
-        kind: 'unsupportedCapability',
-        message: normalized.message,
-        url: article.url,
-      });
+    const targetUrl = resolveReadingModeTargetUrl(chapter.href, article.url, this.urlPolicy);
+    if (!targetUrl.ok) {
+      this.noticeSignal.set(targetUrl.notice);
       return { ok: false };
     }
 
     this.chapterNavigationLoadingSignal.set(true);
     try {
       const navigationResultPromise = this.waitForChapterNavigation();
-      await this.viewport.load(normalized.url);
+      await this.viewport.load(targetUrl.url);
       const navigationResult = await navigationResultPromise;
       if (navigationResult === 'failed') {
         this.readingArticleSignal.set(null);
         return { ok: true, destination: 'browser' };
       }
 
-      return await this.replaceReadingArticleFromCurrentPage(normalized.url);
+      return await this.replaceReadingArticleFromCurrentPage(targetUrl.url);
     } catch (error) {
       this.readingArticleSignal.set(null);
       const message = this.loadFailureMessage(error);
-      this.noticeSignal.set({
-        kind: 'loadFailed',
-        message: `Page failed to load: ${message}`,
-        url: normalized.url,
-      });
+      this.noticeSignal.set(browserNoticeForLoadFailure(message, targetUrl.url));
       return { ok: true, destination: 'browser' };
     } finally {
       this.chapterNavigationLoadingSignal.set(false);
@@ -471,7 +409,7 @@ export class ExploreBrowserFacade implements OnDestroy {
 
     this.validationErrorSignal.set(null);
     if (target === 'new') {
-      const tab = this.createTab(null);
+      const tab = createExploreBrowserTab(null);
       this.tabsSignal.update((tabs) => [...tabs, tab]);
       this.selectedTabIdSignal.set(tab.id);
     } else {
@@ -500,25 +438,10 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.loadingSignal.set(false);
     this.nativeCanGoBackSignal.set(false);
     this.canGoForwardSignal.set(false);
-    this.fallbackBackCreatedNativeHistory = false;
+    this.backNavigationState = resetExploreBrowserBackNavigationState();
     this.validationErrorSignal.set(null);
     await this.viewport.hide();
     await this.viewport.destroy();
-  }
-
-  private chapterLinkForDirection(
-    article: ReadingArticleSnapshot,
-    direction: ReadingChapterDirection,
-  ): ReadingChapterLink | undefined {
-    return direction === 'previous' ? article.previousChapter : article.nextChapter;
-  }
-
-  private resolveReadingModeHref(href: string, baseUrl: string): string | null {
-    try {
-      return new URL(href, baseUrl).toString();
-    } catch (_error) {
-      return null;
-    }
   }
 
   private loadFailureMessage(error: unknown): string {
@@ -556,28 +479,9 @@ export class ExploreBrowserFacade implements OnDestroy {
       case 'unavailable':
       case 'failed':
         this.readingArticleSignal.set(null);
-        this.noticeSignal.set(this.toReadingModeNotice(result, fallbackUrl));
+        this.noticeSignal.set(browserNoticeForReadingModeResult(result, fallbackUrl));
         return { ok: true, destination: 'browser' };
     }
-  }
-
-  private toReadingModeNotice(
-    result: Exclude<BrowserArticleExtractionResult, { readonly status: 'ok' }>,
-    url: string,
-  ): BrowserNotice {
-    if (result.status === 'unavailable') {
-      return {
-        kind: 'readingModeUnavailable',
-        message: 'Reading Mode is not available for this page.',
-        url,
-      };
-    }
-
-    return {
-      kind: 'readingModeFailed',
-      message: `Reading Mode failed: ${result.message}`,
-      url,
-    };
   }
 
   private handleViewportEvent(event: BrowserViewportEvent): void {
@@ -595,24 +499,20 @@ export class ExploreBrowserFacade implements OnDestroy {
         break;
       case 'loadFailed':
         this.loadingSignal.set(false);
-        this.noticeSignal.set({
-          kind: 'loadFailed',
-          message: `Page failed to load: ${event.event.description}`,
-          url: event.event.url,
-        });
+        this.noticeSignal.set(
+          browserNoticeForLoadFailure(event.event.description, event.event.url),
+        );
         break;
       case 'capabilityUnsupported':
-        this.noticeSignal.set({
-          kind: 'unsupportedCapability',
-          message: capabilityMessages[event.event.capability],
-          url: event.event.url,
-        });
+        this.noticeSignal.set(
+          browserNoticeForUnsupportedCapability(event.event.capability, event.event.url),
+        );
         break;
     }
   }
 
   private applySession(session: BrowserTabSession): void {
-    const selectedTabId = this.selectedTabIdForSession(session);
+    const selectedTabId = selectedTabIdForBrowserSession(session);
     this.tabsSignal.set(session.tabs);
     this.selectedTabIdSignal.set(selectedTabId);
 
@@ -628,30 +528,8 @@ export class ExploreBrowserFacade implements OnDestroy {
     this.inputValueSignal.set(activeTab.url ?? '');
   }
 
-  private selectedTabIdForSession(session: BrowserTabSession): string {
-    const selectedTabId = session.selectedTabId;
-    if (selectedTabId !== null && session.tabs.some((tab) => tab.id === selectedTabId)) {
-      return selectedTabId;
-    }
-
-    const firstTab = session.tabs[0];
-    /* istanbul ignore if -- initialize only applies non-empty persisted sessions. */
-    if (firstTab === undefined) {
-      throw new Error('Cannot select a tab from an empty session.');
-    }
-
-    return firstTab.id;
-  }
-
   private findActiveTab(): ExploreBrowserTab | null {
-    const selectedTabId = this.selectedTabIdSignal();
-    if (selectedTabId === null) {
-      return null;
-    }
-
-    const tab = this.tabsSignal().find((candidate) => candidate.id === selectedTabId);
-    /* istanbul ignore next -- selected ids are maintained through facade tab commands. */
-    return tab ?? null;
+    return findExploreBrowserTab(this.tabsSignal(), this.selectedTabIdSignal());
   }
 
   private ensureActiveTab(): void {
@@ -663,89 +541,23 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private replaceWithBlankTab(): void {
-    const tab = this.createTab(null);
-    this.tabsSignal.set([tab]);
-    this.selectedTabIdSignal.set(tab.id);
+    const session = blankExploreBrowserTabSession();
+    this.tabsSignal.set(session.tabs);
+    this.selectedTabIdSignal.set(session.selectedTabId);
     this.currentUrlSignal.set(null);
     this.inputValueSignal.set('');
   }
 
   private commitActiveTabUrl(url: string, title: string | null): void {
-    const selectedTabId = this.selectedTabIdSignal();
-    if (selectedTabId === null) {
-      return;
-    }
-
-    const pendingBackNavigationKind = this.pendingBackNavigationKinds.shift();
-    if (pendingBackNavigationKind !== undefined) {
-      if (pendingBackNavigationKind === 'fallback') {
-        this.fallbackBackCreatedNativeHistory = true;
-      }
-
-      this.popActiveBackStackForCommittedUrl(url);
-      this.updateActiveTabTitle(title);
-      return;
-    }
-
-    const previousUrl = this.findActiveTab()?.url ?? null;
-    const pageTitle = this.normalizePageTitle(title);
-    this.tabsSignal.update((tabs) =>
-      tabs.map((tab) =>
-        tab.id === selectedTabId
-          ? {
-              ...tab,
-              url,
-              pageTitle,
-              backStack: this.stackWithPreviousUrl(tab.backStack, previousUrl, url),
-            }
-          : tab,
-      ),
-    );
-  }
-
-  private popActiveBackStackForCommittedUrl(url: string): void {
-    const selectedTabId = this.selectedTabIdSignal();
-    this.tabsSignal.update((tabs) =>
-      tabs.map((tab) =>
-        tab.id === selectedTabId
-          ? {
-              ...tab,
-              url,
-              backStack: tab.backStack.slice(0, -1),
-            }
-          : tab,
-      ),
-    );
-  }
-
-  private updateActiveTabTitle(title: string | null): void {
-    const selectedTabId = this.selectedTabIdSignal();
-    const pageTitle = this.normalizePageTitle(title);
-    this.tabsSignal.update((tabs) =>
-      tabs.map((tab) => (tab.id === selectedTabId ? { ...tab, pageTitle } : tab)),
-    );
-  }
-
-  private normalizePageTitle(title: string | null): string | null {
-    const normalized = title?.trim() ?? '';
-    return normalized.length > 0 ? normalized : null;
-  }
-
-  private stackWithPreviousUrl(
-    backStack: readonly string[],
-    previousUrl: string | null,
-    committedUrl: string,
-  ): readonly string[] {
-    if (previousUrl === null || previousUrl === committedUrl) {
-      return backStack;
-    }
-
-    const lastEntry = backStack[backStack.length - 1];
-    if (lastEntry === previousUrl) {
-      return backStack;
-    }
-
-    return [...backStack, previousUrl].slice(-maxBackStackEntries);
+    const commit = commitExploreBrowserNavigation({
+      tabs: this.tabsSignal(),
+      selectedTabId: this.selectedTabIdSignal(),
+      url,
+      title,
+      backNavigationState: this.backNavigationState,
+    });
+    this.tabsSignal.set(commit.tabs);
+    this.backNavigationState = commit.backNavigationState;
   }
 
   private activeBackStack(): readonly string[] {
@@ -753,16 +565,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   }
 
   private canUseNativeBack(): boolean {
-    return this.nativeCanGoBackSignal() && !this.fallbackBackCreatedNativeHistory;
-  }
-
-  private createTab(url: string | null): ExploreBrowserTab {
-    return {
-      id: `explore-tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-      url,
-      pageTitle: null,
-      backStack: [],
-    };
+    return canUseNativeBackNavigation(this.nativeCanGoBackSignal(), this.backNavigationState);
   }
 
   private async persistTabs(): Promise<void> {
