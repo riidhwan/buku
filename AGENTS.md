@@ -64,11 +64,18 @@ Keep strictness high.
 
 For meaningful code changes, add or update focused tests.
 
+Use the architecture report to catch per-file separation-of-concerns drift:
+
+- Run `rtk pnpm architecture:changed` after changing production TypeScript under `src/app/`.
+- Treat review warnings as prompts to inspect file responsibilities, especially oversized facades, files with many exports, or files with several responsibility signals.
+- Do not refactor just to silence a review warning; refactor when the file is mixing responsibilities or approaching the hard ESLint size budget.
+
 Run the smallest useful checks while working, and before handoff run the relevant quality gates:
 
 ```bash
 rtk pnpm format:check
 rtk pnpm lint
+rtk pnpm architecture:changed
 rtk pnpm lint:styles
 rtk pnpm exec tsc -p tsconfig.spec.json --noEmit
 rtk pnpm build

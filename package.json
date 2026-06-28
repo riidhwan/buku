@@ -15,6 +15,9 @@
     "test:watch": "ng test",
     "lint": "eslint . --max-warnings=0",
     "lint:styles": "stylelint \"src/**/*.scss\" --max-warnings=0",
+    "architecture:changed": "node scripts/architecture-report.mjs --changed",
+    "architecture:check": "node scripts/architecture-report.mjs --all --fail-on-hard",
+    "architecture:staged": "node scripts/architecture-report.mjs --staged",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "cap:sync:android": "cap sync android",
@@ -91,7 +94,10 @@
   },
   "lint-staged": {
     "*.{ts,html,scss,json,md}": "prettier --write",
-    "*.ts": "eslint --max-warnings=0",
+    "*.ts": [
+      "eslint --max-warnings=0",
+      "node scripts/architecture-report.mjs"
+    ],
     "*.scss": "stylelint --max-warnings=0"
   }
 }
