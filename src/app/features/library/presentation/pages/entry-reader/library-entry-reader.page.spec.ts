@@ -1,6 +1,6 @@
+import { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY } from 'rxjs';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
 import { LibraryEntryReaderPage } from './library-entry-reader.page';
@@ -30,21 +30,7 @@ let series: LibrarySeries | null = {
   ],
 };
 
-let entry: LibrarySeriesEntry | null = {
-  id: 'entry-1',
-  seriesId: 'series-1',
-  seriesTitle: 'The Clockwork Archive',
-  displayTitle: 'Chapter 1',
-  sourceUrl: 'https://example.com/chapter-1',
-  sourceHost: 'example.com',
-  articleTitle: 'The Clockwork Archive - Chapter 1',
-  byline: 'Mira Vale',
-  siteName: 'Example Reads',
-  publishedTime: '2026-01-12T00:00:00.000Z',
-  contentHtml: '<p>Saved reading content.</p><p><a href="https://example.com">Source</a></p>',
-  createdAt: '2026-01-12T09:30:00.000Z',
-  updatedAt: '2026-01-12T09:30:00.000Z',
-};
+let entriesById = new Map<string, LibrarySeriesEntry>();
 
 class FakeLibraryFacade {
   public getSeries(seriesId: string): Promise<LibrarySeries | null> {
@@ -53,21 +39,21 @@ class FakeLibraryFacade {
 
   public getEntry(seriesId: string, entryId: string): Promise<LibrarySeriesEntry | null> {
     return Promise.resolve(
-      series !== null && entry !== null && seriesId === series.id && entryId === entry.id
-        ? entry
-        : null,
+      series !== null && seriesId === series.id ? (entriesById.get(entryId) ?? null) : null,
     );
   }
 }
 
 interface LibraryEntryReaderPageHarness {
-  navigateToEntry(entryId: string | null): Promise<void>;
+  readonly series: WritableSignal<LibrarySeries | null>;
+  readonly loadedEntries: WritableSignal<readonly LibrarySeriesEntry[]>;
+  readonly loadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
+  loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
 }
 
 describe('LibraryEntryReaderPage', () => {
   let fixture: ComponentFixture<LibraryEntryReaderPage>;
-  let router: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     routeSeriesId = 'series-1';
@@ -92,31 +78,26 @@ describe('LibraryEntryReaderPage', () => {
           createdAt: '2026-01-19T10:15:00.000Z',
           updatedAt: '2026-01-19T10:15:00.000Z',
         },
+        {
+          id: 'entry-3',
+          seriesId: 'series-1',
+          displayTitle: 'Chapter 3',
+          sourceHost: 'example.com',
+          createdAt: '2026-01-26T11:45:00.000Z',
+          updatedAt: '2026-01-26T11:45:00.000Z',
+        },
       ],
     };
-    entry = {
-      id: 'entry-1',
-      seriesId: 'series-1',
-      seriesTitle: 'The Clockwork Archive',
-      displayTitle: 'Chapter 1',
-      sourceUrl: 'https://example.com/chapter-1',
-      sourceHost: 'example.com',
-      articleTitle: 'The Clockwork Archive - Chapter 1',
-      byline: 'Mira Vale',
-      siteName: 'Example Reads',
-      publishedTime: '2026-01-12T00:00:00.000Z',
-      contentHtml: '<p>Saved reading content.</p><p><a href="https://example.com">Source</a></p>',
-      createdAt: '2026-01-12T09:30:00.000Z',
-      updatedAt: '2026-01-12T09:30:00.000Z',
-    };
-    router = jasmine.createSpyObj<Router>('Router', ['navigate'], { events: EMPTY });
-    router.navigate.and.resolveTo(true);
+    entriesById = new Map([
+      ['entry-1', entryFixture('entry-1', 'Chapter 1', 'Saved reading content.')],
+      ['entry-2', entryFixture('entry-2', 'Chapter 2', 'More saved reading content.')],
+      ['entry-3', entryFixture('entry-3', 'Chapter 3', 'Final saved reading content.')],
+    ]);
 
     await TestBed.configureTestingModule({
       imports: [LibraryEntryReaderPage],
       providers: [
         { provide: LibraryFacade, useClass: FakeLibraryFacade },
-        { provide: Router, useValue: router },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -146,24 +127,62 @@ describe('LibraryEntryReaderPage', () => {
     );
   });
 
-  it('navigates only among saved entries in the Series', async () => {
+  it('appends one later saved entry without navigating away from the selected entry route', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadNextEntry();
     await fixture.whenStable();
     fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const nextButton = nativeElement
-      .querySelectorAll<HTMLElement>('ion-buttons[slot="end"] ion-button')
-      .item(1);
+    const articles = nativeElement.querySelectorAll('.library-reader-article');
 
-    nextButton.click();
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 1');
+    expect(articles.length).toBe(2);
+    expect(articles.item(0).textContent).toContain('Saved reading content.');
+    expect(articles.item(1).textContent).toContain('More saved reading content.');
+    expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(0);
+  });
+
+  it('shows the end marker only after the bottom load reaches the final saved entry', async () => {
     await fixture.whenStable();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    let nativeElement = fixture.nativeElement as HTMLElement;
 
-    expect(router.navigate.calls.mostRecent().args[0]).toEqual([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-2',
-    ]);
+    expect(nativeElement.textContent).not.toContain('No more saved entries.');
+
+    await component.loadNextEntry();
+    await component.loadNextEntry();
+    await component.loadNextEntry();
+    fixture.detectChanges();
+    nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(3);
+    expect(nativeElement.textContent).toContain('No more saved entries.');
+  });
+
+  it('keeps already rendered entries and exposes retry when the next saved entry cannot load', async () => {
+    entriesById.delete('entry-2');
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadNextEntry();
+    fixture.detectChanges();
+    let nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(1);
+    expect(nativeElement.textContent).toContain('Could not load the next saved entry.');
+
+    entriesById.set('entry-2', entryFixture('entry-2', 'Chapter 2', 'Recovered saved content.'));
+
+    nativeElement.querySelector<HTMLIonButtonElement>('.library-reader-retry')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(2);
+    expect(nativeElement.textContent).toContain('Recovered saved content.');
   });
 
   it('keeps mock reader links inert', async () => {
@@ -200,11 +219,10 @@ describe('LibraryEntryReaderPage', () => {
   });
 
   it('keeps invalid published time text', async () => {
-    if (entry === null) {
-      fail('Expected the entry fixture to be present.');
-      return;
-    }
-    entry = { ...entry, publishedTime: 'unknown date' };
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Saved reading content.'),
+      publishedTime: 'unknown date',
+    });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -216,16 +234,12 @@ describe('LibraryEntryReaderPage', () => {
   });
 
   it('renders source host when site name is unavailable and hides absent metadata', async () => {
-    if (entry === null) {
-      fail('Expected the entry fixture to be present.');
-      return;
-    }
-    entry = {
-      ...entry,
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Saved reading content.'),
       byline: null,
       siteName: null,
       publishedTime: null,
-    };
+    });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -240,15 +254,11 @@ describe('LibraryEntryReaderPage', () => {
   });
 
   it('falls back to source URL when source labels are unavailable', async () => {
-    if (entry === null) {
-      fail('Expected the entry fixture to be present.');
-      return;
-    }
-    entry = {
-      ...entry,
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Saved reading content.'),
       siteName: null,
       sourceHost: null,
-    };
+    });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -257,20 +267,121 @@ describe('LibraryEntryReaderPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('.library-reader-source')?.textContent).toContain(
-      'https://example.com/chapter-1',
+      'https://example.com/entry-1',
     );
   });
 
-  it('does not navigate when adjacent entry is unavailable', async () => {
+  it('does not append when no later saved entry is available', async () => {
+    series = {
+      id: 'series-1',
+      title: 'The Clockwork Archive',
+      entries: [
+        {
+          id: 'entry-1',
+          seriesId: 'series-1',
+          displayTitle: 'Chapter 1',
+          sourceHost: 'example.com',
+          createdAt: '2026-01-12T09:30:00.000Z',
+          updatedAt: '2026-01-12T09:30:00.000Z',
+        },
+      ],
+    };
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
     const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
 
-    await component.navigateToEntry(null);
+    await component.loadNextEntry();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
 
-    expect(router.navigate.calls.count()).toBe(0);
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(1);
+    expect(nativeElement.textContent).toContain('No more saved entries.');
+  });
+
+  it('completes the infinite-scroll event after loading the next saved entry', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    const event = { target: { complete: jasmine.createSpy('complete') } };
+
+    await component.loadNextEntry(event);
+
+    expect(event.target.complete).toHaveBeenCalledOnceWith();
+  });
+
+  it('keeps the infinite-scroll trigger enabled after appending an entry', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const firstScroll = infiniteScrollElement(fixture);
+    spyOn(firstScroll, 'complete').and.resolveTo();
+
+    firstScroll.dispatchEvent(new CustomEvent('ionInfinite', { bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const secondScroll = infiniteScrollElement(fixture);
+
+    expect(secondScroll.disabled).toBeFalse();
+
+    secondScroll.dispatchEvent(new CustomEvent('ionInfinite', { bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(3);
+    expect(nativeElement.textContent).toContain('Final saved reading content.');
+  });
+
+  it('keeps the infinite-scroll trigger enabled while the next entry is loading', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.loadState.set('loading');
+    fixture.detectChanges();
+
+    expect(infiniteScrollElement(fixture).disabled).toBeFalse();
+  });
+
+  it('completes the infinite-scroll event without appending while already loading', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    const event = { target: { complete: jasmine.createSpy('complete') } };
+
+    component.loadState.set('loading');
+
+    await component.loadNextEntry(event);
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(event.target.complete).toHaveBeenCalledOnceWith();
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(1);
+  });
+
+  it('ends bottom loading when Series order is unavailable', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.series.set(null);
+
+    await component.loadNextEntry();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.textContent).toContain('No more saved entries.');
+  });
+
+  it('ends bottom loading when no entry has been loaded', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.loadedEntries.set([]);
+
+    await component.loadNextEntry();
+
+    expect(component.loadState()).toBe('ended');
   });
 
   it('renders not-found content for unknown entries', async () => {
-    entry = null;
+    entriesById.delete('entry-1');
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -284,7 +395,7 @@ describe('LibraryEntryReaderPage', () => {
 
   it('renders not-found content when the Series is unknown', async () => {
     series = null;
-    entry = null;
+    entriesById.clear();
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -297,14 +408,11 @@ describe('LibraryEntryReaderPage', () => {
 
   it('renders not found when the route has no Series or entry id', async () => {
     TestBed.resetTestingModule();
-    router = jasmine.createSpyObj<Router>('Router', ['navigate'], { events: EMPTY });
-    router.navigate.and.resolveTo(true);
 
     await TestBed.configureTestingModule({
       imports: [LibraryEntryReaderPage],
       providers: [
         { provide: LibraryFacade, useClass: FakeLibraryFacade },
-        { provide: Router, useValue: router },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -326,3 +434,34 @@ describe('LibraryEntryReaderPage', () => {
     expect(nativeElement.textContent).toContain('This entry is not in the Library.');
   });
 });
+
+function entryFixture(id: string, displayTitle: string, bodyText: string): LibrarySeriesEntry {
+  return {
+    id,
+    seriesId: 'series-1',
+    seriesTitle: 'The Clockwork Archive',
+    displayTitle,
+    sourceUrl: `https://example.com/${id}`,
+    sourceHost: 'example.com',
+    articleTitle: `The Clockwork Archive - ${displayTitle}`,
+    byline: 'Mira Vale',
+    siteName: 'Example Reads',
+    publishedTime: '2026-01-12T00:00:00.000Z',
+    contentHtml: `<p>${bodyText}</p><p><a href="https://example.com">Source</a></p>`,
+    createdAt: '2026-01-12T09:30:00.000Z',
+    updatedAt: '2026-01-12T09:30:00.000Z',
+  };
+}
+
+function infiniteScrollElement(
+  fixture: ComponentFixture<LibraryEntryReaderPage>,
+): HTMLIonInfiniteScrollElement {
+  const nativeElement = fixture.nativeElement as HTMLElement;
+  const infiniteScroll =
+    nativeElement.querySelector<HTMLIonInfiniteScrollElement>('ion-infinite-scroll');
+  if (infiniteScroll === null) {
+    throw new Error('Expected the reader to render an infinite-scroll trigger.');
+  }
+
+  return infiniteScroll;
+}

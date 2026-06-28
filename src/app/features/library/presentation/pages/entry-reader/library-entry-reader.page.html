@@ -4,28 +4,13 @@
       <ion-back-button [defaultHref]="['/library', 'series', seriesId].join('/')"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ entry()?.displayTitle ?? 'Entry not found' }}</ion-title>
-    <ion-buttons slot="end">
-      <ion-button
-        aria-label="Previous saved entry"
-        [disabled]="previousEntryId() === null"
-        (click)="navigateToEntry(previousEntryId())"
-      >
-        <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
-      </ion-button>
-      <ion-button
-        aria-label="Next saved entry"
-        [disabled]="nextEntryId() === null"
-        (click)="navigateToEntry(nextEntryId())"
-      >
-        <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
-      </ion-button>
-    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  @if (entry(); as selectedEntry) {
-  <article class="library-reader-article">
+  @if (loadedEntries().length > 0) { @for (selectedEntry of loadedEntries(); track selectedEntry.id;
+  let first = $first) {
+  <article class="library-reader-article" [class.library-reader-article-continued]="!first">
     <header class="library-reader-header">
       <p class="library-reader-source">
         {{ selectedEntry.siteName ?? selectedEntry.sourceHost ?? selectedEntry.sourceUrl }}
@@ -52,6 +37,24 @@
       (keydown.enter)="preventReaderLinkNavigation($event)"
     ></div>
   </article>
+  } @if (loadState() === 'failed') {
+  <div class="library-reader-boundary">
+    <ion-text color="medium">Could not load the next saved entry.</ion-text>
+    <ion-button class="library-reader-retry" fill="clear" size="small" (click)="loadNextEntry()">
+      Retry
+    </ion-button>
+  </div>
+  } @else if (loadState() === 'ended') {
+  <ion-text class="library-reader-boundary" color="medium">No more saved entries.</ion-text>
+  }
+
+  <ion-infinite-scroll
+    threshold="120px"
+    [disabled]="infiniteScrollDisabled()"
+    (ionInfinite)="loadNextEntry($event)"
+  >
+    <ion-infinite-scroll-content loadingSpinner="crescent"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
   } @else {
   <ion-text class="library-reader-empty">This entry is not in the Library.</ion-text>
   }

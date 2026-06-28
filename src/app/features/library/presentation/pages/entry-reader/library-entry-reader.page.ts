@@ -1,20 +1,27 @@
-import { Component, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, OnInit, ViewEncapsulation, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import {
   IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
-  IonIcon,
+  IonInfiniteScroll,
+  IonInfiniteScrollContent,
   IonText,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { chevronBackOutline, chevronForwardOutline } from 'ionicons/icons';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
+
+type LibraryEntryReaderLoadState = 'idle' | 'loading' | 'ended' | 'failed';
+
+interface LibraryEntryReaderInfiniteScrollEvent {
+  readonly target: {
+    complete(): Promise<void> | void;
+  };
+}
 
 @Component({
   selector: 'app-library-entry-reader-page',
@@ -27,7 +34,8 @@ import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-serie
     IonButtons,
     IonContent,
     IonHeader,
-    IonIcon,
+    IonInfiniteScroll,
+    IonInfiniteScrollContent,
     IonText,
     IonTitle,
     IonToolbar,
@@ -36,7 +44,6 @@ import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-serie
 export class LibraryEntryReaderPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
     month: 'short',
@@ -47,24 +54,18 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly seriesId = this.route.snapshot.paramMap.get('seriesId') ?? '';
   protected readonly entryId = this.route.snapshot.paramMap.get('entryId') ?? '';
   protected readonly series = signal<LibrarySeries | null>(null);
-  protected readonly entry = signal<LibrarySeriesEntry | null>(null);
-  protected readonly previousEntryId = signal<string | null>(null);
-  protected readonly nextEntryId = signal<string | null>(null);
-
-  public constructor() {
-    addIcons({ chevronBackOutline, chevronForwardOutline });
-  }
+  protected readonly loadedEntries = signal<readonly LibrarySeriesEntry[]>([]);
+  protected readonly loadState = signal<LibraryEntryReaderLoadState>('idle');
+  protected readonly entry = computed(() => this.loadedEntries()[0] ?? null);
+  protected readonly infiniteScrollDisabled = computed(
+    () =>
+      this.loadedEntries().length === 0 ||
+      this.loadState() === 'ended' ||
+      this.loadState() === 'failed',
+  );
 
   public ngOnInit(): void {
     void this.loadEntry();
-  }
-
-  protected async navigateToEntry(entryId: string | null): Promise<void> {
-    if (entryId === null) {
-      return;
-    }
-
-    await this.router.navigate(['/library', 'series', this.seriesId, 'entries', entryId]);
   }
 
   protected preventReaderLinkNavigation(event: Event): void {
@@ -87,21 +88,57 @@ export class LibraryEntryReaderPage implements OnInit {
     return this.publishedTimeFormatter.format(date);
   }
 
-  private adjacentEntryId(offset: -1 | 1): string | null {
+  protected async loadNextEntry(event?: LibraryEntryReaderInfiniteScrollEvent): Promise<void> {
+    if (this.loadState() === 'loading') {
+      await event?.target.complete();
+      return;
+    }
+
+    this.loadState.set('loading');
+
+    try {
+      const nextEntryId = this.nextEntryId();
+      if (nextEntryId === null) {
+        this.loadState.set('ended');
+        return;
+      }
+
+      const nextEntry = await this.library.getEntry(this.seriesId, nextEntryId);
+      if (nextEntry === null) {
+        this.loadState.set('failed');
+        return;
+      }
+
+      this.loadedEntries.update((entries) => [...entries, nextEntry]);
+      this.loadState.set('idle');
+    } finally {
+      await event?.target.complete();
+    }
+  }
+
+  private nextEntryId(): string | null {
     const series = this.series();
     if (series === null) {
       return null;
     }
 
-    const entryIndex = series.entries.findIndex((entry) => entry.id === this.entryId);
-    const adjacentEntry = series.entries[entryIndex + offset];
-    return adjacentEntry?.id ?? null;
+    const loadedEntries = this.loadedEntries();
+    const lastLoadedEntry = loadedEntries[loadedEntries.length - 1];
+    if (lastLoadedEntry === undefined) {
+      return null;
+    }
+
+    const entryIndex = series.entries.findIndex((entry) => entry.id === lastLoadedEntry.id);
+    const nextEntry = series.entries[entryIndex + 1];
+    return nextEntry?.id ?? null;
   }
 
   private async loadEntry(): Promise<void> {
-    this.series.set(await this.library.getSeries(this.seriesId));
-    this.entry.set(await this.library.getEntry(this.seriesId, this.entryId));
-    this.previousEntryId.set(this.adjacentEntryId(-1));
-    this.nextEntryId.set(this.adjacentEntryId(1));
+    const series = await this.library.getSeries(this.seriesId);
+    const entry = await this.library.getEntry(this.seriesId, this.entryId);
+
+    this.series.set(series);
+    this.loadedEntries.set(series === null || entry === null ? [] : [entry]);
+    this.loadState.set('idle');
   }
 }
