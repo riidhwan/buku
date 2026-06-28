@@ -26,6 +26,10 @@ _Avoid_: Buku Browser, standalone browser
 A lightweight saved URL slot within the Explore Browser. It lets the user keep multiple discovery destinations and switch between them, without promising separate live browser sessions or full browser-style tab history.
 _Avoid_: browser tab, WebView session, reading history entry
 
+**Explore Browser Back Stack**:
+A capped per-tab list of recently visited Explore Browser URLs used to keep backward navigation useful across app restarts. It is not a user-visible browsing history, forward navigation history, or a restored live WebView session.
+_Avoid_: browser history, tab history, WebView session history
+
 **Reading Mode**:
 A Buku-rendered reader view created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling

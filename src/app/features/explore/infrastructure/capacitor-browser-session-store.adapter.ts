@@ -53,9 +53,7 @@ export class CapacitorBrowserSessionStoreAdapter implements BrowserSessionStoreP
     }
 
     const rawTabs = value['tabs'];
-    const tabs = Array.isArray(rawTabs)
-      ? rawTabs.filter((tab): tab is ExploreBrowserTab => this.isTab(tab))
-      : [];
+    const tabs = this.parseTabs(rawTabs);
     const rawSelectedTabId = value['selectedTabId'];
     const selectedTabId =
       typeof rawSelectedTabId === 'string' && tabs.some((tab) => tab.id === rawSelectedTabId)
@@ -65,12 +63,48 @@ export class CapacitorBrowserSessionStoreAdapter implements BrowserSessionStoreP
     return { tabs, selectedTabId };
   }
 
-  private isTab(value: unknown): value is ExploreBrowserTab {
-    return (
-      this.isRecord(value) &&
-      typeof value['id'] === 'string' &&
-      (typeof value['url'] === 'string' || value['url'] === null)
-    );
+  private parseTabs(value: unknown): readonly ExploreBrowserTab[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const tabs: ExploreBrowserTab[] = [];
+    for (const tab of value) {
+      const parsedTab = this.parseTab(tab);
+      if (parsedTab !== null) {
+        tabs.push(parsedTab);
+      }
+    }
+
+    return tabs;
+  }
+
+  private parseTab(value: unknown): ExploreBrowserTab | null {
+    if (
+      !this.isRecord(value) ||
+      typeof value['id'] !== 'string' ||
+      (typeof value['url'] !== 'string' && value['url'] !== null)
+    ) {
+      return null;
+    }
+
+    return {
+      id: value['id'],
+      url: value['url'],
+      backStack: this.parseBackStack(value['backStack']),
+    };
+  }
+
+  private parseBackStack(value: unknown): readonly string[] {
+    if (value === undefined) {
+      return [];
+    }
+
+    if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+      return [];
+    }
+
+    return value;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
