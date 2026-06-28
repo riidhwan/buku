@@ -13,6 +13,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { ExploreBrowserFacade } from '../../application/explore-browser.facade';
+import { ExploreBrowserTab } from '../../application/ports/browser-session-store.port';
 
 @Component({
   selector: 'app-explore-page',
@@ -57,12 +58,16 @@ export class ExplorePage implements OnInit {
     }
   }
 
-  protected tabLabel(url: string | null): string {
-    if (url === null) {
+  protected tabLabel(tab: Pick<ExploreBrowserTab, 'url' | 'pageTitle'>): string {
+    if (tab.pageTitle !== null) {
+      return tab.pageTitle;
+    }
+
+    if (tab.url === null) {
       return 'Blank tab';
     }
 
-    const parsedUrl = new URL(url);
+    const parsedUrl = new URL(tab.url);
     return `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}`;
   }
 }

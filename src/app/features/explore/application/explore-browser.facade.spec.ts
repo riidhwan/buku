@@ -154,8 +154,9 @@ function browserTab(
   id: string,
   url: string | null,
   backStack: readonly string[] = [],
+  pageTitle: string | null = null,
 ): ExploreBrowserTab {
-  return { id, url, backStack };
+  return { id, url, pageTitle, backStack };
 }
 
 class Deferred<T> {
@@ -498,6 +499,7 @@ describe('ExploreBrowserFacade', () => {
       committed: true,
       state: {
         url: 'http://example.com/',
+        title: 'Example Page',
         loading: false,
         canGoBack: true,
         canGoForward: false,
@@ -510,6 +512,59 @@ describe('ExploreBrowserFacade', () => {
     const lastWrite = store.writes[store.writes.length - 1];
     const lastWrittenTab = lastWrite?.tabs[lastWrite.tabs.length - 1];
     expect(lastWrittenTab?.url).toBe('http://example.com/');
+    expect(lastWrittenTab?.pageTitle).toBe('Example Page');
+  });
+
+  it('falls back to no tab title until a page load commits', async () => {
+    await facade.initialize();
+    facade.updateInputValue('example.com');
+    await facade.openInputInNewTab();
+
+    expect(facade.activeTab()?.url).toBeNull();
+    expect(facade.activeTab()?.pageTitle).toBeNull();
+
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/',
+        title: 'Loaded Page',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect(facade.activeTab()).toEqual(
+      jasmine.objectContaining({
+        url: 'https://example.com/',
+        pageTitle: 'Loaded Page',
+      }),
+    );
+  });
+
+  it('updates the selected tab title when the same loaded page reports a later title', async () => {
+    store.session = {
+      tabs: [browserTab('tab-1', 'https://example.com/', [], 'Initial Title')],
+      selectedTabId: 'tab-1',
+    };
+    await facade.initialize();
+
+    viewport.emit({
+      type: 'navigation',
+      committed: true,
+      state: {
+        url: 'https://example.com/',
+        title: 'Updated Title',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+
+    expect(facade.activeTab()).toEqual(
+      browserTab('tab-1', 'https://example.com/', [], 'Updated Title'),
+    );
   });
 
   it('appends the previous committed URL when navigation commits', async () => {

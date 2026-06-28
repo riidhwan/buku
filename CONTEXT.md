@@ -24,6 +24,7 @@ _Avoid_: Buku Browser, standalone browser
 
 **Explore Browser Tab**:
 A lightweight saved URL slot within the Explore Browser. It lets the user keep multiple discovery destinations and switch between them, without promising separate live browser sessions or full browser-style tab history.
+A loaded Explore Browser Tab is labelled by the latest loaded page title when the page provides one; before a page has loaded, its URL remains the fallback label.
 _Avoid_: browser tab, WebView session, reading history entry
 
 **Explore Browser Back Stack**:

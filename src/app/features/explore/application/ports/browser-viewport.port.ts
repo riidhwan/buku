@@ -21,6 +21,7 @@ export interface BrowserViewportRect {
 
 export interface BrowserNavigationState {
   readonly url: string;
+  readonly title?: string | null;
   readonly loading: boolean;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;

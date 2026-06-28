@@ -341,6 +341,7 @@ describe('CapacitorBrowserViewportAdapter', () => {
   it('maps native events to application viewport events', () => {
     plugin.listeners.navigationState?.({
       url: 'https://example.com/',
+      title: 'Example Page',
       loading: false,
       canGoBack: true,
       canGoForward: false,
@@ -365,6 +366,7 @@ describe('CapacitorBrowserViewportAdapter', () => {
         committed: true,
         state: {
           url: 'https://example.com/',
+          title: 'Example Page',
           loading: false,
           canGoBack: true,
           canGoForward: false,
@@ -389,6 +391,30 @@ describe('CapacitorBrowserViewportAdapter', () => {
         event: {
           capability: 'unknown',
           url: null,
+        },
+      },
+    ]);
+  });
+
+  it('maps missing native navigation titles to null', () => {
+    plugin.listeners.navigationState?.({
+      url: 'https://example.com/',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
+      committed: true,
+    });
+
+    expect(events).toEqual([
+      {
+        type: 'navigation',
+        committed: true,
+        state: {
+          url: 'https://example.com/',
+          title: null,
+          loading: false,
+          canGoBack: false,
+          canGoForward: false,
         },
       },
     ]);

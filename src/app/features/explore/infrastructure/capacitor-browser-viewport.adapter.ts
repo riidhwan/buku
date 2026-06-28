@@ -106,6 +106,7 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
         type: 'navigation',
         state: {
           url: event.url,
+          title: typeof event.title === 'string' ? event.title : null,
           loading: event.loading,
           canGoBack: event.canGoBack,
           canGoForward: event.canGoForward,

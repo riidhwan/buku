@@ -43,8 +43,13 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
   it('writes and reads tab sessions', async () => {
     const session = {
       tabs: [
-        { id: 'tab-1', url: 'https://example.com/', backStack: ['https://previous.example/'] },
-        { id: 'tab-2', url: null, backStack: [] },
+        {
+          id: 'tab-1',
+          url: 'https://example.com/',
+          pageTitle: 'Example Page',
+          backStack: ['https://previous.example/'],
+        },
+        { id: 'tab-2', url: null, pageTitle: null, backStack: [] },
       ],
       selectedTabId: 'tab-1',
     };
@@ -99,8 +104,39 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
     );
 
     await expectAsync(adapter.readTabSession()).toBeResolvedTo({
-      tabs: [{ id: 'tab-1', url: 'https://example.com/', backStack: [] }],
+      tabs: [{ id: 'tab-1', url: 'https://example.com/', pageTitle: null, backStack: [] }],
       selectedTabId: null,
+    });
+  });
+
+  it('reads stored tab titles and treats blank titles as missing', async () => {
+    preferences.values.set(
+      'explore.browser.tabs',
+      JSON.stringify({
+        tabs: [
+          {
+            id: 'tab-1',
+            url: 'https://one.example/',
+            pageTitle: 'One Page',
+            backStack: [],
+          },
+          { id: 'tab-2', url: 'https://two.example/', pageTitle: '  ', backStack: [] },
+        ],
+        selectedTabId: 'tab-1',
+      }),
+    );
+
+    await expectAsync(adapter.readTabSession()).toBeResolvedTo({
+      tabs: [
+        {
+          id: 'tab-1',
+          url: 'https://one.example/',
+          pageTitle: 'One Page',
+          backStack: [],
+        },
+        { id: 'tab-2', url: 'https://two.example/', pageTitle: null, backStack: [] },
+      ],
+      selectedTabId: 'tab-1',
     });
   });
 
@@ -118,8 +154,8 @@ describe('CapacitorBrowserSessionStoreAdapter', () => {
 
     await expectAsync(adapter.readTabSession()).toBeResolvedTo({
       tabs: [
-        { id: 'tab-1', url: 'https://one.example/', backStack: [] },
-        { id: 'tab-2', url: 'https://two.example/', backStack: [] },
+        { id: 'tab-1', url: 'https://one.example/', pageTitle: null, backStack: [] },
+        { id: 'tab-2', url: 'https://two.example/', pageTitle: null, backStack: [] },
       ],
       selectedTabId: 'tab-1',
     });

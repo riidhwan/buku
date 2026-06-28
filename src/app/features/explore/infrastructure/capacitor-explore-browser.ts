@@ -15,6 +15,7 @@ export interface NativeBrowserViewportRect {
 
 export interface NativeBrowserNavigationState {
   readonly url: string;
+  readonly title?: string | null;
   readonly loading: boolean;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;

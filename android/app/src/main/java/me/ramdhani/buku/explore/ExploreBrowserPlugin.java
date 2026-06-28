@@ -41,6 +41,7 @@ public class ExploreBrowserPlugin extends Plugin {
 
     private WebView webView;
     private String currentUrl;
+    private String currentTitle;
     private boolean loading;
 
     @PluginMethod
@@ -259,6 +260,7 @@ public class ExploreBrowserPlugin extends Plugin {
         webView.destroy();
         webView = null;
         currentUrl = null;
+        currentTitle = null;
         loading = false;
     }
 
@@ -279,6 +281,7 @@ public class ExploreBrowserPlugin extends Plugin {
 
         JSObject payload = new JSObject();
         payload.put("url", currentUrl);
+        payload.put("title", currentTitle);
         payload.put("loading", loading);
         payload.put("canGoBack", webView.canGoBack());
         payload.put("canGoForward", webView.canGoForward());
@@ -337,6 +340,15 @@ public class ExploreBrowserPlugin extends Plugin {
         return HTTP_SCHEME.equals(scheme) || HTTPS_SCHEME.equals(scheme);
     }
 
+    private String normalizedTitle(String title) {
+        if (title == null) {
+            return null;
+        }
+
+        String trimmed = title.trim();
+        return trimmed.length() == 0 ? null : trimmed;
+    }
+
     private boolean shouldBlockUnsupported(Uri uri) {
         String scheme = uri.getScheme();
         return scheme != null && !HTTP_SCHEME.equals(scheme) && !HTTPS_SCHEME.equals(scheme);
@@ -346,6 +358,7 @@ public class ExploreBrowserPlugin extends Plugin {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             currentUrl = url;
+            currentTitle = null;
             loading = true;
             emitNavigationState(false);
         }
@@ -353,6 +366,7 @@ public class ExploreBrowserPlugin extends Plugin {
         @Override
         public void onPageFinished(WebView view, String url) {
             currentUrl = url;
+            currentTitle = normalizedTitle(view.getTitle());
             loading = false;
             emitNavigationState(true);
         }
@@ -381,6 +395,12 @@ public class ExploreBrowserPlugin extends Plugin {
     }
 
     private final class ExploreWebChromeClient extends WebChromeClient {
+        @Override
+        public void onReceivedTitle(WebView view, String title) {
+            currentTitle = normalizedTitle(title);
+            emitNavigationState(!loading);
+        }
+
         @Override
         public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
             notifyCapabilityUnsupported("newWindow", currentUrl);
