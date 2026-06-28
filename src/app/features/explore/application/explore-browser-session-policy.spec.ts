@@ -1,15 +1,15 @@
 import {
-  canUseNativeBackNavigation,
   commitExploreBrowserNavigation,
-  discardLatestBackNavigationAttempt,
   findExploreBrowserTab,
-  initialExploreBrowserBackNavigationState,
   lastExploreBrowserUrl,
-  recordFallbackBackNavigationAttempt,
-  recordNativeBackNavigation,
   rememberExploreBrowserTabLibrarySeriesTitle,
   selectedTabIdForBrowserSession,
 } from './explore-browser-session-policy';
+import {
+  initialExploreBrowserBackNavigationState,
+  recordFallbackBackNavigationAttempt,
+  recordNativeBackNavigation,
+} from './explore-browser-back-navigation-policy';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
 
 function browserTab(
@@ -169,13 +169,10 @@ describe('Explore browser session policy', () => {
     ]);
     expect(commit.backNavigationState.pendingKinds).toEqual([]);
   });
-
   it('keeps fallback back navigation on the persisted stack until commit', () => {
     const pendingState = recordFallbackBackNavigationAttempt(
       initialExploreBrowserBackNavigationState(),
     );
-
-    expect(canUseNativeBackNavigation(true, pendingState)).toBeTrue();
 
     const commit = commitExploreBrowserNavigation({
       tabs: [browserTab('tab-1', 'https://two.example/', ['https://one.example/'])],
@@ -186,14 +183,6 @@ describe('Explore browser session policy', () => {
     });
 
     expect(commit.tabs).toEqual([browserTab('tab-1', 'https://one.example/')]);
-    expect(canUseNativeBackNavigation(true, commit.backNavigationState)).toBeFalse();
-  });
-
-  it('can discard an uncommitted fallback back attempt', () => {
-    const pendingState = recordFallbackBackNavigationAttempt(
-      initialExploreBrowserBackNavigationState(),
-    );
-
-    expect(discardLatestBackNavigationAttempt(pendingState).pendingKinds).toEqual([]);
+    expect(commit.backNavigationState.fallbackBackCreatedNativeHistory).toBeTrue();
   });
 });

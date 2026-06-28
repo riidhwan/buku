@@ -1,58 +1,15 @@
 import { BrowserTabSession, ExploreBrowserTab } from './ports/browser-session-store.port';
+import {
+  consumeCommittedBackNavigation,
+  type ExploreBrowserBackNavigationState,
+} from './explore-browser-back-navigation-policy';
 
-export type PendingBackNavigationKind = 'native' | 'fallback';
-
-export interface ExploreBrowserBackNavigationState {
-  readonly pendingKinds: readonly PendingBackNavigationKind[];
-  readonly fallbackBackCreatedNativeHistory: boolean;
-}
-
-export interface ExploreBrowserNavigationCommit {
+interface ExploreBrowserNavigationCommit {
   readonly tabs: readonly ExploreBrowserTab[];
   readonly backNavigationState: ExploreBrowserBackNavigationState;
 }
 
 const maxBackStackEntries = 25;
-
-export function initialExploreBrowserBackNavigationState(): ExploreBrowserBackNavigationState {
-  return {
-    pendingKinds: [],
-    fallbackBackCreatedNativeHistory: false,
-  };
-}
-
-export function resetExploreBrowserBackNavigationState(): ExploreBrowserBackNavigationState {
-  return initialExploreBrowserBackNavigationState();
-}
-
-export function canUseNativeBackNavigation(
-  nativeCanGoBack: boolean,
-  state: ExploreBrowserBackNavigationState,
-): boolean {
-  return nativeCanGoBack && !state.fallbackBackCreatedNativeHistory;
-}
-
-export function recordNativeBackNavigation(
-  state: ExploreBrowserBackNavigationState,
-  didNavigate: boolean,
-): ExploreBrowserBackNavigationState {
-  return didNavigate ? appendPendingBackNavigation(state, 'native') : state;
-}
-
-export function recordFallbackBackNavigationAttempt(
-  state: ExploreBrowserBackNavigationState,
-): ExploreBrowserBackNavigationState {
-  return appendPendingBackNavigation(state, 'fallback');
-}
-
-export function discardLatestBackNavigationAttempt(
-  state: ExploreBrowserBackNavigationState,
-): ExploreBrowserBackNavigationState {
-  return {
-    ...state,
-    pendingKinds: state.pendingKinds.slice(0, -1),
-  };
-}
 
 export function createExploreBrowserTab(url: string | null): ExploreBrowserTab {
   return {
@@ -165,7 +122,7 @@ export function rememberExploreBrowserTabLibrarySeriesTitle(params: {
   }));
 }
 
-export function normalizePageTitle(title: string | null): string | null {
+function normalizePageTitle(title: string | null): string | null {
   const normalized = title?.trim() ?? '';
   return normalized.length > 0 ? normalized : null;
 }
@@ -173,35 +130,6 @@ export function normalizePageTitle(title: string | null): string | null {
 function normalizeLibrarySeriesTitle(title: string): string | null {
   const normalized = title.trim().replace(/\s+/g, ' ');
   return normalized.length > 0 ? normalized : null;
-}
-
-function appendPendingBackNavigation(
-  state: ExploreBrowserBackNavigationState,
-  kind: PendingBackNavigationKind,
-): ExploreBrowserBackNavigationState {
-  return {
-    ...state,
-    pendingKinds: [...state.pendingKinds, kind],
-  };
-}
-
-function consumeCommittedBackNavigation(state: ExploreBrowserBackNavigationState): {
-  readonly kind: PendingBackNavigationKind | null;
-  readonly state: ExploreBrowserBackNavigationState;
-} {
-  const [kind, ...remainingKinds] = state.pendingKinds;
-  if (kind === undefined) {
-    return { kind: null, state };
-  }
-
-  return {
-    kind,
-    state: {
-      pendingKinds: remainingKinds,
-      fallbackBackCreatedNativeHistory:
-        state.fallbackBackCreatedNativeHistory || kind === 'fallback',
-    },
-  };
 }
 
 function updateSelectedTab(
