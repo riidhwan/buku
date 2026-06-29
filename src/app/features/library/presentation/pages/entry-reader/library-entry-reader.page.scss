@@ -19,7 +19,8 @@ app-library-entry-reader-page {
 }
 
 .library-reader-source,
-.library-reader-meta {
+.library-reader-meta,
+.library-reader-edited {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -27,6 +28,13 @@ app-library-entry-reader-page {
   color: var(--ion-color-medium);
   font-size: 0.875rem;
   line-height: 1.4;
+}
+
+.library-reader-edited {
+  display: inline-flex;
+  padding: 2px 8px;
+  border: 1px solid var(--ion-color-step-200, #c8c7cc);
+  border-radius: 999px;
 }
 
 .library-reader-header h1 {

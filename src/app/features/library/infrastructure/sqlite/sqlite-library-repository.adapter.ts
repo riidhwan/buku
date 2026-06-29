@@ -10,6 +10,8 @@ import {
   ListLibrarySeriesResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
+  SaveSeriesEntryContentOverrideInput,
+  SaveSeriesEntryContentOverrideRepositoryResult,
 } from '../../application/ports/library-repository.port';
 import { LibraryLegacyPreferencesStore } from '../library-legacy-preferences.store';
 import { SqliteLibraryQueries } from './sqlite-library-queries';
@@ -54,6 +56,19 @@ export class SqliteLibraryRepositoryAdapter implements LibraryRepository {
       await this.ensureLegacyDataMigrated();
       return await this.database.transaction((database) =>
         new SqliteLibraryQueries(database).saveEntry(input),
+      );
+    } catch (_error) {
+      return { ok: false, reason: 'persistenceFailed' };
+    }
+  }
+
+  public async saveSeriesEntryContentOverride(
+    input: SaveSeriesEntryContentOverrideInput,
+  ): Promise<SaveSeriesEntryContentOverrideRepositoryResult> {
+    try {
+      await this.ensureLegacyDataMigrated();
+      return await this.database.transaction((database) =>
+        new SqliteLibraryQueries(database).saveSeriesEntryContentOverride(input),
       );
     } catch (_error) {
       return { ok: false, reason: 'persistenceFailed' };

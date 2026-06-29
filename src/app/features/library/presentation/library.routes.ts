@@ -16,6 +16,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'series/:seriesId/entries/:entryId/edit',
+        loadComponent: () =>
+          import('./pages/entry-edit/library-entry-edit.page').then(
+            (module) => module.LibraryEntryEditPage,
+          ),
+      },
+      {
         path: 'series/:seriesId/entries/:entryId',
         loadComponent: () =>
           import('./pages/entry-reader/library-entry-reader.page').then(

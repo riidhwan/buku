@@ -1,7 +1,11 @@
 import { inject, InjectionToken, Injectable } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 
-import { LibraryDocument, LibrarySeriesEntry, LibrarySeriesRecord } from '../domain/library-series';
+import {
+  LibraryDocument,
+  LibrarySeriesRecord,
+  LibraryStoredSeriesEntry,
+} from '../domain/library-series';
 
 interface PreferencesPort {
   get(options: { readonly key: string }): Promise<{ readonly value: string | null }>;
@@ -103,7 +107,7 @@ const requiredEntryStringFields = [
 
 const nullableEntryStringFields = ['sourceHost', 'byline', 'siteName', 'publishedTime'] as const;
 
-function isEntry(value: unknown): value is LibrarySeriesEntry {
+function isEntry(value: unknown): value is LibraryStoredSeriesEntry {
   return (
     isRecord(value) &&
     requiredEntryStringFields.every((field) => typeof value[field] === 'string') &&

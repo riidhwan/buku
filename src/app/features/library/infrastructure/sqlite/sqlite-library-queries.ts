@@ -11,6 +11,8 @@ import {
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
   SaveLibraryEntryTarget,
+  SaveSeriesEntryContentOverrideInput,
+  SaveSeriesEntryContentOverrideRepositoryResult,
 } from '../../application/ports/library-repository.port';
 import { normalizeTitleKey } from '../../application/save-reading-snapshot-to-library.use-case';
 import { sqliteLibraryStatements } from './sqlite-library-statements';
@@ -45,7 +47,8 @@ type EntryRow = EntrySummaryRow & {
   readonly byline: string | null;
   readonly site_name: string | null;
   readonly published_time: string | null;
-  readonly content_html: string;
+  readonly original_content_html: string;
+  readonly content_override_html: string | null;
 };
 
 export class SqliteLibraryQueries {
@@ -84,6 +87,22 @@ export class SqliteLibraryQueries {
 
     await this.insertEntry(series.id, input.entry);
     return { ok: true, status: 'saved', seriesId: series.id, entryId: input.entry.id };
+  }
+
+  public async saveSeriesEntryContentOverride(
+    input: SaveSeriesEntryContentOverrideInput,
+  ): Promise<SaveSeriesEntryContentOverrideRepositoryResult> {
+    const entry = await this.getEntry(input.seriesId, input.entryId);
+    if (entry === null) {
+      return { ok: true, status: 'missingEntry' };
+    }
+
+    await this.database.run(sqliteLibraryStatements.upsertEntryContentOverride, {
+      entryId: input.entryId,
+      contentHtml: input.contentHtml,
+      savedAt: input.savedAt,
+    });
+    return { ok: true, status: 'saved' };
   }
 
   public async importLegacySeries(
@@ -216,7 +235,10 @@ function toEntry(row: EntryRow): LibrarySeriesEntry {
     byline: row.byline,
     siteName: row.site_name,
     publishedTime: row.published_time,
-    contentHtml: row.content_html,
+    originalContentHtml: row.original_content_html,
+    contentOverrideHtml: row.content_override_html,
+    effectiveContentHtml: row.content_override_html ?? row.original_content_html,
+    hasContentOverride: row.content_override_html !== null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

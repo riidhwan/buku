@@ -38,11 +38,13 @@ export const sqliteLibraryStatements = {
       entries.byline,
       entries.site_name,
       entries.published_time,
-      entries.content_html,
+      entries.content_html AS original_content_html,
+      overrides.content_html AS content_override_html,
       entries.created_at,
       entries.updated_at
     FROM library_series_entries entries
     INNER JOIN library_series series ON series.id = entries.series_id
+    LEFT JOIN library_series_entry_content_overrides overrides ON overrides.entry_id = entries.id
     WHERE entries.series_id = :seriesId AND entries.id = :entryId;
   `,
   selectEntryBySourceUrl: `
@@ -87,5 +89,22 @@ export const sqliteLibraryStatements = {
       :createdAt,
       :updatedAt
     );
+  `,
+  upsertEntryContentOverride: `
+    INSERT INTO library_series_entry_content_overrides (
+      entry_id,
+      content_html,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      :entryId,
+      :contentHtml,
+      :savedAt,
+      :savedAt
+    )
+    ON CONFLICT(entry_id) DO UPDATE SET
+      content_html = excluded.content_html,
+      updated_at = excluded.updated_at;
   `,
 } as const;

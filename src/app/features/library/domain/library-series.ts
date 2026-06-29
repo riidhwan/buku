@@ -31,6 +31,25 @@ export interface LibrarySeriesEntry {
   readonly byline: string | null;
   readonly siteName: string | null;
   readonly publishedTime: string | null;
+  readonly originalContentHtml: string;
+  readonly contentOverrideHtml: string | null;
+  readonly effectiveContentHtml: string;
+  readonly hasContentOverride: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface LibraryStoredSeriesEntry {
+  readonly id: string;
+  readonly seriesId: string;
+  readonly seriesTitle: string;
+  readonly displayTitle: string;
+  readonly sourceUrl: string;
+  readonly sourceHost: string | null;
+  readonly articleTitle: string;
+  readonly byline: string | null;
+  readonly siteName: string | null;
+  readonly publishedTime: string | null;
   readonly contentHtml: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -39,7 +58,7 @@ export interface LibrarySeriesEntry {
 export interface LibrarySeriesRecord {
   readonly id: string;
   readonly title: string;
-  readonly entries: readonly LibrarySeriesEntry[];
+  readonly entries: readonly LibraryStoredSeriesEntry[];
 }
 
 export interface LibraryDocument {

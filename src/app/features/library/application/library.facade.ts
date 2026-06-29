@@ -2,6 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { LibrarySeries, LibrarySeriesEntry, LibrarySeriesSummary } from '../domain/library-series';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
 import {
+  SaveSeriesEntryContentOverrideInput,
+  SaveSeriesEntryContentOverrideResult,
+  SaveSeriesEntryContentOverrideUseCase,
+} from './save-series-entry-content-override.use-case';
+import {
   SaveReadingSnapshotToLibraryInput,
   SaveReadingSnapshotToLibraryResult,
   SaveReadingSnapshotToLibraryUseCase,
@@ -11,6 +16,7 @@ import {
 export class LibraryFacade {
   private readonly repository = inject(LIBRARY_REPOSITORY);
   private readonly saveReadingSnapshotUseCase = inject(SaveReadingSnapshotToLibraryUseCase);
+  private readonly saveContentOverrideUseCase = inject(SaveSeriesEntryContentOverrideUseCase);
 
   public async listSeries(): Promise<readonly LibrarySeriesSummary[]> {
     const result = await this.repository.listSeries();
@@ -31,5 +37,11 @@ export class LibraryFacade {
     input: SaveReadingSnapshotToLibraryInput,
   ): Promise<SaveReadingSnapshotToLibraryResult> {
     return this.saveReadingSnapshotUseCase.execute(input);
+  }
+
+  public saveSeriesEntryContentOverride(
+    input: SaveSeriesEntryContentOverrideInput,
+  ): Promise<SaveSeriesEntryContentOverrideResult> {
+    return this.saveContentOverrideUseCase.execute(input);
   }
 }

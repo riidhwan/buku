@@ -1,0 +1,50 @@
+app-library-entry-edit-page {
+  display: block;
+}
+
+.library-entry-edit {
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 18px 40px;
+}
+
+.library-entry-edit-body {
+  min-height: 70vh;
+  padding: 14px;
+  border: 1px solid var(--ion-color-step-200, #c8c7cc);
+  border-radius: 8px;
+  color: var(--ion-color-dark);
+  font-size: 1.08rem;
+  line-height: 1.7;
+  outline: none;
+}
+
+.library-entry-edit-body:focus {
+  border-color: var(--ion-color-primary);
+  box-shadow: 0 0 0 2px rgb(var(--ion-color-primary-rgb) / 16%);
+}
+
+.library-entry-edit-body p,
+.library-entry-edit-body ul,
+.library-entry-edit-body ol,
+.library-entry-edit-body blockquote,
+.library-entry-edit-body pre,
+.library-entry-edit-body figure {
+  margin: 0 0 1.1rem;
+}
+
+.library-entry-edit-body h2,
+.library-entry-edit-body h3,
+.library-entry-edit-body h4 {
+  margin: 1.8rem 0 0.8rem;
+  color: var(--ion-color-dark);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.library-entry-edit-error,
+.library-entry-edit-empty {
+  display: block;
+  padding: 16px;
+}

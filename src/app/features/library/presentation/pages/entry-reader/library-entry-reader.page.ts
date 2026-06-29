@@ -9,19 +9,22 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonInfiniteScroll,
   IonInfiniteScrollContent,
   IonText,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { createOutline } from 'ionicons/icons';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
 
@@ -44,6 +47,7 @@ interface LibraryEntryReaderInfiniteScrollEvent {
     IonButtons,
     IonContent,
     IonHeader,
+    IonIcon,
     IonInfiniteScroll,
     IonInfiniteScrollContent,
     IonText,
@@ -54,6 +58,7 @@ interface LibraryEntryReaderInfiniteScrollEvent {
 export class LibraryEntryReaderPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
     month: 'short',
@@ -81,8 +86,32 @@ export class LibraryEntryReaderPage implements OnInit {
   @ViewChildren('readerArticle')
   private readonly readerArticles!: QueryList<ElementRef<HTMLElement>>;
 
+  public constructor() {
+    addIcons({ createOutline });
+  }
+
   public ngOnInit(): void {
     void this.loadEntry();
+  }
+
+  public ionViewWillEnter(): void {
+    void this.loadEntry();
+  }
+
+  protected editActiveEntry(): void {
+    const activeEntry = this.activeEntry();
+    if (activeEntry === null) {
+      return;
+    }
+
+    void this.router.navigate([
+      '/library',
+      'series',
+      activeEntry.seriesId,
+      'entries',
+      activeEntry.id,
+      'edit',
+    ]);
   }
 
   protected preventReaderLinkNavigation(event: Event): void {
