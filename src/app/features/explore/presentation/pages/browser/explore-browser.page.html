@@ -2,6 +2,7 @@
   <ion-toolbar>
     <form class="browser-url-form" (submit)="openUrl(); $event.preventDefault()">
       <ion-input
+        #addressInput
         aria-label="Web address"
         inputmode="url"
         type="text"

@@ -84,6 +84,8 @@ import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-a
 export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('viewportHost', { static: true })
   private readonly viewportHost!: ElementRef<HTMLElement>;
+  @ViewChild('addressInput')
+  private readonly addressInput?: IonInput;
 
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
@@ -240,6 +242,13 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private async handleHardwareBackButton(processNextHandler: () => void): Promise<void> {
+    if (this.addressBarFocused()) {
+      this.blurAddressBar();
+      const inputElement = await this.addressInput?.getInputElement();
+      inputElement?.blur();
+      return;
+    }
+
     if (this.actionsOpen()) {
       this.closeActions();
       this.scheduleViewportRectUpdate();
