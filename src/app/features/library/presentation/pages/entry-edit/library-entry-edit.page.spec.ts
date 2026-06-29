@@ -24,6 +24,8 @@ let savedInputs: SaveSeriesEntryContentOverrideInput[];
 let resetInputs: ResetSeriesEntryContentOverrideInput[];
 let saveResult: SaveSeriesEntryContentOverrideResult;
 let resetResult: ResetSeriesEntryContentOverrideResult;
+let deferredSave: Deferred<SaveSeriesEntryContentOverrideResult> | null;
+let deferredReset: Deferred<ResetSeriesEntryContentOverrideResult> | null;
 let navigateSpy: jasmine.Spy;
 let alerts: FakeAlertController;
 let platform: FakePlatform;
@@ -39,6 +41,10 @@ class FakeLibraryFacade {
     input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideResult> {
     savedInputs.push(input);
+    if (deferredSave !== null) {
+      return deferredSave.promise;
+    }
+
     return Promise.resolve(saveResult);
   }
 
@@ -46,6 +52,10 @@ class FakeLibraryFacade {
     input: ResetSeriesEntryContentOverrideInput,
   ): Promise<ResetSeriesEntryContentOverrideResult> {
     resetInputs.push(input);
+    if (deferredReset !== null) {
+      return deferredReset.promise;
+    }
+
     return Promise.resolve(resetResult);
   }
 }
@@ -64,6 +74,8 @@ describe('LibraryEntryEditPage', () => {
     resetInputs = [];
     saveResult = { status: 'saved' };
     resetResult = { status: 'reset' };
+    deferredSave = null;
+    deferredReset = null;
     navigateSpy = jasmine.createSpy('navigate').and.resolveTo(true);
     alerts = new FakeAlertController();
     platform = new FakePlatform();
@@ -96,6 +108,21 @@ describe('LibraryEntryEditPage', () => {
     fixture.detectChanges();
 
     expect(editorBody(fixture).textContent).toContain('Original content.');
+  });
+
+  it('renders the formatting toolbar only when an entry is loaded', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(formatToolbarOrNull(fixture)).not.toBeNull();
+
+    entry = null;
+    fixture = TestBed.createComponent(LibraryEntryEditPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(formatToolbarOrNull(fixture)).toBeNull();
   });
 
   it('starts from the existing override when re-editing an overridden entry', async () => {
@@ -135,6 +162,192 @@ describe('LibraryEntryEditPage', () => {
       'entries',
       'entry-1',
     ]);
+  });
+
+  it('persists formatted HTML through the existing save path', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    editorBody(fixture).innerHTML = '<h2>Heading</h2><p><strong>Edited</strong> content.</p>';
+
+    saveButton(fixture).click();
+    await fixture.whenStable();
+
+    expect(savedInputs[0]?.contentHtml).toBe(
+      '<h2>Heading</h2><p><strong>Edited</strong> content.</p>',
+    );
+  });
+
+  it('runs bold and italic commands against the editor selection', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    selectEditorText(editorBody(fixture));
+    const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
+
+    formatButton(fixture, '.library-entry-edit-format-bold').click();
+    formatButton(fixture, '.library-entry-edit-format-italic').click();
+
+    expect(execCommand.calls.allArgs()).toEqual([['bold'], ['italic']]);
+  });
+
+  it('preserves the editor selection when the formatting toolbar is pressed', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const event = new PointerEvent('pointerdown', { bubbles: true, cancelable: true });
+
+    formatToolbar(fixture).dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBeTrue();
+  });
+
+  it('ignores formatting commands while the editor is disabled', async () => {
+    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
+
+    saveButton(fixture).click();
+    fixture.detectChanges();
+    formatButton(fixture, '.library-entry-edit-format-bold').click();
+
+    expect(execCommand).not.toHaveBeenCalled();
+
+    deferredSave.resolve({ status: 'saved' });
+    await fixture.whenStable();
+  });
+
+  it('changes the current block style', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    selectEditorText(editorBody(fixture));
+    const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
+
+    blockFormatButton(fixture, 'h2').click();
+    fixture.detectChanges();
+
+    expect(execCommand).toHaveBeenCalledOnceWith('formatBlock', false, 'h2');
+  });
+
+  it('ignores disabled block style changes', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
+
+    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    saveButton(fixture).click();
+    fixture.detectChanges();
+    blockFormatButton(fixture, 'h3').click();
+
+    expect(execCommand).not.toHaveBeenCalled();
+
+    deferredSave.resolve({ status: 'saved' });
+    await fixture.whenStable();
+  });
+
+  it('runs undo and redo history commands', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    selectEditorText(editorBody(fixture));
+    const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
+
+    formatButton(fixture, '.library-entry-edit-format-undo').click();
+    formatButton(fixture, '.library-entry-edit-format-redo').click();
+
+    expect(execCommand.calls.allArgs()).toEqual([['undo'], ['redo']]);
+  });
+
+  it('marks the active block style from the editor selection', async () => {
+    entry = entryFixture({
+      originalContentHtml: '<ol><li><h3>Selected heading</h3></li></ol>',
+      contentOverrideHtml: null,
+      effectiveContentHtml: '<ol><li><h3>Selected heading</h3></li></ol>',
+      hasContentOverride: false,
+    });
+    fixture = TestBed.createComponent(LibraryEntryEditPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const heading = editorBody(fixture).querySelector('h3');
+    if (heading === null) {
+      throw new Error('Expected heading.');
+    }
+
+    selectEditorText(heading);
+    heading.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(
+      blockFormatButton(fixture, 'h3').classList.contains('library-entry-edit-format-active'),
+    ).toBeTrue();
+  });
+
+  it('refreshes formatting state when the document selection changes', async () => {
+    entry = entryFixture({
+      originalContentHtml: '<h2>Selected heading</h2>',
+      contentOverrideHtml: null,
+      effectiveContentHtml: '<h2>Selected heading</h2>',
+      hasContentOverride: false,
+    });
+    fixture = TestBed.createComponent(LibraryEntryEditPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const heading = editorBody(fixture).querySelector('h2');
+    if (heading === null) {
+      throw new Error('Expected heading.');
+    }
+
+    selectEditorText(heading);
+    document.dispatchEvent(new Event('selectionchange'));
+    fixture.detectChanges();
+
+    expect(
+      blockFormatButton(fixture, 'h2').classList.contains('library-entry-edit-format-active'),
+    ).toBeTrue();
+  });
+
+  it('disables formatting controls while saving', async () => {
+    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    saveButton(fixture).click();
+    fixture.detectChanges();
+
+    expect(formatButton(fixture, '.library-entry-edit-format-bold').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'p').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'h2').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'h3').disabled).toBeTrue();
+
+    deferredSave.resolve({ status: 'saved' });
+    await fixture.whenStable();
+  });
+
+  it('disables formatting controls while resetting', async () => {
+    deferredReset = new Deferred<ResetSeriesEntryContentOverrideResult>();
+    entry = entryFixture({
+      originalContentHtml: '<p>Original content.</p>',
+      contentOverrideHtml: '<p>Existing edit.</p>',
+      effectiveContentHtml: '<p>Existing edit.</p>',
+      hasContentOverride: true,
+    });
+    fixture = TestBed.createComponent(LibraryEntryEditPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    resetButton(fixture).click();
+    await flushAlertPresentation();
+    alerts.confirmLatest();
+    await flushAlertPresentation();
+    fixture.detectChanges();
+
+    expect(formatButton(fixture, '.library-entry-edit-format-bold').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'p').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'h2').disabled).toBeTrue();
+    expect(blockFormatButton(fixture, 'h3').disabled).toBeTrue();
+
+    deferredReset.resolve({ status: 'reset' });
+    await fixture.whenStable();
   });
 
   it('shows validation failures without navigating', async () => {
@@ -478,6 +691,35 @@ describe('LibraryEntryEditPage', () => {
     );
   });
 
+  it('keeps selected media deletion independent from formatting controls', async () => {
+    entry = entryFixture({
+      originalContentHtml: '<p>Original content.</p><img src="https://example.com/a.jpg">',
+      contentOverrideHtml: null,
+      effectiveContentHtml: '<p>Original content.</p><img src="https://example.com/a.jpg">',
+      hasContentOverride: false,
+    });
+    fixture = TestBed.createComponent(LibraryEntryEditPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const image = editorBody(fixture).querySelector('img');
+    if (image === null) {
+      throw new Error('Expected image.');
+    }
+
+    image.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    spyOn(document, 'execCommand').and.returnValue(true);
+    formatButton(fixture, '.library-entry-edit-format-bold').click();
+    fixture.detectChanges();
+    deleteMediaButton(fixture).click();
+    saveButton(fixture).click();
+    await fixture.whenStable();
+
+    expect(savedInputs[0]?.contentHtml).toBe('<p>Original content.</p>');
+  });
+
   it('ignores media selection events without an editor target', async () => {
     entry = null;
     fixture = TestBed.createComponent(LibraryEntryEditPage);
@@ -642,6 +884,21 @@ class FakePlatform {
   public readonly backButton = new FakeBackButton();
 }
 
+class Deferred<T> {
+  public readonly promise: Promise<T>;
+  private resolvePromise: ((value: T) => void) | null = null;
+
+  public constructor() {
+    this.promise = new Promise<T>((resolve) => {
+      this.resolvePromise = resolve;
+    });
+  }
+
+  public resolve(value: T): void {
+    this.resolvePromise?.(value);
+  }
+}
+
 function entryFixture(
   content: Pick<
     LibrarySeriesEntry,
@@ -674,6 +931,18 @@ function editorBody(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLElemen
   }
 
   return element;
+}
+
+function selectEditorText(element: Element): void {
+  const selection = document.getSelection();
+  if (selection === null) {
+    throw new Error('Expected document selection.');
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 async function flushAlertPresentation(): Promise<void> {
@@ -722,6 +991,40 @@ function deleteMediaButtonOrNull(
   return (fixture.nativeElement as HTMLElement).querySelector<HTMLIonButtonElement>(
     '.library-entry-edit-delete-media',
   );
+}
+
+function formatToolbarOrNull(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLElement | null {
+  return (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+    '.library-entry-edit-formatting',
+  );
+}
+
+function formatToolbar(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLElement {
+  const element = formatToolbarOrNull(fixture);
+  if (element === null) {
+    throw new Error('Expected formatting toolbar.');
+  }
+
+  return element;
+}
+
+function formatButton(
+  fixture: ComponentFixture<LibraryEntryEditPage>,
+  selector: string,
+): HTMLIonButtonElement {
+  return toolbarButton(fixture, selector);
+}
+
+function blockFormatButton(
+  fixture: ComponentFixture<LibraryEntryEditPage>,
+  format: 'p' | 'h2' | 'h3',
+): HTMLIonButtonElement {
+  const selectors = {
+    h2: '.library-entry-edit-format-heading-2',
+    h3: '.library-entry-edit-format-heading-3',
+    p: '.library-entry-edit-format-paragraph',
+  } as const;
+  return toolbarButton(fixture, selectors[format]);
 }
 
 function toolbarButton(

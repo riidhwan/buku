@@ -22,6 +22,7 @@ const blockedElements = new Set([
 
 const uriAttributes = new Set(['href', 'src', 'srcset']);
 const safeUrlProtocols = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+const editorOnlyClasses = new Set(['library-entry-edit-media-selected']);
 
 @Injectable()
 export class BrowserLibraryContentSanitizerAdapter implements LibraryContentSanitizer {
@@ -43,7 +44,8 @@ function sanitizeNode(root: ParentNode): void {
       continue;
     }
 
-    sanitizeAttributes(element);
+    const normalizedElement = normalizeEditorFormattingElement(element);
+    sanitizeAttributes(normalizedElement);
   }
 }
 
@@ -55,12 +57,53 @@ function sanitizeAttributes(element: Element): void {
       continue;
     }
 
+    if (attributeName === 'class') {
+      removeEditorOnlyClasses(element);
+      continue;
+    }
+
     if (
       uriAttributes.has(attributeName) &&
       !isSafeUrlAttributeValue(attributeName, attribute.value)
     ) {
       element.removeAttribute(attribute.name);
     }
+  }
+}
+
+function normalizeEditorFormattingElement(element: Element): Element {
+  if (element.tagName === 'B') {
+    return replaceElementTag(element, 'strong');
+  }
+
+  if (element.tagName === 'I') {
+    return replaceElementTag(element, 'em');
+  }
+
+  return element;
+}
+
+function replaceElementTag(element: Element, tagName: 'strong' | 'em'): Element {
+  const replacement = document.createElement(tagName);
+  for (const attribute of Array.from(element.attributes)) {
+    replacement.setAttribute(attribute.name, attribute.value);
+  }
+
+  while (element.firstChild !== null) {
+    replacement.append(element.firstChild);
+  }
+
+  element.replaceWith(replacement);
+  return replacement;
+}
+
+function removeEditorOnlyClasses(element: Element): void {
+  for (const className of editorOnlyClasses) {
+    element.classList.remove(className);
+  }
+
+  if (element.classList.length === 0) {
+    element.removeAttribute('class');
   }
 }
 
