@@ -1,4 +1,14 @@
-import { Component, OnInit, ViewEncapsulation, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  QueryList,
+  ViewChildren,
+  ViewEncapsulation,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import {
   IonBackButton,
@@ -55,14 +65,21 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly entryId = this.route.snapshot.paramMap.get('entryId') ?? '';
   protected readonly series = signal<LibrarySeries | null>(null);
   protected readonly loadedEntries = signal<readonly LibrarySeriesEntry[]>([]);
+  protected readonly activeEntryId = signal<string | null>(null);
   protected readonly loadState = signal<LibraryEntryReaderLoadState>('idle');
   protected readonly entry = computed(() => this.loadedEntries()[0] ?? null);
+  protected readonly activeEntry = computed(
+    () => this.loadedEntries().find((entry) => entry.id === this.activeEntryId()) ?? this.entry(),
+  );
   protected readonly infiniteScrollDisabled = computed(
     () =>
       this.loadedEntries().length === 0 ||
       this.loadState() === 'ended' ||
       this.loadState() === 'failed',
   );
+
+  @ViewChildren('readerArticle')
+  private readonly readerArticles!: QueryList<ElementRef<HTMLElement>>;
 
   public ngOnInit(): void {
     void this.loadEntry();
@@ -116,6 +133,28 @@ export class LibraryEntryReaderPage implements OnInit {
     }
   }
 
+  protected updateActiveEntryFromScroll(): void {
+    const articles = this.readerArticles.toArray();
+    const [firstArticle, ...remainingArticles] = articles;
+    if (firstArticle === undefined) {
+      return;
+    }
+
+    const activationLine = 16;
+    let activeArticle = firstArticle;
+    for (const article of remainingArticles.reverse()) {
+      if (article.nativeElement.getBoundingClientRect().top <= activationLine) {
+        activeArticle = article;
+        break;
+      }
+    }
+
+    const activeEntryId = activeArticle.nativeElement.dataset['entryId'];
+    if (activeEntryId !== undefined) {
+      this.activeEntryId.set(activeEntryId);
+    }
+  }
+
   private nextEntryId(): string | null {
     const series = this.series();
     if (series === null) {
@@ -139,6 +178,7 @@ export class LibraryEntryReaderPage implements OnInit {
 
     this.series.set(series);
     this.loadedEntries.set(series === null || entry === null ? [] : [entry]);
+    this.activeEntryId.set(entry?.id ?? null);
     this.loadState.set('idle');
   }
 }

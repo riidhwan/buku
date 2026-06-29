@@ -3,14 +3,19 @@
     <ion-buttons slot="start">
       <ion-back-button [defaultHref]="['/library', 'series', seriesId].join('/')"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ entry()?.displayTitle ?? 'Entry not found' }}</ion-title>
+    <ion-title>{{ activeEntry()?.displayTitle ?? 'Entry not found' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content>
+<ion-content [scrollEvents]="true" (ionScroll)="updateActiveEntryFromScroll()">
   @if (loadedEntries().length > 0) { @for (selectedEntry of loadedEntries(); track selectedEntry.id;
   let first = $first) {
-  <article class="library-reader-article" [class.library-reader-article-continued]="!first">
+  <article
+    #readerArticle
+    class="library-reader-article"
+    [class.library-reader-article-continued]="!first"
+    [attr.data-entry-id]="selectedEntry.id"
+  >
     <header class="library-reader-header">
       <p class="library-reader-source">
         {{ selectedEntry.siteName ?? selectedEntry.sourceHost ?? selectedEntry.sourceUrl }}
