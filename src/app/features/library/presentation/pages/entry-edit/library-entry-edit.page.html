@@ -60,13 +60,102 @@
     <div
       #editorBody
       class="library-entry-edit-body"
-      contenteditable="true"
+      [attr.contenteditable]="isFormattingDisabled() ? 'false' : 'true'"
       role="textbox"
+      tabindex="0"
       aria-label="Entry content"
       [innerHTML]="draftHtml()"
       (click)="selectMedia($event)"
       (keydown.enter)="selectMedia($event)"
+      (input)="refreshEditorInteraction()"
+      (keyup)="refreshEditorInteraction()"
+      (mouseup)="refreshEditorInteraction()"
+      (focus)="refreshEditorInteraction()"
     ></div>
+    <div
+      class="library-entry-edit-formatting"
+      role="toolbar"
+      aria-label="Formatting"
+      (pointerdown)="preserveEditorInteraction($event)"
+    >
+      <ion-button
+        class="library-entry-edit-format-undo"
+        fill="clear"
+        size="small"
+        aria-label="Undo"
+        [disabled]="isFormattingDisabled()"
+        (click)="runFormattingCommand('undo')"
+      >
+        <ion-icon slot="icon-only" name="arrow-undo-outline"></ion-icon>
+      </ion-button>
+      <ion-button
+        class="library-entry-edit-format-redo"
+        fill="clear"
+        size="small"
+        aria-label="Redo"
+        [disabled]="isFormattingDisabled()"
+        (click)="runFormattingCommand('redo')"
+      >
+        <ion-icon slot="icon-only" name="arrow-redo-outline"></ion-icon>
+      </ion-button>
+      <span class="library-entry-edit-formatting-divider" aria-hidden="true"></span>
+      <ion-button
+        class="library-entry-edit-format-bold"
+        fill="clear"
+        size="small"
+        aria-label="Bold"
+        [class.library-entry-edit-format-active]="boldActive()"
+        [disabled]="isFormattingDisabled()"
+        (click)="runFormattingCommand('bold')"
+      >
+        <strong aria-hidden="true">B</strong>
+      </ion-button>
+      <ion-button
+        class="library-entry-edit-format-italic"
+        fill="clear"
+        size="small"
+        aria-label="Italic"
+        [class.library-entry-edit-format-active]="italicActive()"
+        [disabled]="isFormattingDisabled()"
+        (click)="runFormattingCommand('italic')"
+      >
+        <em aria-hidden="true">I</em>
+      </ion-button>
+      <span class="library-entry-edit-formatting-divider" aria-hidden="true"></span>
+      <ion-button
+        class="library-entry-edit-format-paragraph"
+        fill="clear"
+        size="small"
+        aria-label="Paragraph"
+        [class.library-entry-edit-format-active]="blockFormat() === 'p'"
+        [disabled]="isFormattingDisabled()"
+        (click)="setBlockFormat('p')"
+      >
+        <span aria-hidden="true">P</span>
+      </ion-button>
+      <ion-button
+        class="library-entry-edit-format-heading-2"
+        fill="clear"
+        size="small"
+        aria-label="Heading 2"
+        [class.library-entry-edit-format-active]="blockFormat() === 'h2'"
+        [disabled]="isFormattingDisabled()"
+        (click)="setBlockFormat('h2')"
+      >
+        <span aria-hidden="true">H2</span>
+      </ion-button>
+      <ion-button
+        class="library-entry-edit-format-heading-3"
+        fill="clear"
+        size="small"
+        aria-label="Heading 3"
+        [class.library-entry-edit-format-active]="blockFormat() === 'h3'"
+        [disabled]="isFormattingDisabled()"
+        (click)="setBlockFormat('h3')"
+      >
+        <span aria-hidden="true">H3</span>
+      </ion-button>
+    </div>
   </main>
   } @else {
   <ion-text class="library-entry-edit-empty">This entry is not in the Library.</ion-text>

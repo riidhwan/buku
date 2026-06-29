@@ -60,6 +60,33 @@ describe('BrowserLibraryContentSanitizerAdapter', () => {
     });
   });
 
+  it('keeps toolbar-supported formatting elements and normalizes browser tags', () => {
+    const sanitizer = new BrowserLibraryContentSanitizerAdapter();
+
+    expect(
+      sanitizer.sanitizeContentHtml(
+        '<p>Para <b data-kind="important">bold</b> <i>italic</i></p><h2>Major</h2><h3>Minor</h3><ul><li>One</li></ul><ol><li>Two</li></ol>',
+      ),
+    ).toEqual({
+      contentHtml:
+        '<p>Para <strong data-kind="important">bold</strong> <em>italic</em></p><h2>Major</h2><h3>Minor</h3><ul><li>One</li></ul><ol><li>Two</li></ol>',
+      hasRenderableContent: true,
+    });
+  });
+
+  it('strips editor-only selection classes and unsafe formatting attributes', () => {
+    const sanitizer = new BrowserLibraryContentSanitizerAdapter();
+
+    expect(
+      sanitizer.sanitizeContentHtml(
+        '<p class="library-entry-edit-media-selected kept" style="color:red" onclick="bad()">Text</p><img class="library-entry-edit-media-selected" src="https://example.test/a.jpg">',
+      ),
+    ).toEqual({
+      contentHtml: '<p class="kept">Text</p><img src="https://example.test/a.jpg">',
+      hasRenderableContent: true,
+    });
+  });
+
   it('keeps empty, fragment, and safe srcset URLs', () => {
     const sanitizer = new BrowserLibraryContentSanitizerAdapter();
 

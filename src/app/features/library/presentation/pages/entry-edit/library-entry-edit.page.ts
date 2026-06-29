@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -12,18 +13,18 @@ import {
   IonToolbar,
   Platform,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  arrowBackOutline,
-  checkmarkOutline,
-  closeOutline,
-  refreshOutline,
-  trashOutline,
-} from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LIBRARY_CONTENT_SANITIZER } from '../../../application/ports/library-content-sanitizer.port';
 import { LibrarySeriesEntry } from '../../../domain/library-series';
+import {
+  LibraryEntryEditBlockFormat,
+  LibraryEntryEditCommand,
+  LibraryEntryEditFormattingController,
+  draftHtmlWithoutEditorOnlyClasses,
+  mediaElementFromTarget,
+  registerLibraryEntryEditIcons,
+} from './library-entry-edit-formatting';
 
 type LibraryEntryEditSaveState = 'idle' | 'saving' | 'resetting' | 'failed';
 
@@ -40,6 +41,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   private readonly alertController = inject(AlertController);
   private readonly platform = inject(Platform);
   private readonly sanitizer = inject(LIBRARY_CONTENT_SANITIZER);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly seriesId = this.route.snapshot.paramMap.get('seriesId') ?? '';
   protected readonly entryId = this.route.snapshot.paramMap.get('entryId') ?? '';
@@ -48,23 +50,36 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   protected readonly saveState = signal<LibraryEntryEditSaveState>('idle');
   protected readonly validationMessage = signal<string | null>(null);
   protected readonly selectedMedia = signal(false);
+  protected readonly boldActive = signal(false);
+  protected readonly italicActive = signal(false);
+  protected readonly blockFormat = signal<LibraryEntryEditBlockFormat>('p');
 
   @ViewChild('editorBody')
   private readonly editorBody?: ElementRef<HTMLElement>;
   private selectedMediaElement: HTMLElement | null = null;
   private startingSanitizedHtml = '';
   private backButtonSubscription: Subscription | null = null;
+  private readonly formattingController = new LibraryEntryEditFormattingController(
+    this.document,
+    () => this.editorBody?.nativeElement,
+  );
+  private readonly selectionChangeListener = (): void => {
+    this.formattingController.rememberSelection();
+    this.refreshFormattingState();
+  };
 
   public constructor() {
-    addIcons({ arrowBackOutline, checkmarkOutline, closeOutline, refreshOutline, trashOutline });
+    registerLibraryEntryEditIcons();
   }
 
   public ngOnInit(): void {
+    this.document.addEventListener('selectionchange', this.selectionChangeListener);
     this.registerBackButtonHandler();
     void this.loadEntry();
   }
 
   public ngOnDestroy(): void {
+    this.document.removeEventListener('selectionchange', this.selectionChangeListener);
     this.backButtonSubscription?.unsubscribe();
     this.backButtonSubscription = null;
   }
@@ -91,7 +106,13 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   protected async resetToOriginal(): Promise<void> {
-    if (!(await this.confirmReset())) {
+    if (
+      !(await this.confirm({
+        header: 'Reset to original?',
+        message: 'This deletes your current edit and restores the saved snapshot.',
+        confirmText: 'Reset',
+      }))
+    ) {
       return;
     }
 
@@ -124,7 +145,12 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
       return;
     }
 
-    const mediaElement = this.mediaElementFromTarget(target);
+    const body = this.editorBody?.nativeElement;
+    if (body === undefined) {
+      return;
+    }
+
+    const mediaElement = mediaElementFromTarget(body, target);
     if (mediaElement === null) {
       this.clearSelectedMedia();
       return;
@@ -142,16 +168,59 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     this.selectedMedia.set(false);
   }
 
+  protected preserveEditorInteraction(event: Event): void {
+    event.preventDefault();
+    this.formattingController.rememberSelection();
+  }
+
+  protected refreshEditorInteraction(): void {
+    this.formattingController.rememberSelection();
+    this.refreshFormattingState();
+  }
+
+  protected runFormattingCommand(command: LibraryEntryEditCommand): void {
+    if (this.isFormattingDisabled()) {
+      return;
+    }
+
+    this.formattingController.runCommand(command);
+    this.refreshFormattingState();
+  }
+
+  protected setBlockFormat(format: LibraryEntryEditBlockFormat): void {
+    if (this.isFormattingDisabled()) {
+      return;
+    }
+
+    this.formattingController.setBlockFormat(format);
+    this.blockFormat.set(format);
+    this.refreshFormattingState();
+  }
+
+  protected isFormattingDisabled(): boolean {
+    return (
+      this.entry() === null || this.saveState() === 'saving' || this.saveState() === 'resetting'
+    );
+  }
+
   private async loadEntry(): Promise<void> {
     const entry = await this.library.getEntry(this.seriesId, this.entryId);
     this.entry.set(entry);
     const contentHtml = entry?.effectiveContentHtml ?? '';
     this.startingSanitizedHtml = this.sanitizeForComparison(contentHtml);
     this.draftHtml.set(contentHtml);
+    this.refreshFormattingState();
   }
 
   private async requestLeave(): Promise<void> {
-    if (this.hasUnsavedChanges() && !(await this.confirmDiscard())) {
+    if (
+      this.hasUnsavedChanges() &&
+      !(await this.confirm({
+        header: 'Discard changes?',
+        message: 'Your unsaved edits will be lost.',
+        confirmText: 'Discard',
+      }))
+    ) {
       return;
     }
 
@@ -174,16 +243,21 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
       return '';
     }
 
-    const clone = body.cloneNode(true) as HTMLElement;
-    for (const selected of Array.from(
-      clone.querySelectorAll('.library-entry-edit-media-selected'),
-    )) {
-      selected.classList.remove('library-entry-edit-media-selected');
-      if (selected.getAttribute('class') === '') {
-        selected.removeAttribute('class');
-      }
+    return draftHtmlWithoutEditorOnlyClasses(body);
+  }
+
+  private refreshFormattingState(): void {
+    const state = this.formattingController.currentState();
+    if (state === null) {
+      this.boldActive.set(false);
+      this.italicActive.set(false);
+      this.blockFormat.set('p');
+      return;
     }
-    return clone.innerHTML;
+
+    this.boldActive.set(state.boldActive);
+    this.italicActive.set(state.italicActive);
+    this.blockFormat.set(state.blockFormat);
   }
 
   private hasUnsavedChanges(): boolean {
@@ -194,41 +268,10 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     return this.sanitizer.sanitizeContentHtml(contentHtml).contentHtml;
   }
 
-  private mediaElementFromTarget(target: Element): HTMLElement | null {
-    const body = this.editorBody?.nativeElement;
-    if (body === undefined) {
-      return null;
-    }
-
-    const figure = target.closest('figure');
-    if (figure instanceof HTMLElement && body.contains(figure)) {
-      return figure;
-    }
-
-    const image = target.closest('img');
-    return image instanceof HTMLElement && body.contains(image) ? image : null;
-  }
-
   private clearSelectedMedia(): void {
     this.selectedMediaElement?.classList.remove('library-entry-edit-media-selected');
     this.selectedMediaElement = null;
     this.selectedMedia.set(false);
-  }
-
-  private async confirmReset(): Promise<boolean> {
-    return this.confirm({
-      header: 'Reset to original?',
-      message: 'This deletes your current edit and restores the saved snapshot.',
-      confirmText: 'Reset',
-    });
-  }
-
-  private async confirmDiscard(): Promise<boolean> {
-    return this.confirm({
-      header: 'Discard changes?',
-      message: 'Your unsaved edits will be lost.',
-      confirmText: 'Discard',
-    });
   }
 
   private async confirm(options: {
