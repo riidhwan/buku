@@ -101,7 +101,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     timeZone: 'UTC',
     year: 'numeric',
   });
-  private readonly backButtonSubscription: Subscription;
+  private backButtonSubscription: Subscription | null = null;
   private viewportUpdateTimer: number | null = null;
   private readonly resizeListener = (): void => {
     void this.updateViewportRect();
@@ -124,12 +124,6 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
       stopOutline,
       warningOutline,
     });
-    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(
-      10,
-      (processNextHandler) => {
-        void this.handleHardwareBackButton(processNextHandler);
-      },
-    );
   }
 
   public ngOnInit(): void {
@@ -138,20 +132,23 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
   public ngAfterViewInit(): void {
     window.addEventListener('resize', this.resizeListener);
+    this.registerBackButtonHandler();
     void this.updateViewportRect();
   }
 
   public ionViewDidEnter(): void {
+    this.registerBackButtonHandler();
     this.scheduleViewportRectUpdate();
   }
 
   public ionViewWillLeave(): void {
+    this.unregisterBackButtonHandler();
     this.clearViewportUpdateTimer();
     void this.browser.hideViewport();
   }
 
   public ngOnDestroy(): void {
-    this.backButtonSubscription.unsubscribe();
+    this.unregisterBackButtonHandler();
     window.removeEventListener('resize', this.resizeListener);
     this.clearViewportUpdateTimer();
     void this.browser.hideViewport();
@@ -263,6 +260,24 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     }
 
     processNextHandler();
+  }
+
+  private registerBackButtonHandler(): void {
+    if (this.backButtonSubscription !== null) {
+      return;
+    }
+
+    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(
+      10,
+      (processNextHandler) => {
+        void this.handleHardwareBackButton(processNextHandler);
+      },
+    );
+  }
+
+  private unregisterBackButtonHandler(): void {
+    this.backButtonSubscription?.unsubscribe();
+    this.backButtonSubscription = null;
   }
 
   private scheduleViewportRectUpdate(): void {
