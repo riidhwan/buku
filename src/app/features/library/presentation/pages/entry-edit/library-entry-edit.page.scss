@@ -25,6 +25,16 @@ app-library-entry-edit-page {
   box-shadow: 0 0 0 2px rgb(var(--ion-color-primary-rgb) / 16%);
 }
 
+.library-entry-edit-body img,
+.library-entry-edit-body figure {
+  cursor: pointer;
+}
+
+.library-entry-edit-body .library-entry-edit-media-selected {
+  outline: 3px solid var(--ion-color-primary);
+  outline-offset: 3px;
+}
+
 .library-entry-edit-body p,
 .library-entry-edit-body ul,
 .library-entry-edit-body ol,

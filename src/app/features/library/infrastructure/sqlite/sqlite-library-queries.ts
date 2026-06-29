@@ -11,6 +11,8 @@ import {
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
   SaveLibraryEntryTarget,
+  ResetSeriesEntryContentOverrideInput,
+  ResetSeriesEntryContentOverrideRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
   SaveSeriesEntryContentOverrideRepositoryResult,
 } from '../../application/ports/library-repository.port';
@@ -103,6 +105,20 @@ export class SqliteLibraryQueries {
       savedAt: input.savedAt,
     });
     return { ok: true, status: 'saved' };
+  }
+
+  public async resetSeriesEntryContentOverride(
+    input: ResetSeriesEntryContentOverrideInput,
+  ): Promise<ResetSeriesEntryContentOverrideRepositoryResult> {
+    const entry = await this.getEntry(input.seriesId, input.entryId);
+    if (entry === null) {
+      return { ok: true, status: 'missingEntry' };
+    }
+
+    await this.database.run(sqliteLibraryStatements.deleteEntryContentOverride, {
+      entryId: input.entryId,
+    });
+    return { ok: true, status: 'reset' };
   }
 
   public async importLegacySeries(

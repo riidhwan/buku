@@ -8,6 +8,7 @@ import {
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
 import { LibraryRepository } from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
+import { ResetSeriesEntryContentOverrideUseCase } from './reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from './save-series-entry-content-override.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from './save-reading-snapshot-to-library.use-case';
 
@@ -71,6 +72,7 @@ describe('LibraryFacade', () => {
           entryId: input.entry.id,
         }),
       saveSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'saved' }),
+      resetSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'reset' }),
     };
     const facade = createFacade(repository);
 
@@ -118,6 +120,12 @@ describe('LibraryFacade', () => {
         contentHtml: '<p>Edited</p>',
       }),
     ).toBeResolvedTo({ status: 'saved' });
+    await expectAsync(
+      facade.resetSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+      }),
+    ).toBeResolvedTo({ status: 'reset' });
   });
 
   it('returns empty and null reads when repository operations fail', async () => {
@@ -127,6 +135,8 @@ describe('LibraryFacade', () => {
       getEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveSeriesEntryContentOverride: () =>
+        Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
+      resetSeriesEntryContentOverride: () =>
         Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
     };
     const facade = createFacade(repository);
@@ -149,6 +159,7 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
       LibraryFacade,
       SaveReadingSnapshotToLibraryUseCase,
       SaveSeriesEntryContentOverrideUseCase,
+      ResetSeriesEntryContentOverrideUseCase,
       { provide: LIBRARY_REPOSITORY, useValue: repository },
       { provide: LIBRARY_CLOCK, useValue: clock },
       { provide: LIBRARY_ID_GENERATOR, useValue: idGenerator },

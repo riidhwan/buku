@@ -193,6 +193,47 @@ describe('SqliteLibraryRepositoryAdapter', () => {
     expect(database.entries[0]?.updatedAt).toBe('2026-06-27T10:00:00.000Z');
   });
 
+  it('resets an override without mutating the original entry metadata', async () => {
+    await repository.saveEntry(saveInput());
+    await repository.saveSeriesEntryContentOverride({
+      seriesId: 'series-1',
+      entryId: 'entry-1',
+      contentHtml: '<p>Edited body</p>',
+      savedAt: '2026-06-28T10:00:00.000Z',
+    });
+
+    await expectAsync(
+      repository.resetSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'reset' });
+
+    expect(database.overrides).toEqual([]);
+    expect(database.entries[0]?.contentHtml).toBe('<p>Body</p>');
+    expect(database.entries[0]?.updatedAt).toBe('2026-06-27T10:00:00.000Z');
+    await expectAsync(repository.getEntry('series-1', 'entry-1')).toBeResolvedTo({
+      ok: true,
+      entry: jasmine.objectContaining({
+        originalContentHtml: '<p>Body</p>',
+        contentOverrideHtml: null,
+        effectiveContentHtml: '<p>Body</p>',
+        hasContentOverride: false,
+      }),
+    });
+    await expectAsync(repository.listSeries()).toBeResolvedTo({
+      ok: true,
+      series: [
+        {
+          id: 'series-1',
+          title: 'Series',
+          entryCount: 1,
+          lastSavedAt: '2026-06-27T10:00:00.000Z',
+        },
+      ],
+    });
+  });
+
   it('returns missingEntry when saving an override for an unknown entry', async () => {
     await expectAsync(
       repository.saveSeriesEntryContentOverride({
@@ -200,6 +241,15 @@ describe('SqliteLibraryRepositoryAdapter', () => {
         entryId: 'missing-entry',
         contentHtml: '<p>Edited body</p>',
         savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'missingEntry' });
+  });
+
+  it('returns missingEntry when resetting an override for an unknown entry', async () => {
+    await expectAsync(
+      repository.resetSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'missing-entry',
       }),
     ).toBeResolvedTo({ ok: true, status: 'missingEntry' });
   });
@@ -357,6 +407,15 @@ describe('SqliteLibraryRepositoryAdapter', () => {
       ok: false,
       reason: 'persistenceFailed',
     });
+    await expectAsync(
+      repository.resetSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+      }),
+    ).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
   });
 });
 
@@ -410,6 +469,10 @@ class FakeSqliteDatabase implements SqliteDatabase {
 
   public run(statement: string, values: SqliteStatementValues = []): Promise<void> {
     const bound = bindSqliteStatement(statement, values);
+    if (bound.statement.includes('DELETE FROM library_series_entry_content_overrides')) {
+      this.deleteOverride(bound.values);
+      return Promise.resolve();
+    }
     if (bound.statement.includes('library_series_entries')) {
       this.insertEntry(bound.values);
       return Promise.resolve();
@@ -550,6 +613,14 @@ class FakeSqliteDatabase implements SqliteDatabase {
       createdAt: text(values, 2),
       updatedAt: text(values, 2),
     });
+  }
+
+  private deleteOverride(values: SqliteValues): void {
+    const entryId = text(values, 0);
+    const existingIndex = this.overrides.findIndex((override) => override.entryId === entryId);
+    if (existingIndex >= 0) {
+      this.overrides.splice(existingIndex, 1);
+    }
   }
 }
 

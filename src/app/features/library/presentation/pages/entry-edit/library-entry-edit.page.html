@@ -1,16 +1,40 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button
-        [defaultHref]="['/library', 'series', seriesId, 'entries', entryId].join('/')"
-      ></ion-back-button>
+      <ion-button
+        class="library-entry-edit-back"
+        aria-label="Back to reader"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
+        (click)="back()"
+      >
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
     </ion-buttons>
     <ion-title>{{ entry()?.displayTitle ?? 'Entry not found' }}</ion-title>
     <ion-buttons slot="end">
+      @if (selectedMedia()) {
+      <ion-button
+        class="library-entry-edit-delete-media"
+        aria-label="Delete selected media"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
+        (click)="deleteSelectedMedia()"
+      >
+        <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+      </ion-button>
+      } @if (entry()?.hasContentOverride) {
+      <ion-button
+        class="library-entry-edit-reset"
+        aria-label="Reset to original"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
+        (click)="resetToOriginal()"
+      >
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+      }
       <ion-button
         class="library-entry-edit-cancel"
         aria-label="Cancel edit"
-        [disabled]="saveState() === 'saving'"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
         (click)="cancel()"
       >
         <ion-icon slot="icon-only" name="close-outline"></ion-icon>
@@ -18,7 +42,7 @@
       <ion-button
         class="library-entry-edit-save"
         aria-label="Save edit"
-        [disabled]="saveState() === 'saving'"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
         (click)="save()"
       >
         <ion-icon slot="icon-only" name="checkmark-outline"></ion-icon>
@@ -40,6 +64,8 @@
       role="textbox"
       aria-label="Entry content"
       [innerHTML]="draftHtml()"
+      (click)="selectMedia($event)"
+      (keydown.enter)="selectMedia($event)"
     ></div>
   </main>
   } @else {
