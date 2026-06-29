@@ -552,6 +552,16 @@ describe('ExploreBrowserPage', () => {
     expect(platform.backButton.processNextCalls).toBe(0);
   });
 
+  it('passes Android back after leaving the cached browser page', async () => {
+    browser.canGoBack.set(true);
+
+    fixture.componentInstance.ionViewWillLeave();
+    await platform.backButton.trigger();
+
+    expect(browser.backNavigations).toBe(0);
+    expect(platform.backButton.unsubscribed).toBeTrue();
+  });
+
   it('passes Android back to the tab shell when stale history state no longer navigates', async () => {
     browser.canGoBack.set(true);
     browser.backDidNavigate = false;
