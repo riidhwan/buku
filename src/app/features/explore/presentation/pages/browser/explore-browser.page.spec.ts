@@ -541,6 +541,29 @@ describe('ExploreBrowserPage', () => {
     expect(platform.backButton.processNextCalls).toBe(0);
   });
 
+  it('blurs the focused address input before navigating WebView history from Android back', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+
+    browser.currentUrl.set('https://loaded.example/');
+    input.dispatchEvent(
+      new CustomEvent('ionInput', {
+        bubbles: true,
+        detail: { value: 'https://draft.example/' },
+      }),
+    );
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+
+    await platform.backButton.trigger();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.addressBarFocused()).toBeFalse();
+    expect(browser.inputValue()).toBe('https://loaded.example/');
+    expect(browser.backNavigations).toBe(0);
+    expect(platform.backButton.processNextCalls).toBe(0);
+  });
+
   it('navigates WebView history from Android back when available', async () => {
     browser.canGoBack.set(true);
 
