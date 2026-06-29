@@ -50,6 +50,7 @@ interface LibraryEntryReaderPageHarness {
   readonly loadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
   loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
+  updateActiveEntryFromScroll(): void;
 }
 
 describe('LibraryEntryReaderPage', () => {
@@ -142,6 +143,41 @@ describe('LibraryEntryReaderPage', () => {
     expect(articles.item(0).textContent).toContain('Saved reading content.');
     expect(articles.item(1).textContent).toContain('More saved reading content.');
     expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(0);
+  });
+
+  it('updates the toolbar title when the next saved entry reaches the top threshold', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadNextEntry();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    setArticleTops(fixture, [-320, 8]);
+
+    component.updateActiveEntryFromScroll();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 2');
+  });
+
+  it('changes the toolbar title back when scrolling upward into an earlier saved entry', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadNextEntry();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    setArticleTops(fixture, [-320, 8]);
+    component.updateActiveEntryFromScroll();
+    fixture.detectChanges();
+
+    setArticleTops(fixture, [-12, 80]);
+    component.updateActiveEntryFromScroll();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 1');
   });
 
   it('shows the end marker only after the bottom load reaches the final saved entry', async () => {
@@ -393,6 +429,21 @@ describe('LibraryEntryReaderPage', () => {
     expect(nativeElement.textContent).toContain('This entry is not in the Library.');
   });
 
+  it('keeps the not-found title when scroll events fire without rendered entries', async () => {
+    entriesById.delete('entry-1');
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.updateActiveEntryFromScroll();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Entry not found');
+  });
+
   it('renders not-found content when the Series is unknown', async () => {
     series = null;
     entriesById.clear();
@@ -464,4 +515,43 @@ function infiniteScrollElement(
   }
 
   return infiniteScroll;
+}
+
+function setArticleTops(
+  fixture: ComponentFixture<LibraryEntryReaderPage>,
+  tops: readonly number[],
+): void {
+  const articles = articleElements(fixture);
+  articles.forEach((article, index) => {
+    const top = tops[index];
+    if (top === undefined) {
+      return;
+    }
+
+    Object.defineProperty(article, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => rectAt(top),
+    });
+  });
+}
+
+function articleElements(
+  fixture: ComponentFixture<LibraryEntryReaderPage>,
+): readonly HTMLElement[] {
+  const nativeElement = fixture.nativeElement as HTMLElement;
+  return Array.from(nativeElement.querySelectorAll<HTMLElement>('.library-reader-article'));
+}
+
+function rectAt(top: number): DOMRect {
+  return {
+    bottom: top + 100,
+    height: 100,
+    left: 0,
+    right: 100,
+    toJSON: () => ({}),
+    top,
+    width: 100,
+    x: 0,
+    y: top,
+  };
 }
