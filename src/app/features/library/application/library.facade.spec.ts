@@ -1,9 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { LibraryFacade } from './library.facade';
 import { LIBRARY_CLOCK, LibraryClock } from './ports/library-clock.port';
+import {
+  LIBRARY_CONTENT_SANITIZER,
+  LibraryContentSanitizer,
+} from './ports/library-content-sanitizer.port';
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
 import { LibraryRepository } from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
+import { SaveSeriesEntryContentOverrideUseCase } from './save-series-entry-content-override.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from './save-reading-snapshot-to-library.use-case';
 
 describe('LibraryFacade', () => {
@@ -19,7 +24,10 @@ describe('LibraryFacade', () => {
       byline: null,
       siteName: null,
       publishedTime: null,
-      contentHtml: '<p>Content</p>',
+      originalContentHtml: '<p>Content</p>',
+      contentOverrideHtml: null,
+      effectiveContentHtml: '<p>Content</p>',
+      hasContentOverride: false,
       createdAt: '2026-01-12T09:30:00.000Z',
       updatedAt: '2026-01-12T09:30:00.000Z',
     };
@@ -62,6 +70,7 @@ describe('LibraryFacade', () => {
           seriesId: 'series-1',
           entryId: input.entry.id,
         }),
+      saveSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'saved' }),
     };
     const facade = createFacade(repository);
 
@@ -102,6 +111,13 @@ describe('LibraryFacade', () => {
         target: { kind: 'title', title: 'Mock Series' },
       }),
     ).toBeResolvedTo({ status: 'saved', seriesId: 'series-1', entryId: 'id' });
+    await expectAsync(
+      facade.saveSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        contentHtml: '<p>Edited</p>',
+      }),
+    ).toBeResolvedTo({ status: 'saved' });
   });
 
   it('returns empty and null reads when repository operations fail', async () => {
@@ -110,6 +126,8 @@ describe('LibraryFacade', () => {
       getSeries: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       getEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
+      saveSeriesEntryContentOverride: () =>
+        Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
     };
     const facade = createFacade(repository);
 
@@ -122,14 +140,19 @@ describe('LibraryFacade', () => {
 function createFacade(repository: LibraryRepository): LibraryFacade {
   const clock: LibraryClock = { now: () => '2026-06-27T10:00:00.000Z' };
   const idGenerator: LibraryIdGenerator = { createId: () => 'id' };
+  const sanitizer: LibraryContentSanitizer = {
+    sanitizeContentHtml: (contentHtml) => ({ contentHtml, hasRenderableContent: true }),
+  };
 
   TestBed.configureTestingModule({
     providers: [
       LibraryFacade,
       SaveReadingSnapshotToLibraryUseCase,
+      SaveSeriesEntryContentOverrideUseCase,
       { provide: LIBRARY_REPOSITORY, useValue: repository },
       { provide: LIBRARY_CLOCK, useValue: clock },
       { provide: LIBRARY_ID_GENERATOR, useValue: idGenerator },
+      { provide: LIBRARY_CONTENT_SANITIZER, useValue: sanitizer },
     ],
   });
 

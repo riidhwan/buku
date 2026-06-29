@@ -1,0 +1,48 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button
+        [defaultHref]="['/library', 'series', seriesId, 'entries', entryId].join('/')"
+      ></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ entry()?.displayTitle ?? 'Entry not found' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button
+        class="library-entry-edit-cancel"
+        aria-label="Cancel edit"
+        [disabled]="saveState() === 'saving'"
+        (click)="cancel()"
+      >
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+      <ion-button
+        class="library-entry-edit-save"
+        aria-label="Save edit"
+        [disabled]="saveState() === 'saving'"
+        (click)="save()"
+      >
+        <ion-icon slot="icon-only" name="checkmark-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (entry() !== null) {
+  <main class="library-entry-edit">
+    @if (validationMessage() !== null) {
+    <ion-text class="library-entry-edit-error" color="danger">{{ validationMessage() }}</ion-text>
+    }
+    <div
+      #editorBody
+      class="library-entry-edit-body"
+      contenteditable="true"
+      role="textbox"
+      aria-label="Entry content"
+      [innerHTML]="draftHtml()"
+    ></div>
+  </main>
+  } @else {
+  <ion-text class="library-entry-edit-empty">This entry is not in the Library.</ion-text>
+  }
+</ion-content>

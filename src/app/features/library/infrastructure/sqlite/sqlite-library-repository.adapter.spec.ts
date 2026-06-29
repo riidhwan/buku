@@ -82,7 +82,10 @@ describe('SqliteLibraryRepositoryAdapter', () => {
         byline: null,
         siteName: 'Example Reads',
         publishedTime: null,
-        contentHtml: '<p>Body</p>',
+        originalContentHtml: '<p>Body</p>',
+        contentOverrideHtml: null,
+        effectiveContentHtml: '<p>Body</p>',
+        hasContentOverride: false,
         createdAt: '2026-06-27T10:00:00.000Z',
         updatedAt: '2026-06-27T10:00:00.000Z',
       },
@@ -137,6 +140,68 @@ describe('SqliteLibraryRepositoryAdapter', () => {
       ok: true,
       entry: null,
     });
+  });
+
+  it('loads override content as effective content while preserving the original', async () => {
+    await repository.saveEntry(saveInput());
+    await expectAsync(
+      repository.saveSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        contentHtml: '<p>Edited body</p>',
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'saved' });
+
+    await expectAsync(repository.getEntry('series-1', 'entry-1')).toBeResolvedTo({
+      ok: true,
+      entry: jasmine.objectContaining({
+        originalContentHtml: '<p>Body</p>',
+        contentOverrideHtml: '<p>Edited body</p>',
+        effectiveContentHtml: '<p>Edited body</p>',
+        hasContentOverride: true,
+      }),
+    });
+  });
+
+  it('replaces only the current override row', async () => {
+    await repository.saveEntry(saveInput());
+    await repository.saveSeriesEntryContentOverride({
+      seriesId: 'series-1',
+      entryId: 'entry-1',
+      contentHtml: '<p>First edit</p>',
+      savedAt: '2026-06-28T10:00:00.000Z',
+    });
+
+    await expectAsync(
+      repository.saveSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        contentHtml: '<p>Second edit</p>',
+        savedAt: '2026-06-29T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'saved' });
+
+    expect(database.overrides).toEqual([
+      {
+        entryId: 'entry-1',
+        contentHtml: '<p>Second edit</p>',
+        createdAt: '2026-06-28T10:00:00.000Z',
+        updatedAt: '2026-06-29T10:00:00.000Z',
+      },
+    ]);
+    expect(database.entries[0]?.updatedAt).toBe('2026-06-27T10:00:00.000Z');
+  });
+
+  it('returns missingEntry when saving an override for an unknown entry', async () => {
+    await expectAsync(
+      repository.saveSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'missing-entry',
+        contentHtml: '<p>Edited body</p>',
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'missingEntry' });
   });
 
   it('imports the legacy Preferences document once before repository operations', async () => {
@@ -281,6 +346,17 @@ describe('SqliteLibraryRepositoryAdapter', () => {
       ok: false,
       reason: 'persistenceFailed',
     });
+    await expectAsync(
+      repository.saveSeriesEntryContentOverride({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        contentHtml: '<p>Edited</p>',
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
   });
 });
 
@@ -307,9 +383,17 @@ interface FakeEntry {
   readonly updatedAt: string;
 }
 
+interface FakeOverride {
+  readonly entryId: string;
+  readonly contentHtml: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 class FakeSqliteDatabase implements SqliteDatabase {
   public readonly series: FakeSeries[] = [];
   public readonly entries: FakeEntry[] = [];
+  public readonly overrides: FakeOverride[] = [];
   public failQueries = false;
   public hideSeriesByNormalizedTitle = false;
 
@@ -328,6 +412,10 @@ class FakeSqliteDatabase implements SqliteDatabase {
     const bound = bindSqliteStatement(statement, values);
     if (bound.statement.includes('library_series_entries')) {
       this.insertEntry(bound.values);
+      return Promise.resolve();
+    }
+    if (bound.statement.includes('library_series_entry_content_overrides')) {
+      this.upsertOverride(bound.values);
       return Promise.resolve();
     }
     this.insertSeries(bound.statement, bound.values);
@@ -368,7 +456,7 @@ class FakeSqliteDatabase implements SqliteDatabase {
     if (isEntryByIdQuery(statement)) {
       return this.entries
         .filter((entry) => entry.seriesId === text(values, 0) && entry.id === text(values, 1))
-        .map((entry) => toEntryRow(entry, this.series));
+        .map((entry) => toEntryRow(entry, this.series, this.overrides));
     }
     if (isSeriesEntriesQuery(statement)) {
       return this.entries
@@ -435,6 +523,32 @@ class FakeSqliteDatabase implements SqliteDatabase {
       contentHtml: text(values, 9),
       createdAt: text(values, 10),
       updatedAt: text(values, 11),
+    });
+  }
+
+  private upsertOverride(values: SqliteValues): void {
+    const entryId = text(values, 0);
+    const existingIndex = this.overrides.findIndex((override) => override.entryId === entryId);
+    if (existingIndex >= 0) {
+      const existing = this.overrides[existingIndex];
+      if (existing === undefined) {
+        throw new Error('Expected override to exist.');
+      }
+
+      this.overrides[existingIndex] = {
+        entryId,
+        contentHtml: text(values, 1),
+        createdAt: existing.createdAt,
+        updatedAt: text(values, 2),
+      };
+      return;
+    }
+
+    this.overrides.push({
+      entryId,
+      contentHtml: text(values, 1),
+      createdAt: text(values, 2),
+      updatedAt: text(values, 2),
     });
   }
 }
@@ -515,7 +629,12 @@ function toEntrySummaryRow(entry: FakeEntry): SqliteRow {
   };
 }
 
-function toEntryRow(entry: FakeEntry, series: readonly FakeSeries[]): SqliteRow {
+function toEntryRow(
+  entry: FakeEntry,
+  series: readonly FakeSeries[],
+  overrides: readonly FakeOverride[],
+): SqliteRow {
+  const override = overrides.find((candidate) => candidate.entryId === entry.id);
   return {
     ...toEntrySummaryRow(entry),
     series_title: series.find((candidate) => candidate.id === entry.seriesId)?.title ?? '',
@@ -524,7 +643,8 @@ function toEntryRow(entry: FakeEntry, series: readonly FakeSeries[]): SqliteRow 
     byline: entry.byline,
     site_name: entry.siteName,
     published_time: entry.publishedTime,
-    content_html: entry.contentHtml,
+    original_content_html: entry.contentHtml,
+    content_override_html: override?.contentHtml ?? null,
   };
 }
 

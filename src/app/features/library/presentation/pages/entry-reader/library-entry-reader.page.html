@@ -4,6 +4,15 @@
       <ion-back-button [defaultHref]="['/library', 'series', seriesId].join('/')"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ activeEntry()?.displayTitle ?? 'Entry not found' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button
+        aria-label="Edit entry"
+        [disabled]="activeEntry() === null"
+        (click)="editActiveEntry()"
+      >
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -31,13 +40,15 @@
         >
         }
       </ion-text>
+      } @if (selectedEntry.hasContentOverride) {
+      <ion-text class="library-reader-edited" color="medium">Edited</ion-text>
       }
     </header>
 
     <div
       class="library-reader-body"
       tabindex="0"
-      [innerHTML]="selectedEntry.contentHtml"
+      [innerHTML]="selectedEntry.effectiveContentHtml"
       (click)="preventReaderLinkNavigation($event)"
       (keydown.enter)="preventReaderLinkNavigation($event)"
     ></div>

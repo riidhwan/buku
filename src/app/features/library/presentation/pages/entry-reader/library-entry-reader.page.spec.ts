@@ -1,6 +1,7 @@
 import { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { EMPTY } from 'rxjs';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
 import { LibraryEntryReaderPage } from './library-entry-reader.page';
@@ -31,6 +32,7 @@ let series: LibrarySeries | null = {
 };
 
 let entriesById = new Map<string, LibrarySeriesEntry>();
+let navigateSpy: jasmine.Spy;
 
 class FakeLibraryFacade {
   public getSeries(seriesId: string): Promise<LibrarySeries | null> {
@@ -48,8 +50,10 @@ interface LibraryEntryReaderPageHarness {
   readonly series: WritableSignal<LibrarySeries | null>;
   readonly loadedEntries: WritableSignal<readonly LibrarySeriesEntry[]>;
   readonly loadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
+  ionViewWillEnter?(): void;
   loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
+  editActiveEntry(): void;
   updateActiveEntryFromScroll(): void;
 }
 
@@ -94,11 +98,13 @@ describe('LibraryEntryReaderPage', () => {
       ['entry-2', entryFixture('entry-2', 'Chapter 2', 'More saved reading content.')],
       ['entry-3', entryFixture('entry-3', 'Chapter 3', 'Final saved reading content.')],
     ]);
+    navigateSpy = jasmine.createSpy('navigate').and.resolveTo(true);
 
     await TestBed.configureTestingModule({
       imports: [LibraryEntryReaderPage],
       providers: [
         { provide: LibraryFacade, useClass: FakeLibraryFacade },
+        { provide: Router, useValue: { events: EMPTY, navigate: navigateSpy } },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -128,6 +134,55 @@ describe('LibraryEntryReaderPage', () => {
     );
   });
 
+  it('renders effective content and shows the edited indicator for overrides', async () => {
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Original reading content.'),
+      contentOverrideHtml: '<p>Edited reading content.</p>',
+      effectiveContentHtml: '<p>Edited reading content.</p>',
+      hasContentOverride: true,
+    });
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.library-reader-body')?.textContent).toContain(
+      'Edited reading content.',
+    );
+    expect(nativeElement.querySelector('.library-reader-body')?.textContent).not.toContain(
+      'Original reading content.',
+    );
+    expect(nativeElement.querySelector('.library-reader-edited')?.textContent).toContain('Edited');
+  });
+
+  it('refreshes the routed entry when returning from the edit page', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    let nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.library-reader-body')?.textContent).toContain(
+      'Saved reading content.',
+    );
+
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Saved reading content.'),
+      contentOverrideHtml: '<p>Fresh edited content.</p>',
+      effectiveContentHtml: '<p>Fresh edited content.</p>',
+      hasContentOverride: true,
+    });
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.ionViewWillEnter?.();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.library-reader-body')?.textContent).toContain(
+      'Fresh edited content.',
+    );
+  });
+
   it('appends one later saved entry without navigating away from the selected entry route', async () => {
     await fixture.whenStable();
     const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
@@ -142,7 +197,7 @@ describe('LibraryEntryReaderPage', () => {
     expect(articles.length).toBe(2);
     expect(articles.item(0).textContent).toContain('Saved reading content.');
     expect(articles.item(1).textContent).toContain('More saved reading content.');
-    expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(0);
+    expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(1);
   });
 
   it('updates the toolbar title when the next saved entry reaches the top threshold', async () => {
@@ -159,6 +214,37 @@ describe('LibraryEntryReaderPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
 
     expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 2');
+  });
+
+  it('opens edit for the active scrolled entry', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadNextEntry();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    setArticleTops(fixture, [-320, 8]);
+    component.updateActiveEntryFromScroll();
+    component.editActiveEntry();
+
+    expect(navigateSpy).toHaveBeenCalledOnceWith([
+      '/library',
+      'series',
+      'series-1',
+      'entries',
+      'entry-2',
+      'edit',
+    ]);
+  });
+
+  it('does not navigate to edit when no entry is active', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.loadedEntries.set([]);
+    component.editActiveEntry();
+
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('changes the toolbar title back when scrolling upward into an earlier saved entry', async () => {
@@ -498,7 +584,10 @@ function entryFixture(id: string, displayTitle: string, bodyText: string): Libra
     byline: 'Mira Vale',
     siteName: 'Example Reads',
     publishedTime: '2026-01-12T00:00:00.000Z',
-    contentHtml: `<p>${bodyText}</p><p><a href="https://example.com">Source</a></p>`,
+    originalContentHtml: `<p>${bodyText}</p><p><a href="https://example.com">Source</a></p>`,
+    contentOverrideHtml: null,
+    effectiveContentHtml: `<p>${bodyText}</p><p><a href="https://example.com">Source</a></p>`,
+    hasContentOverride: false,
     createdAt: '2026-01-12T09:30:00.000Z',
     updatedAt: '2026-01-12T09:30:00.000Z',
   };

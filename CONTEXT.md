@@ -15,6 +15,10 @@ _Avoid_: collection, folder, book
 A persisted Reading Mode snapshot saved inside a Series. Buku treats Series Entries generically even when the source calls them chapters, volumes, parts, or another content unit.
 _Avoid_: library item, bookmark, reading history entry, saved URL
 
+**Series Entry Content Override**:
+The user's edited version of a Series Entry's readable content. When present, it is the default content shown during Series Entry Reading while the original saved snapshot remains preserved.
+_Avoid_: edited chapter, replacement content, note
+
 **Series Entry Reading**:
 The Library reading experience that starts from a selected Series Entry and continues forward through later saved Series Entries in the same Series.
 _Avoid_: source chapter discovery, browser reading, reading history

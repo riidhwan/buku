@@ -1,11 +1,17 @@
 import { TestBed } from '@angular/core/testing';
-import { LibraryDocument, LibrarySeriesEntry, LibrarySeriesRecord } from '../domain/library-series';
+import {
+  LibraryDocument,
+  LibrarySeriesRecord,
+  LibraryStoredSeriesEntry,
+} from '../domain/library-series';
 import { LIBRARY_CLOCK, LibraryClock } from './ports/library-clock.port';
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
 import {
   LibraryRepository,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
+  SaveSeriesEntryContentOverrideInput,
+  SaveSeriesEntryContentOverrideRepositoryResult,
 } from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
 import {
@@ -221,6 +227,12 @@ class FakeLibraryRepository implements LibraryRepository {
     });
   }
 
+  public saveSeriesEntryContentOverride(
+    _input: SaveSeriesEntryContentOverrideInput,
+  ): Promise<SaveSeriesEntryContentOverrideRepositoryResult> {
+    throw new Error('Not used in this spec.');
+  }
+
   private resolveSeries(input: SaveLibraryEntryInput): MutableSeriesRecord | null {
     if (input.target.kind === 'existing') {
       return this.mutableSeries().find((series) => series.id === input.target.seriesId) ?? null;
@@ -247,10 +259,13 @@ class FakeLibraryRepository implements LibraryRepository {
 interface MutableSeriesRecord {
   readonly id: string;
   readonly title: string;
-  entries: readonly LibrarySeriesEntry[];
+  entries: readonly LibraryStoredSeriesEntry[];
 }
 
-function toEntry(series: LibrarySeriesRecord, input: SaveLibraryEntryInput): LibrarySeriesEntry {
+function toEntry(
+  series: LibrarySeriesRecord,
+  input: SaveLibraryEntryInput,
+): LibraryStoredSeriesEntry {
   return {
     ...input.entry,
     seriesId: series.id,
@@ -258,7 +273,10 @@ function toEntry(series: LibrarySeriesRecord, input: SaveLibraryEntryInput): Lib
   };
 }
 
-function entry(override: { readonly id: string; readonly sourceUrl: string }): LibrarySeriesEntry {
+function entry(override: {
+  readonly id: string;
+  readonly sourceUrl: string;
+}): LibraryStoredSeriesEntry {
   return {
     id: override.id,
     seriesId: 'series-1',
