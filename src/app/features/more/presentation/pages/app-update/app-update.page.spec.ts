@@ -66,6 +66,22 @@ describe('AppUpdatePage', () => {
     expect(facade.installCount).toBe(1);
   });
 
+  it('preserves release note line breaks', () => {
+    facade.appUpdate.set({
+      status: 'update-available',
+      installedVersion: '0.1.0',
+      release: releaseState({
+        notes: 'Added bookshelf sync\n\nFixed update installer prompts',
+      }),
+    });
+    fixture.detectChanges();
+
+    const releaseNotes = queryReleaseNotes();
+
+    expect(releaseNotes.textContent).toBe('Added bookshelf sync\n\nFixed update installer prompts');
+    expect(getComputedStyle(releaseNotes).whiteSpace).toBe('pre-wrap');
+  });
+
   it('keeps install available after an install permission failure', () => {
     facade.appUpdate.set({
       status: 'failure',
@@ -102,13 +118,30 @@ describe('AppUpdatePage', () => {
     return button;
   }
 
+  function queryReleaseNotes(): HTMLElement {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const releaseNotes = nativeElement.querySelector<HTMLElement>('.app-update-release-notes');
+    if (releaseNotes === null) {
+      throw new Error('Missing release notes');
+    }
+
+    return releaseNotes;
+  }
+
   function text(): string {
     const nativeElement = fixture.nativeElement as HTMLElement;
     return nativeElement.textContent;
   }
 });
 
-function releaseState() {
+function releaseState(overrides: Partial<ReturnType<typeof baseReleaseState>> = {}) {
+  return {
+    ...baseReleaseState(),
+    ...overrides,
+  };
+}
+
+function baseReleaseState() {
   return {
     version: { raw: '0.1.1', semver: { major: 0, minor: 1, patch: 1 } },
     title: 'Buku 0.1.1',
