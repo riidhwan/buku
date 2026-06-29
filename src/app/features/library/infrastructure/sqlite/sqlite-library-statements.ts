@@ -107,4 +107,8 @@ export const sqliteLibraryStatements = {
       content_html = excluded.content_html,
       updated_at = excluded.updated_at;
   `,
+  deleteEntryContentOverride: `
+    DELETE FROM library_series_entry_content_overrides
+    WHERE entry_id = :entryId;
+  `,
 } as const;

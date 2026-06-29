@@ -8,6 +8,8 @@ import { LIBRARY_CLOCK, LibraryClock } from './ports/library-clock.port';
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
 import {
   LibraryRepository,
+  ResetSeriesEntryContentOverrideInput,
+  ResetSeriesEntryContentOverrideRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
   SaveSeriesEntryContentOverrideInput,
@@ -230,6 +232,12 @@ class FakeLibraryRepository implements LibraryRepository {
   public saveSeriesEntryContentOverride(
     _input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideRepositoryResult> {
+    throw new Error('Not used in this spec.');
+  }
+
+  public resetSeriesEntryContentOverride(
+    _input: ResetSeriesEntryContentOverrideInput,
+  ): Promise<ResetSeriesEntryContentOverrideRepositoryResult> {
     throw new Error('Not used in this spec.');
   }
 

@@ -8,6 +8,8 @@ import {
   GetLibrarySeriesResult,
   LibraryRepository,
   ListLibrarySeriesResult,
+  ResetSeriesEntryContentOverrideInput,
+  ResetSeriesEntryContentOverrideRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
   SaveSeriesEntryContentOverrideInput,
@@ -69,6 +71,19 @@ export class SqliteLibraryRepositoryAdapter implements LibraryRepository {
       await this.ensureLegacyDataMigrated();
       return await this.database.transaction((database) =>
         new SqliteLibraryQueries(database).saveSeriesEntryContentOverride(input),
+      );
+    } catch (_error) {
+      return { ok: false, reason: 'persistenceFailed' };
+    }
+  }
+
+  public async resetSeriesEntryContentOverride(
+    input: ResetSeriesEntryContentOverrideInput,
+  ): Promise<ResetSeriesEntryContentOverrideRepositoryResult> {
+    try {
+      await this.ensureLegacyDataMigrated();
+      return await this.database.transaction((database) =>
+        new SqliteLibraryQueries(database).resetSeriesEntryContentOverride(input),
       );
     } catch (_error) {
       return { ok: false, reason: 'persistenceFailed' };

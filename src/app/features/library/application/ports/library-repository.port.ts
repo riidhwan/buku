@@ -43,6 +43,11 @@ export interface SaveSeriesEntryContentOverrideInput {
   readonly savedAt: string;
 }
 
+export interface ResetSeriesEntryContentOverrideInput {
+  readonly seriesId: string;
+  readonly entryId: string;
+}
+
 export type LibraryPersistenceFailure = 'persistenceFailed';
 
 export type ListLibrarySeriesResult =
@@ -111,6 +116,20 @@ export type SaveSeriesEntryContentOverrideRepositoryResult =
       readonly reason: LibraryPersistenceFailure;
     };
 
+export type ResetSeriesEntryContentOverrideRepositoryResult =
+  | {
+      readonly ok: true;
+      readonly status: 'reset';
+    }
+  | {
+      readonly ok: true;
+      readonly status: 'missingEntry';
+    }
+  | {
+      readonly ok: false;
+      readonly reason: LibraryPersistenceFailure;
+    };
+
 export interface LibraryRepository {
   listSeries(): Promise<ListLibrarySeriesResult>;
   getSeries(seriesId: string): Promise<GetLibrarySeriesResult>;
@@ -119,4 +138,7 @@ export interface LibraryRepository {
   saveSeriesEntryContentOverride(
     input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideRepositoryResult>;
+  resetSeriesEntryContentOverride(
+    input: ResetSeriesEntryContentOverrideInput,
+  ): Promise<ResetSeriesEntryContentOverrideRepositoryResult>;
 }
