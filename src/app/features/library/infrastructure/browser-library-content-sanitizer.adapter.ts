@@ -21,6 +21,7 @@ const blockedElements = new Set([
 ]);
 
 const uriAttributes = new Set(['href', 'src', 'srcset']);
+const safeUrlProtocols = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
 @Injectable()
 export class BrowserLibraryContentSanitizerAdapter implements LibraryContentSanitizer {
@@ -54,18 +55,41 @@ function sanitizeAttributes(element: Element): void {
       continue;
     }
 
-    if (uriAttributes.has(attributeName) && isUnsafeUrl(attribute.value)) {
+    if (
+      uriAttributes.has(attributeName) &&
+      !isSafeUrlAttributeValue(attributeName, attribute.value)
+    ) {
       element.removeAttribute(attribute.name);
     }
   }
 }
 
-function isUnsafeUrl(value: string): boolean {
-  const normalized = value
-    .trim()
-    .replace(/[\u0000-\u001F\u007F\s]+/g, '')
-    .toLowerCase();
-  return normalized.startsWith('javascript:') || normalized.startsWith('data:text/html');
+function isSafeUrlAttributeValue(attributeName: string, value: string): boolean {
+  if (attributeName !== 'srcset') {
+    return isSafeUrl(value);
+  }
+
+  return value
+    .split(',')
+    .map((candidate) => firstSrcsetUrl(candidate))
+    .every((candidate) => candidate !== '' && isSafeUrl(candidate));
+}
+
+function firstSrcsetUrl(candidate: string): string {
+  return candidate.trim().split(/\s+/, 1).join('');
+}
+
+function isSafeUrl(value: string): boolean {
+  const normalized = value.replace(/[\u0000-\u001F\u007F\s]+/g, '').trim();
+  if (normalized === '' || normalized.startsWith('#')) {
+    return true;
+  }
+
+  try {
+    return safeUrlProtocols.has(new URL(normalized, document.baseURI).protocol);
+  } catch {
+    return false;
+  }
 }
 
 function hasRenderableContent(root: DocumentFragment): boolean {
