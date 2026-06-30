@@ -13,7 +13,7 @@ import {
 import type { BrowserNotice } from './explore-browser-reading-mode-policy';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
 
-export class ExploreBrowserFacadeState {
+export class ExploreBrowserWorkflowState {
   public readonly inputValueSignal = signal('');
   public readonly currentUrlSignal = signal<string | null>(null);
   public readonly tabsSignal = signal<readonly ExploreBrowserTab[]>([]);

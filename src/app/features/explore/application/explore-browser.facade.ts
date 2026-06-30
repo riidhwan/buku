@@ -1,33 +1,16 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { BrowserUrlPolicy } from './browser-url-policy';
 import type { ReadingChapterDirection } from './explore-browser-reading-mode-policy';
 import type {
   BrowserOpenResult,
   BrowserReadingChapterNavigationResult,
   BrowserReadingModeResult,
 } from './explore-browser-results';
-import { reduceBrowserViewportEvent } from './explore-browser-viewport-event-reducer';
-import { ExploreBrowserViewportActions } from './explore-browser-viewport-actions';
-import { ExploreBrowserFacadeState } from './explore-browser.facade-state';
+import { ExploreBrowserWorkflow } from './explore-browser-workflow.facade';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
-import { ExploreReadingModeActions } from './explore-reading-mode-actions';
-import {
-  closeExploreBrowserTab,
-  selectExploreBrowserTab,
-} from './explore-browser-tab-lifecycle-policy';
-import { initialExploreBrowserBackNavigationState } from './explore-browser-back-navigation-policy';
-import {
-  blankExploreBrowserTabSession,
-  commitExploreBrowserNavigation,
-  createExploreBrowserTab,
-  rememberExploreBrowserTabLibrarySeriesTitle,
-  selectedTabIdForBrowserSession,
-} from './explore-browser-session-policy';
-import { BrowserUrlPolicy } from './browser-url-policy';
 import {
   BROWSER_SESSION_STORE,
   type BrowserSessionStorePort,
-  type BrowserTabSession,
 } from './ports/browser-session-store.port';
 import {
   BROWSER_VIEWPORT,
@@ -39,377 +22,134 @@ import { EXTERNAL_URL_OPENER, type ExternalUrlOpenerPort } from './ports/externa
 
 @Injectable()
 export class ExploreBrowserFacade implements OnDestroy {
-  private readonly urlPolicy = inject(BrowserUrlPolicy);
-  private readonly sessionStore = inject<BrowserSessionStorePort>(BROWSER_SESSION_STORE);
-  private readonly viewport = inject<BrowserViewportPort>(BROWSER_VIEWPORT);
-  private readonly externalUrlOpener = inject<ExternalUrlOpenerPort>(EXTERNAL_URL_OPENER);
-  private readonly chapterNavigator = inject(ExploreReadingChapterNavigator);
-  private readonly state = new ExploreBrowserFacadeState();
-  private readonly viewportActions = new ExploreBrowserViewportActions({
-    state: this.state,
-    viewport: this.viewport,
-    externalUrlOpener: this.externalUrlOpener,
-    loadSelectedTabUrl: (url) => this.loadSelectedTabUrl(url),
+  private readonly workflow = new ExploreBrowserWorkflow({
+    urlPolicy: inject(BrowserUrlPolicy),
+    sessionStore: inject<BrowserSessionStorePort>(BROWSER_SESSION_STORE),
+    viewport: inject<BrowserViewportPort>(BROWSER_VIEWPORT),
+    externalUrlOpener: inject<ExternalUrlOpenerPort>(EXTERNAL_URL_OPENER),
+    chapterNavigator: inject(ExploreReadingChapterNavigator),
   });
-  private readonly readingModeActions = new ExploreReadingModeActions({
-    state: this.state,
-    viewport: this.viewport,
-    urlPolicy: this.urlPolicy,
-    chapterNavigator: this.chapterNavigator,
-    loadNormalizedUrl: (url) => this.loadNormalizedUrl(url),
-  });
-  private readonly viewportSubscription: Subscription;
 
-  public readonly inputValue = this.state.inputValue;
-  public readonly currentUrl = this.state.currentUrl;
-  public readonly tabs = this.state.tabs;
-  public readonly activeTab = this.state.activeTab;
-  public readonly recentTabs = this.state.recentTabs;
-  public readonly lastUrl = this.state.lastUrl;
-  public readonly loading = this.state.loading;
-  public readonly canGoBack = this.state.canGoBack;
-  public readonly canGoForward = this.state.canGoForward;
-  public readonly validationError = this.state.validationError;
-  public readonly notice = this.state.notice;
-  public readonly readingModeActive = this.state.readingModeActive;
-  public readonly readingArticle = this.state.readingArticle;
-  public readonly chapterNavigationLoading = this.state.chapterNavigationLoading;
-  public readonly isSecure = this.state.isSecure;
-  public readonly isInsecure = this.state.isInsecure;
-
-  public constructor() {
-    this.viewportSubscription = this.viewport.events$.subscribe((event) => {
-      const reduction = reduceBrowserViewportEvent(event);
-      this.state.inputValueSignal.set(reduction.inputValue ?? this.state.inputValueSignal());
-      this.state.currentUrlSignal.set(reduction.currentUrl ?? this.state.currentUrlSignal());
-      this.state.loadingSignal.set(reduction.loading ?? this.state.loadingSignal());
-      this.state.nativeCanGoBackSignal.set(
-        reduction.nativeCanGoBack ?? this.state.nativeCanGoBackSignal(),
-      );
-      this.state.canGoForwardSignal.set(reduction.canGoForward ?? this.state.canGoForwardSignal());
-      if (reduction.notice !== undefined) {
-        this.state.noticeSignal.set(reduction.notice);
-      }
-      if (reduction.committedNavigation !== undefined) {
-        if (this.shouldDiscardReadingModeForCommittedUrl(reduction.committedNavigation.url)) {
-          this.discardReadingMode();
-        }
-        this.commitActiveTabUrl(
-          reduction.committedNavigation.url,
-          reduction.committedNavigation.title,
-        );
-        void this.persistTabs();
-      }
-    });
-  }
+  public readonly inputValue = this.workflow.inputValue;
+  public readonly currentUrl = this.workflow.currentUrl;
+  public readonly tabs = this.workflow.tabs;
+  public readonly activeTab = this.workflow.activeTab;
+  public readonly recentTabs = this.workflow.recentTabs;
+  public readonly lastUrl = this.workflow.lastUrl;
+  public readonly loading = this.workflow.loading;
+  public readonly canGoBack = this.workflow.canGoBack;
+  public readonly canGoForward = this.workflow.canGoForward;
+  public readonly validationError = this.workflow.validationError;
+  public readonly notice = this.workflow.notice;
+  public readonly readingModeActive = this.workflow.readingModeActive;
+  public readonly readingArticle = this.workflow.readingArticle;
+  public readonly chapterNavigationLoading = this.workflow.chapterNavigationLoading;
+  public readonly isSecure = this.workflow.isSecure;
+  public readonly isInsecure = this.workflow.isInsecure;
 
   public ngOnDestroy(): void {
-    this.viewportSubscription.unsubscribe();
+    this.workflow.destroy();
   }
 
-  public async initialize(): Promise<void> {
-    const session = await this.sessionStore.readTabSession();
-    if (session.tabs.length > 0) {
-      this.applySession(session);
-      await this.loadActiveTabUrl();
-      return;
-    }
-
-    const legacyLastUrl = await this.sessionStore.readLegacyLastUrl();
-    if (legacyLastUrl !== null) {
-      const tab = createExploreBrowserTab(legacyLastUrl);
-      this.applySession({ tabs: [tab], selectedTabId: tab.id });
-      await this.persistTabs();
-      await this.loadActiveTabUrl();
-      return;
-    }
-
-    this.replaceWithBlankTab();
+  public initialize(): Promise<void> {
+    return this.workflow.initialize();
   }
 
   public updateInputValue(value: string): void {
-    this.state.inputValueSignal.set(value);
-    this.state.validationErrorSignal.set(null);
+    this.workflow.updateInputValue(value);
   }
 
-  public async openInput(): Promise<BrowserOpenResult> {
-    return this.openRawValue(this.state.inputValueSignal(), 'active');
+  public openInput(): Promise<BrowserOpenResult> {
+    return this.workflow.openInput();
   }
 
-  public async openInputInNewTab(): Promise<BrowserOpenResult> {
-    return this.openRawValue(this.state.inputValueSignal(), 'new');
+  public openInputInNewTab(): Promise<BrowserOpenResult> {
+    return this.workflow.openInputInNewTab();
   }
 
-  public async resumeTab(tabId: string): Promise<BrowserOpenResult> {
-    const tab = this.state.tabsSignal().find((candidate) => candidate.id === tabId);
-    if (tab?.url === undefined || tab.url === null) {
-      return { ok: false };
-    }
-
-    await this.selectTab(tab.id);
-    return { ok: true };
+  public resumeTab(tabId: string): Promise<BrowserOpenResult> {
+    return this.workflow.resumeTab(tabId);
   }
 
-  public async resumeLastUrl(): Promise<BrowserOpenResult> {
-    const recentTabs = this.recentTabs();
-    const lastTab = recentTabs[recentTabs.length - 1];
-    if (lastTab === undefined) {
-      return { ok: false };
-    }
-
-    return this.resumeTab(lastTab.id);
+  public resumeLastUrl(): Promise<BrowserOpenResult> {
+    return this.workflow.resumeLastUrl();
   }
 
-  public async createBlankTab(): Promise<void> {
-    this.discardReadingMode();
-    const tab = createExploreBrowserTab(null);
-    this.state.tabsSignal.update((tabs) => [...tabs, tab]);
-    this.state.selectedTabIdSignal.set(tab.id);
-    await this.clearVisiblePageForBlankTab();
-    await this.persistTabs();
+  public createBlankTab(): Promise<void> {
+    return this.workflow.createBlankTab();
   }
 
-  public async selectTab(tabId: string): Promise<void> {
-    const result = selectExploreBrowserTab({ tabs: this.state.tabsSignal(), tabId });
-    if (result.status === 'missing') {
-      return;
-    }
-
-    this.discardReadingMode();
-    this.applySession(result.session);
-    await this.persistTabs();
-    if (result.status === 'blank') {
-      await this.clearVisiblePageForBlankTab();
-      return;
-    }
-
-    await this.loadSelectedTabUrl(result.url);
+  public selectTab(tabId: string): Promise<void> {
+    return this.workflow.selectTab(tabId);
   }
 
-  public async closeTab(tabId: string): Promise<void> {
-    const result = closeExploreBrowserTab({
-      tabs: this.state.tabsSignal(),
-      selectedTabId: this.state.selectedTabIdSignal(),
-      tabId,
-    });
-
-    if (result.status === 'missing') {
-      return;
-    }
-
-    if (result.status !== 'closed-inactive') {
-      this.discardReadingMode();
-    }
-    this.applySession(result.session);
-    if (result.status === 'blank') {
-      await this.clearVisiblePageForBlankTab();
-      await this.persistTabs();
-      return;
-    }
-
-    if (result.status === 'closed-inactive') {
-      await this.persistTabs();
-      return;
-    }
-
-    await this.persistTabs();
-    if (result.url === null) {
-      await this.clearVisiblePageForBlankTab();
-      return;
-    }
-
-    await this.loadSelectedTabUrl(result.url);
+  public closeTab(tabId: string): Promise<void> {
+    return this.workflow.closeTab(tabId);
   }
 
-  public async retryCurrentUrl(): Promise<BrowserOpenResult> {
-    return this.viewportActions.retryCurrentUrl();
+  public retryCurrentUrl(): Promise<BrowserOpenResult> {
+    return this.workflow.retryCurrentUrl();
   }
 
-  public async showViewport(rect: BrowserViewportRect): Promise<void> {
-    await this.viewportActions.showViewport(rect);
+  public showViewport(rect: BrowserViewportRect): Promise<void> {
+    return this.workflow.showViewport(rect);
   }
 
-  public async hideViewport(): Promise<void> {
-    await this.viewportActions.hideViewport();
+  public hideViewport(): Promise<void> {
+    return this.workflow.hideViewport();
   }
 
-  public async closeBrowser(): Promise<void> {
-    await this.viewportActions.closeBrowser();
+  public closeBrowser(): Promise<void> {
+    return this.workflow.closeBrowser();
   }
 
-  public async stopOrReload(): Promise<void> {
-    await this.viewportActions.stopOrReload();
+  public stopOrReload(): Promise<void> {
+    return this.workflow.stopOrReload();
   }
 
-  public async goBack(): Promise<BrowserHistoryNavigationResult> {
-    return this.viewportActions.goBack();
+  public goBack(): Promise<BrowserHistoryNavigationResult> {
+    return this.workflow.goBack();
   }
 
-  public async goForward(): Promise<void> {
-    await this.viewportActions.goForward();
+  public goForward(): Promise<void> {
+    return this.workflow.goForward();
   }
 
-  public async copyCurrentUrl(): Promise<void> {
-    await this.viewportActions.copyCurrentUrl();
+  public copyCurrentUrl(): Promise<void> {
+    return this.workflow.copyCurrentUrl();
   }
 
-  public async openCurrentUrlExternally(): Promise<void> {
-    await this.viewportActions.openCurrentUrlExternally();
+  public openCurrentUrlExternally(): Promise<void> {
+    return this.workflow.openCurrentUrlExternally();
   }
 
-  public async openReadingMode(): Promise<BrowserReadingModeResult> {
-    return this.readingModeActions.openReadingMode();
+  public openReadingMode(): Promise<BrowserReadingModeResult> {
+    return this.workflow.openReadingMode();
   }
 
   public closeReadingMode(): void {
-    this.readingModeActions.closeReadingMode();
+    this.workflow.closeReadingMode();
   }
 
   public discardReadingMode(): void {
-    this.readingModeActions.discardReadingMode();
+    this.workflow.discardReadingMode();
   }
 
-  public async rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
-    this.state.tabsSignal.set(
-      rememberExploreBrowserTabLibrarySeriesTitle({
-        tabs: this.state.tabsSignal(),
-        selectedTabId: this.state.selectedTabIdSignal(),
-        title,
-      }),
-    );
-    await this.persistTabs();
+  public rememberActiveTabLibrarySeriesTitle(title: string): Promise<void> {
+    return this.workflow.rememberActiveTabLibrarySeriesTitle(title);
   }
 
-  public async openReadingModeLink(href: string): Promise<BrowserOpenResult> {
-    return this.readingModeActions.openReadingModeLink(href);
+  public openReadingModeLink(href: string): Promise<BrowserOpenResult> {
+    return this.workflow.openReadingModeLink(href);
   }
 
-  public async navigateReadingChapter(
+  public navigateReadingChapter(
     direction: ReadingChapterDirection,
   ): Promise<BrowserReadingChapterNavigationResult> {
-    return this.readingModeActions.navigateReadingChapter(direction);
+    return this.workflow.navigateReadingChapter(direction);
   }
 
   public dismissNotice(): void {
-    this.state.noticeSignal.set(null);
-  }
-
-  private async openRawValue(value: string, target: 'active' | 'new'): Promise<BrowserOpenResult> {
-    const normalized = this.urlPolicy.normalize(value);
-
-    if (!normalized.ok) {
-      this.state.validationErrorSignal.set(normalized.message);
-      return { ok: false };
-    }
-
-    this.state.validationErrorSignal.set(null);
-    this.discardReadingMode();
-    if (target === 'new') {
-      const tab = createExploreBrowserTab(null);
-      this.state.tabsSignal.update((tabs) => [...tabs, tab]);
-      this.state.selectedTabIdSignal.set(tab.id);
-    } else {
-      this.ensureActiveTab();
-    }
-
-    await this.loadSelectedTabUrl(normalized.url);
-    return { ok: true };
-  }
-
-  private async loadNormalizedUrl(url: string): Promise<void> {
-    this.ensureActiveTab();
-    await this.loadSelectedTabUrl(url);
-  }
-
-  private async loadSelectedTabUrl(url: string): Promise<void> {
-    this.state.readingModeActiveSignal.set(false);
-    this.state.inputValueSignal.set(url);
-    this.state.currentUrlSignal.set(url);
-    this.state.loadingSignal.set(true);
-    await this.viewport.load(url);
-  }
-
-  private async loadActiveTabUrl(): Promise<void> {
-    const url = this.state.findActiveTab()?.url ?? null;
-    if (url === null) {
-      return;
-    }
-
-    await this.loadSelectedTabUrl(url);
-  }
-
-  private async clearVisiblePageForBlankTab(): Promise<void> {
-    this.discardReadingMode();
-    this.state.inputValueSignal.set('');
-    this.state.currentUrlSignal.set(null);
-    this.state.loadingSignal.set(false);
-    this.state.nativeCanGoBackSignal.set(false);
-    this.state.canGoForwardSignal.set(false);
-    this.state.backNavigationState = initialExploreBrowserBackNavigationState();
-    this.state.validationErrorSignal.set(null);
-    await this.viewport.hide();
-    await this.viewport.destroy();
-  }
-
-  private applySession(session: BrowserTabSession): void {
-    const selectedTabId = selectedTabIdForBrowserSession(session);
-    this.state.tabsSignal.set(session.tabs);
-    this.state.selectedTabIdSignal.set(selectedTabId);
-
-    const activeTab = this.state.findActiveTab();
-    /* istanbul ignore if -- selectedTabIdForSession always returns a tab from this session. */
-    if (activeTab === null) {
-      this.state.currentUrlSignal.set(null);
-      this.state.inputValueSignal.set('');
-      return;
-    }
-
-    this.state.currentUrlSignal.set(activeTab.url);
-    this.state.inputValueSignal.set(activeTab.url ?? '');
-  }
-
-  private ensureActiveTab(): void {
-    if (this.state.findActiveTab() !== null) {
-      return;
-    }
-
-    this.replaceWithBlankTab();
-  }
-
-  private replaceWithBlankTab(): void {
-    this.discardReadingMode();
-    const session = blankExploreBrowserTabSession();
-    this.state.tabsSignal.set(session.tabs);
-    this.state.selectedTabIdSignal.set(session.selectedTabId);
-    this.state.currentUrlSignal.set(null);
-    this.state.inputValueSignal.set('');
-  }
-
-  private commitActiveTabUrl(url: string, title: string | null): void {
-    const commit = commitExploreBrowserNavigation({
-      tabs: this.state.tabsSignal(),
-      selectedTabId: this.state.selectedTabIdSignal(),
-      url,
-      title,
-      backNavigationState: this.state.backNavigationState,
-    });
-    this.state.tabsSignal.set(commit.tabs);
-    this.state.backNavigationState = commit.backNavigationState;
-  }
-
-  private shouldDiscardReadingModeForCommittedUrl(url: string): boolean {
-    const article = this.state.readingArticleSignal();
-    if (article === null) {
-      return false;
-    }
-
-    return article.url !== url;
-  }
-
-  private async persistTabs(): Promise<void> {
-    await this.sessionStore.writeTabSession({
-      tabs: this.state.tabsSignal(),
-      selectedTabId: this.state.selectedTabIdSignal(),
-    });
+    this.workflow.dismissNotice();
   }
 }
