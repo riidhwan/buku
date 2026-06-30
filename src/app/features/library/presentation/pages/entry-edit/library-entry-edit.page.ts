@@ -16,7 +16,6 @@ import {
 import { Subscription } from 'rxjs';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LIBRARY_CONTENT_SANITIZER } from '../../../application/ports/library-content-sanitizer.port';
-import { LibrarySeriesEntry } from '../../../domain/library-series';
 import {
   LibraryEntryEditBlockFormat,
   LibraryEntryEditCommand,
@@ -25,8 +24,7 @@ import {
   mediaElementFromTarget,
   registerLibraryEntryEditIcons,
 } from './library-entry-edit-formatting';
-
-type LibraryEntryEditSaveState = 'idle' | 'saving' | 'resetting' | 'failed';
+import { LibraryEntryEditWorkflow } from './library-entry-edit-workflow';
 
 @Component({
   selector: 'app-library-entry-edit-page',
@@ -45,10 +43,18 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
 
   protected readonly seriesId = this.route.snapshot.paramMap.get('seriesId') ?? '';
   protected readonly entryId = this.route.snapshot.paramMap.get('entryId') ?? '';
-  protected readonly entry = signal<LibrarySeriesEntry | null>(null);
-  protected readonly draftHtml = signal('');
-  protected readonly saveState = signal<LibraryEntryEditSaveState>('idle');
-  protected readonly validationMessage = signal<string | null>(null);
+  private readonly workflow = new LibraryEntryEditWorkflow({
+    library: this.library,
+    router: this.router,
+    alertController: this.alertController,
+    sanitizer: this.sanitizer,
+    seriesId: this.seriesId,
+    entryId: this.entryId,
+  });
+  protected readonly entry = this.workflow.entry;
+  protected readonly draftHtml = this.workflow.draftHtml;
+  protected readonly saveState = this.workflow.saveState;
+  protected readonly validationMessage = this.workflow.validationMessage;
   protected readonly selectedMedia = signal(false);
   protected readonly boldActive = signal(false);
   protected readonly italicActive = signal(false);
@@ -57,7 +63,6 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   @ViewChild('editorBody')
   private readonly editorBody?: ElementRef<HTMLElement>;
   private selectedMediaElement: HTMLElement | null = null;
-  private startingSanitizedHtml = '';
   private backButtonSubscription: Subscription | null = null;
   private readonly formattingController = new LibraryEntryEditFormattingController(
     this.document,
@@ -85,50 +90,11 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   protected async save(): Promise<void> {
-    const contentHtml = this.currentDraftHtml();
-    this.saveState.set('saving');
-    this.validationMessage.set(null);
-
-    const result = await this.library.saveSeriesEntryContentOverride({
-      seriesId: this.seriesId,
-      entryId: this.entryId,
-      contentHtml,
-    });
-    if (result.status === 'saved') {
-      await this.navigateToReader();
-      return;
-    }
-
-    this.saveState.set('failed');
-    this.validationMessage.set(
-      result.status === 'validationFailed' ? result.message : 'Could not save this edit.',
-    );
+    await this.workflow.save(this.currentDraftHtml());
   }
 
   protected async resetToOriginal(): Promise<void> {
-    if (
-      !(await this.confirm({
-        header: 'Reset to original?',
-        message: 'This deletes your current edit and restores the saved snapshot.',
-        confirmText: 'Reset',
-      }))
-    ) {
-      return;
-    }
-
-    this.saveState.set('resetting');
-    this.validationMessage.set(null);
-    const result = await this.library.resetSeriesEntryContentOverride({
-      seriesId: this.seriesId,
-      entryId: this.entryId,
-    });
-    if (result.status === 'reset') {
-      await this.navigateToReader();
-      return;
-    }
-
-    this.saveState.set('failed');
-    this.validationMessage.set('Could not reset this edit.');
+    await this.workflow.resetToOriginal();
   }
 
   protected cancel(): void {
@@ -204,31 +170,12 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   private async loadEntry(): Promise<void> {
-    const entry = await this.library.getEntry(this.seriesId, this.entryId);
-    this.entry.set(entry);
-    const contentHtml = entry?.effectiveContentHtml ?? '';
-    this.startingSanitizedHtml = this.sanitizeForComparison(contentHtml);
-    this.draftHtml.set(contentHtml);
+    await this.workflow.loadEntry();
     this.refreshFormattingState();
   }
 
   private async requestLeave(): Promise<void> {
-    if (
-      this.hasUnsavedChanges() &&
-      !(await this.confirm({
-        header: 'Discard changes?',
-        message: 'Your unsaved edits will be lost.',
-        confirmText: 'Discard',
-      }))
-    ) {
-      return;
-    }
-
-    await this.navigateToReader();
-  }
-
-  private navigateToReader(): Promise<boolean> {
-    return this.router.navigate(['/library', 'series', this.seriesId, 'entries', this.entryId]);
+    await this.workflow.requestLeave(this.currentDraftHtml());
   }
 
   private registerBackButtonHandler(): void {
@@ -260,42 +207,9 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     this.blockFormat.set(state.blockFormat);
   }
 
-  private hasUnsavedChanges(): boolean {
-    return this.sanitizeForComparison(this.currentDraftHtml()) !== this.startingSanitizedHtml;
-  }
-
-  private sanitizeForComparison(contentHtml: string): string {
-    return this.sanitizer.sanitizeContentHtml(contentHtml).contentHtml;
-  }
-
   private clearSelectedMedia(): void {
     this.selectedMediaElement?.classList.remove('library-entry-edit-media-selected');
     this.selectedMediaElement = null;
     this.selectedMedia.set(false);
-  }
-
-  private async confirm(options: {
-    readonly header: string;
-    readonly message: string;
-    readonly confirmText: string;
-  }): Promise<boolean> {
-    let confirmed = false;
-    const alert = await this.alertController.create({
-      header: options.header,
-      message: options.message,
-      buttons: [
-        { text: 'Keep editing', role: 'cancel' },
-        {
-          text: options.confirmText,
-          role: 'destructive',
-          handler: () => {
-            confirmed = true;
-          },
-        },
-      ],
-    });
-    await alert.present();
-    await alert.onDidDismiss();
-    return confirmed;
   }
 }
