@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, type Signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   IonButton,
@@ -15,7 +15,17 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, checkmarkCircleOutline, closeOutline } from 'ionicons/icons';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
-import { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
+import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
+
+type ExploreBrowserTabsTab = Pick<ExploreBrowserTab, 'id' | 'url' | 'pageTitle'>;
+
+export interface ExploreBrowserTabsBrowser {
+  readonly tabs: Signal<readonly ExploreBrowserTabsTab[]>;
+  readonly activeTab: Signal<ExploreBrowserTabsTab | null>;
+  createBlankTab(): Promise<void>;
+  selectTab(tabId: string): Promise<void>;
+  closeTab(tabId: string): Promise<void>;
+}
 
 @Component({
   selector: 'app-explore-browser-tabs-page',
@@ -35,7 +45,7 @@ import { ExploreBrowserTab } from '../../../application/ports/browser-session-st
   ],
 })
 export class ExploreBrowserTabsPage {
-  protected readonly browser = inject(ExploreBrowserFacade);
+  protected readonly browser = inject<ExploreBrowserTabsBrowser>(ExploreBrowserFacade);
   private readonly router = inject(Router);
 
   public constructor() {
@@ -65,7 +75,7 @@ export class ExploreBrowserTabsPage {
     await this.router.navigate(['explore']);
   }
 
-  protected tabLabel(tab: Pick<ExploreBrowserTab, 'url' | 'pageTitle'>): string {
+  protected tabLabel(tab: Pick<ExploreBrowserTabsTab, 'url' | 'pageTitle'>): string {
     if (tab.pageTitle !== null) {
       return tab.pageTitle;
     }

@@ -2,9 +2,9 @@ import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
-import { ExploreBrowserTabsPage } from './explore-browser-tabs.page';
+import { ExploreBrowserTabsBrowser, ExploreBrowserTabsPage } from './explore-browser-tabs.page';
 
-class FakeExploreBrowserFacade {
+class FakeExploreBrowserTabsBrowser implements ExploreBrowserTabsBrowser {
   public readonly tabs = signal<
     readonly {
       readonly id: string;
@@ -55,11 +55,11 @@ class FakeRouter {
 
 describe('ExploreBrowserTabsPage', () => {
   let fixture: ComponentFixture<ExploreBrowserTabsPage>;
-  let browser: FakeExploreBrowserFacade;
+  let browser: FakeExploreBrowserTabsBrowser;
   let router: FakeRouter;
 
   beforeEach(async () => {
-    browser = new FakeExploreBrowserFacade();
+    browser = new FakeExploreBrowserTabsBrowser();
     router = new FakeRouter();
 
     await TestBed.configureTestingModule({
