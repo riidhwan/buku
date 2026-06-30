@@ -2,12 +2,11 @@ import {
   AfterViewInit,
   Component,
   ElementRef,
-  OnInit,
   OnDestroy,
+  OnInit,
   ViewEncapsulation,
   ViewChild,
   inject,
-  signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -31,26 +30,11 @@ import {
   IonToolbar,
   Platform,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  arrowBackOutline,
-  arrowForwardOutline,
-  bookmarkOutline,
-  chevronBackOutline,
-  chevronForwardOutline,
-  closeOutline,
-  copyOutline,
-  ellipsisVerticalOutline,
-  lockClosedOutline,
-  openOutline,
-  readerOutline,
-  refreshOutline,
-  stopOutline,
-  warningOutline,
-} from 'ionicons/icons';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
 import { READING_LIBRARY_SAVE } from '../../../application/ports/reading-library-save.port';
+import { ExploreBrowserPageActions } from './explore-browser-page-actions';
+import { registerExploreBrowserPageIcons } from './explore-browser-page-icons';
 import { ExploreBrowserPageShell } from './explore-browser-page-shell';
 import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
 
@@ -87,8 +71,6 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly addressInput!: IonInput;
 
   protected readonly browser = inject(ExploreBrowserFacade);
-  public readonly actionsOpen = signal(false);
-  public readonly addressBarFocused = signal(false);
   private readonly librarySave = inject(READING_LIBRARY_SAVE);
   protected readonly readerSave = new ExploreBrowserReaderSaveActions(
     this.browser,
@@ -102,17 +84,22 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     timeZone: 'UTC',
     year: 'numeric',
   });
+  public readonly pageActions = new ExploreBrowserPageActions(this.browser, {
+    scheduleViewportRectUpdate: () => {
+      this.pageShell.scheduleViewportRectUpdate();
+    },
+  });
   private readonly pageShell = new ExploreBrowserPageShell(
     this.browser,
     {
-      isAddressBarFocused: () => this.addressBarFocused(),
+      isAddressBarFocused: () => this.pageActions.isAddressBarFocused(),
       blurAddressBar: () => {
-        this.blurAddressBar();
+        this.pageActions.blurAddressBar();
       },
       getAddressInput: () => this.addressInput,
-      isActionsOpen: () => this.actionsOpen(),
+      isActionsOpen: () => this.pageActions.isActionsOpen(),
       closeActions: () => {
-        this.closeActions();
+        this.pageActions.closeActions();
       },
       getViewportElement: () => this.viewportHost.nativeElement,
     },
@@ -120,22 +107,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   );
 
   public constructor() {
-    addIcons({
-      arrowBackOutline,
-      arrowForwardOutline,
-      bookmarkOutline,
-      chevronBackOutline,
-      chevronForwardOutline,
-      closeOutline,
-      copyOutline,
-      ellipsisVerticalOutline,
-      lockClosedOutline,
-      openOutline,
-      readerOutline,
-      refreshOutline,
-      stopOutline,
-      warningOutline,
-    });
+    registerExploreBrowserPageIcons();
   }
 
   public ngOnInit(): void {
@@ -166,25 +138,8 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     await this.browser.openInput();
   }
 
-  public focusAddressBar(): void {
-    this.addressBarFocused.set(true);
-    if (this.actionsOpen()) {
-      this.closeActions();
-      this.pageShell.scheduleViewportRectUpdate();
-    }
-  }
-
-  public blurAddressBar(): void {
-    this.addressBarFocused.set(false);
-    this.browser.updateInputValue(this.browser.currentUrl() ?? '');
-  }
-
-  public clearAddressBar(): void {
-    this.browser.updateInputValue('');
-  }
-
   protected async openTabs(): Promise<void> {
-    this.closeActions();
+    this.pageActions.closeActions();
     await this.browser.hideViewport();
     await this.router.navigate(['explore', 'browser', 'tabs']);
   }
@@ -197,7 +152,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   protected async openReadingMode(): Promise<void> {
     const wasActive = this.browser.readingModeActive();
     const result = await this.browser.openReadingMode();
-    this.closeActions();
+    this.pageActions.closeActions();
     if (result.ok && wasActive) {
       this.pageShell.scheduleViewportRectUpdate();
     }
@@ -232,14 +187,5 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     }
 
     return this.publishedTimeFormatter.format(date);
-  }
-
-  public openActions(): void {
-    this.actionsOpen.update((isOpen) => !isOpen);
-    this.pageShell.scheduleViewportRectUpdate();
-  }
-
-  public closeActions(): void {
-    this.actionsOpen.set(false);
   }
 }
