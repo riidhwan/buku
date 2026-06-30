@@ -1272,6 +1272,11 @@ describe('ExploreBrowserFacade', () => {
     expect(facade.readingModeActive()).toBeFalse();
     expect(facade.readingArticle()).toEqual(articleSnapshot);
     expect(facade.currentUrl()).toBe('https://example.com/article');
+
+    facade.discardReadingMode();
+
+    expect(facade.readingModeActive()).toBeFalse();
+    expect(facade.readingArticle()).toBeNull();
   });
 
   it('reopens a retained article without extracting again', async () => {
