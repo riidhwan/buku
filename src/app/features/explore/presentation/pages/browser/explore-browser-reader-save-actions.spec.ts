@@ -1,12 +1,14 @@
 import { signal } from '@angular/core';
-import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import {
   ReadingLibrarySavePort,
   SaveReadingArticleToLibraryInput,
   SaveReadingArticleToLibraryResult,
 } from '../../../application/ports/reading-library-save.port';
 import { ReadingArticleSnapshot } from '../../../domain/reading-article';
-import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
+import {
+  ExploreBrowserReaderSaveActions,
+  ExploreBrowserReaderSaveBrowser,
+} from './explore-browser-reader-save-actions';
 
 const articleSnapshot: ReadingArticleSnapshot = {
   url: 'https://example.com/article',
@@ -20,7 +22,7 @@ const articleSnapshot: ReadingArticleSnapshot = {
   length: 14,
 };
 
-class FakeExploreBrowserFacade {
+class FakeExploreBrowserReaderSaveBrowser implements ExploreBrowserReaderSaveBrowser {
   public readonly readingArticle = signal<ReadingArticleSnapshot | null>(articleSnapshot);
   public readonly chapterNavigationLoading = signal(false);
   public readonly activeTab = signal<{
@@ -77,17 +79,14 @@ class FakeReadingLibrarySave implements ReadingLibrarySavePort {
 }
 
 describe('ExploreBrowserReaderSaveActions', () => {
-  let browser: FakeExploreBrowserFacade;
+  let browser: FakeExploreBrowserReaderSaveBrowser;
   let librarySave: FakeReadingLibrarySave;
   let actions: ExploreBrowserReaderSaveActions;
 
   beforeEach(() => {
-    browser = new FakeExploreBrowserFacade();
+    browser = new FakeExploreBrowserReaderSaveBrowser();
     librarySave = new FakeReadingLibrarySave();
-    actions = new ExploreBrowserReaderSaveActions(
-      browser as unknown as ExploreBrowserFacade,
-      librarySave,
-    );
+    actions = new ExploreBrowserReaderSaveActions(browser, librarySave);
   });
 
   it('opens and coordinates the save form helpers', async () => {

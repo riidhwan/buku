@@ -1,15 +1,24 @@
-import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import type { Signal } from '@angular/core';
+import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
 import {
   ReadingLibrarySavePort,
   ReadingLibrarySeriesOption,
 } from '../../../application/ports/reading-library-save.port';
+import type { ReadingArticleSnapshot } from '../../../domain/reading-article';
 import { ExploreReaderSaveForm } from '../reader/explore-reader-save-form';
+
+export interface ExploreBrowserReaderSaveBrowser {
+  readonly readingArticle: Signal<ReadingArticleSnapshot | null>;
+  readonly chapterNavigationLoading: Signal<boolean>;
+  readonly activeTab: Signal<ExploreBrowserTab | null>;
+  rememberActiveTabLibrarySeriesTitle(title: string): Promise<void>;
+}
 
 export class ExploreBrowserReaderSaveActions {
   public readonly saveForm = new ExploreReaderSaveForm();
 
   public constructor(
-    private readonly browser: ExploreBrowserFacade,
+    private readonly browser: ExploreBrowserReaderSaveBrowser,
     private readonly librarySave: ReadingLibrarySavePort,
   ) {}
 
