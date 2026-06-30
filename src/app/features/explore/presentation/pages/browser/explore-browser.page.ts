@@ -48,11 +48,10 @@ import {
   stopOutline,
   warningOutline,
 } from 'ionicons/icons';
-import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
-import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
 import { READING_LIBRARY_SAVE } from '../../../application/ports/reading-library-save.port';
+import { ExploreBrowserPageShell } from './explore-browser-page-shell';
 import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
 
 @Component({
@@ -85,7 +84,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('viewportHost', { static: true })
   private readonly viewportHost!: ElementRef<HTMLElement>;
   @ViewChild('addressInput')
-  private readonly addressInput?: IonInput;
+  private readonly addressInput!: IonInput;
 
   protected readonly browser = inject(ExploreBrowserFacade);
   public readonly actionsOpen = signal(false);
@@ -103,11 +102,22 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     timeZone: 'UTC',
     year: 'numeric',
   });
-  private backButtonSubscription: Subscription | null = null;
-  private viewportUpdateTimer: number | null = null;
-  private readonly resizeListener = (): void => {
-    void this.updateViewportRect();
-  };
+  private readonly pageShell = new ExploreBrowserPageShell(
+    this.browser,
+    {
+      isAddressBarFocused: () => this.addressBarFocused(),
+      blurAddressBar: () => {
+        this.blurAddressBar();
+      },
+      getAddressInput: () => this.addressInput,
+      isActionsOpen: () => this.actionsOpen(),
+      closeActions: () => {
+        this.closeActions();
+      },
+      getViewportElement: () => this.viewportHost.nativeElement,
+    },
+    this.platform,
+  );
 
   public constructor() {
     addIcons({
@@ -133,27 +143,19 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   public ngAfterViewInit(): void {
-    window.addEventListener('resize', this.resizeListener);
-    this.registerBackButtonHandler();
-    void this.updateViewportRect();
+    this.pageShell.afterViewInit();
   }
 
   public ionViewDidEnter(): void {
-    this.registerBackButtonHandler();
-    this.scheduleViewportRectUpdate();
+    this.pageShell.ionViewDidEnter();
   }
 
   public ionViewWillLeave(): void {
-    this.unregisterBackButtonHandler();
-    this.clearViewportUpdateTimer();
-    void this.browser.hideViewport();
+    this.pageShell.ionViewWillLeave();
   }
 
   public ngOnDestroy(): void {
-    this.unregisterBackButtonHandler();
-    window.removeEventListener('resize', this.resizeListener);
-    this.clearViewportUpdateTimer();
-    void this.browser.hideViewport();
+    this.pageShell.destroy();
   }
 
   protected updateUrl(event: CustomEvent<{ readonly value?: string | null }>): void {
@@ -168,7 +170,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     this.addressBarFocused.set(true);
     if (this.actionsOpen()) {
       this.closeActions();
-      this.scheduleViewportRectUpdate();
+      this.pageShell.scheduleViewportRectUpdate();
     }
   }
 
@@ -197,7 +199,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     const result = await this.browser.openReadingMode();
     this.closeActions();
     if (result.ok && wasActive) {
-      this.scheduleViewportRectUpdate();
+      this.pageShell.scheduleViewportRectUpdate();
     }
   }
 
@@ -215,12 +217,12 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
     event.preventDefault();
     await this.browser.openReadingModeLink(href);
-    this.scheduleViewportRectUpdate();
+    this.pageShell.scheduleViewportRectUpdate();
   }
 
   protected async navigateChapter(direction: ReadingChapterDirection): Promise<void> {
     await this.browser.navigateReadingChapter(direction);
-    this.scheduleViewportRectUpdate();
+    this.pageShell.scheduleViewportRectUpdate();
   }
 
   protected formatPublishedTime(publishedTime: string): string {
@@ -234,86 +236,10 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
   public openActions(): void {
     this.actionsOpen.update((isOpen) => !isOpen);
-    this.scheduleViewportRectUpdate();
+    this.pageShell.scheduleViewportRectUpdate();
   }
 
   public closeActions(): void {
     this.actionsOpen.set(false);
-  }
-
-  private async handleHardwareBackButton(processNextHandler: () => void): Promise<void> {
-    if (this.addressBarFocused()) {
-      this.blurAddressBar();
-      const inputElement = await this.addressInput?.getInputElement();
-      inputElement?.blur();
-      return;
-    }
-
-    if (this.actionsOpen()) {
-      this.closeActions();
-      this.scheduleViewportRectUpdate();
-      return;
-    }
-
-    if (this.browser.readingModeActive()) {
-      this.browser.closeReadingMode();
-      this.scheduleViewportRectUpdate();
-      return;
-    }
-
-    if (this.browser.canGoBack()) {
-      const result = await this.browser.goBack();
-      if (result.didNavigate) {
-        return;
-      }
-    }
-
-    processNextHandler();
-  }
-
-  private registerBackButtonHandler(): void {
-    if (this.backButtonSubscription !== null) {
-      return;
-    }
-
-    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(
-      10,
-      (processNextHandler) => {
-        void this.handleHardwareBackButton(processNextHandler);
-      },
-    );
-  }
-
-  private unregisterBackButtonHandler(): void {
-    this.backButtonSubscription?.unsubscribe();
-    this.backButtonSubscription = null;
-  }
-
-  private scheduleViewportRectUpdate(): void {
-    this.clearViewportUpdateTimer();
-
-    this.viewportUpdateTimer = window.setTimeout(() => {
-      this.viewportUpdateTimer = null;
-      void this.updateViewportRect();
-    });
-  }
-
-  private clearViewportUpdateTimer(): void {
-    if (this.viewportUpdateTimer !== null) {
-      window.clearTimeout(this.viewportUpdateTimer);
-      this.viewportUpdateTimer = null;
-    }
-  }
-
-  private async updateViewportRect(): Promise<void> {
-    const rect = this.viewportHost.nativeElement.getBoundingClientRect();
-    const viewportRect: BrowserViewportRect = {
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    };
-
-    await this.browser.showViewport(viewportRect);
   }
 }
