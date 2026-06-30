@@ -11,8 +11,8 @@
         [errorText]="browser.validationError() ?? ''"
         [class.ion-invalid]="browser.validationError() !== null"
         (ionInput)="updateUrl($event)"
-        (ionFocus)="focusAddressBar()"
-        (ionBlur)="blurAddressBar()"
+        (ionFocus)="pageActions.focusAddressBar()"
+        (ionBlur)="pageActions.blurAddressBar()"
       >
         <ion-icon
           slot="start"
@@ -23,12 +23,12 @@
       </ion-input>
     </form>
 
-    @if (addressBarFocused()) {
+    @if (pageActions.addressBarFocused()) {
     <ion-buttons slot="end">
       <ion-button
         aria-label="Clear address"
-        (pointerdown)="clearAddressBar(); $event.preventDefault()"
-        (click)="clearAddressBar()"
+        (pointerdown)="pageActions.clearAddressBar(); $event.preventDefault()"
+        (click)="pageActions.clearAddressBar()"
       >
         <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
       </ion-button>
@@ -53,8 +53,8 @@
       <ion-button
         aria-label="Open browser actions"
         [disabled]="browser.currentUrl() === null"
-        [attr.aria-expanded]="actionsOpen()"
-        (click)="openActions()"
+        [attr.aria-expanded]="pageActions.actionsOpen()"
+        (click)="pageActions.openActions()"
       >
         <ion-icon name="ellipsis-vertical-outline" aria-hidden="true"></ion-icon>
       </ion-button>
@@ -62,7 +62,7 @@
     }
   </ion-toolbar>
 
-  @if (actionsOpen()) {
+  @if (pageActions.actionsOpen()) {
   <ion-toolbar>
     <ion-buttons class="browser-controls">
       <ion-button aria-label="Go back" [disabled]="!browser.canGoBack()" (click)="browser.goBack()">

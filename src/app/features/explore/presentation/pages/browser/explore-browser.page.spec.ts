@@ -454,7 +454,7 @@ describe('ExploreBrowserPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const input = nativeElement.querySelectorAll('ion-input').item(0);
 
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
     expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
     const initialShowCount = browser.showCount;
@@ -463,7 +463,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
     await waitForViewportTimer();
 
-    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(fixture.componentInstance.pageActions.actionsOpen()).toBeFalse();
     expect(nativeElement.querySelector('.browser-controls')).toBeNull();
     expect(browser.showCount).toBeGreaterThan(initialShowCount);
   });
@@ -512,13 +512,13 @@ describe('ExploreBrowserPage', () => {
     await fixture.whenStable();
 
     expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
-    expect(fixture.componentInstance.actionsOpen()).toBeTrue();
+    expect(fixture.componentInstance.pageActions.actionsOpen()).toBeTrue();
   });
 
   it('repositions the native viewport after opening browser controls', async () => {
     const initialShowCount = browser.showCount;
 
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
     await waitForViewportTimer();
 
@@ -526,7 +526,7 @@ describe('ExploreBrowserPage', () => {
   });
 
   it('closes browser controls before navigating WebView history from Android back', async () => {
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
     const initialShowCount = browser.showCount;
 
@@ -534,7 +534,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
     await waitForViewportTimer();
 
-    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(fixture.componentInstance.pageActions.actionsOpen()).toBeFalse();
     expect(browser.backNavigations).toBe(0);
     expect(browser.closed).toBe(0);
     expect(browser.showCount).toBeGreaterThan(initialShowCount);
@@ -558,7 +558,7 @@ describe('ExploreBrowserPage', () => {
     await platform.backButton.trigger();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.addressBarFocused()).toBeFalse();
+    expect(fixture.componentInstance.pageActions.addressBarFocused()).toBeFalse();
     expect(browser.inputValue()).toBe('https://loaded.example/');
     expect(browser.backNavigations).toBe(0);
     expect(platform.backButton.processNextCalls).toBe(0);
@@ -626,8 +626,8 @@ describe('ExploreBrowserPage', () => {
   it('keeps only the latest pending viewport reposition timer', async () => {
     const initialShowCount = browser.showCount;
 
-    fixture.componentInstance.openActions();
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
     await waitForViewportTimer();
 
@@ -671,7 +671,7 @@ describe('ExploreBrowserPage', () => {
 
   it('runs browser controls after overflow opens', async () => {
     browser.loading.set(true);
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -688,7 +688,7 @@ describe('ExploreBrowserPage', () => {
   });
 
   it('opens reading mode from the address bar toolbar', async () => {
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -698,7 +698,7 @@ describe('ExploreBrowserPage', () => {
     await fixture.whenStable();
 
     expect(browser.readingModeOpens).toBe(1);
-    expect(fixture.componentInstance.actionsOpen()).toBeFalse();
+    expect(fixture.componentInstance.pageActions.actionsOpen()).toBeFalse();
     expect(router.navigations).toEqual([]);
     expect(browser.readingModeActive()).toBeTrue();
   });
@@ -739,7 +739,7 @@ describe('ExploreBrowserPage', () => {
     expect(nativeElement.querySelector('.reader-controls')).not.toBeNull();
     expect(nativeElement.querySelector('.browser-controls')).toBeNull();
 
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -863,7 +863,7 @@ describe('ExploreBrowserPage', () => {
 
   it('stays on the browser when reading mode is unavailable', async () => {
     browser.readingModeResult = false;
-    fixture.componentInstance.openActions();
+    fixture.componentInstance.pageActions.openActions();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
