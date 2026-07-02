@@ -20,10 +20,9 @@ import {
   LibraryEntryEditBlockFormat,
   LibraryEntryEditCommand,
   LibraryEntryEditFormattingController,
-  draftHtmlWithoutEditorOnlyClasses,
-  mediaElementFromTarget,
   registerLibraryEntryEditIcons,
 } from './library-entry-edit-formatting';
+import { LibraryEntryEditMediaSelection } from './library-entry-edit-media-selection';
 import { LibraryEntryEditWorkflow } from './library-entry-edit-workflow';
 
 @Component({
@@ -55,14 +54,14 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   protected readonly draftHtml = this.workflow.draftHtml;
   protected readonly saveState = this.workflow.saveState;
   protected readonly validationMessage = this.workflow.validationMessage;
-  protected readonly selectedMedia = signal(false);
+  private readonly mediaSelection = new LibraryEntryEditMediaSelection();
+  protected readonly selectedMedia = this.mediaSelection.selected;
   protected readonly boldActive = signal(false);
   protected readonly italicActive = signal(false);
   protected readonly blockFormat = signal<LibraryEntryEditBlockFormat>('p');
 
   @ViewChild('editorBody')
   private readonly editorBody?: ElementRef<HTMLElement>;
-  private selectedMediaElement: HTMLElement | null = null;
   private backButtonSubscription: Subscription | null = null;
   private readonly formattingController = new LibraryEntryEditFormattingController(
     this.document,
@@ -106,32 +105,11 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   protected selectMedia(event: Event): void {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    const body = this.editorBody?.nativeElement;
-    if (body === undefined) {
-      return;
-    }
-
-    const mediaElement = mediaElementFromTarget(body, target);
-    if (mediaElement === null) {
-      this.clearSelectedMedia();
-      return;
-    }
-
-    this.clearSelectedMedia();
-    mediaElement.classList.add('library-entry-edit-media-selected');
-    this.selectedMediaElement = mediaElement;
-    this.selectedMedia.set(true);
+    this.mediaSelection.selectFromEvent(this.editorBody?.nativeElement, event);
   }
 
   protected deleteSelectedMedia(): void {
-    this.selectedMediaElement?.remove();
-    this.selectedMediaElement = null;
-    this.selectedMedia.set(false);
+    this.mediaSelection.deleteSelected();
   }
 
   protected preserveEditorInteraction(event: Event): void {
@@ -185,12 +163,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   private currentDraftHtml(): string {
-    const body = this.editorBody?.nativeElement;
-    if (body === undefined) {
-      return '';
-    }
-
-    return draftHtmlWithoutEditorOnlyClasses(body);
+    return this.mediaSelection.draftHtml(this.editorBody?.nativeElement);
   }
 
   private refreshFormattingState(): void {
@@ -205,11 +178,5 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     this.boldActive.set(state.boldActive);
     this.italicActive.set(state.italicActive);
     this.blockFormat.set(state.blockFormat);
-  }
-
-  private clearSelectedMedia(): void {
-    this.selectedMediaElement?.classList.remove('library-entry-edit-media-selected');
-    this.selectedMediaElement = null;
-    this.selectedMedia.set(false);
   }
 }
