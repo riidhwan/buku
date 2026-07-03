@@ -56,7 +56,7 @@ jobs:
 
       - run: cp android/app/build/outputs/apk/release/app-release.apk "${{ runner.temp }}/${{ steps.release.outputs.release_check_apk_name }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: buku-${{ steps.release.outputs.version }}-release-check
           path: ${{ runner.temp }}/${{ steps.release.outputs.release_check_apk_name }}
