@@ -50,7 +50,7 @@ interface LibraryEntryReaderPageHarness {
   readonly series: WritableSignal<LibrarySeries | null>;
   readonly loadedEntries: WritableSignal<readonly LibrarySeriesEntry[]>;
   readonly loadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
-  ionViewWillEnter?(): void;
+  ionViewWillEnter?(): Promise<void>;
   loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
   editActiveEntry(): void;
@@ -143,7 +143,9 @@ describe('LibraryEntryReaderPage', () => {
     });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
     fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
 
@@ -173,8 +175,7 @@ describe('LibraryEntryReaderPage', () => {
     });
     const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
 
-    component.ionViewWillEnter?.();
-    await fixture.whenStable();
+    await component.ionViewWillEnter?.();
     fixture.detectChanges();
     nativeElement = fixture.nativeElement as HTMLElement;
 
@@ -347,7 +348,9 @@ describe('LibraryEntryReaderPage', () => {
     });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -364,7 +367,9 @@ describe('LibraryEntryReaderPage', () => {
     });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -383,7 +388,9 @@ describe('LibraryEntryReaderPage', () => {
     });
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
@@ -410,7 +417,9 @@ describe('LibraryEntryReaderPage', () => {
     };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
     const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
 
     await component.loadNextEntry();

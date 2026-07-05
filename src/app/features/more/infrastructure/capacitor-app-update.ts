@@ -8,10 +8,7 @@ export type NativeAppUpdateInstallResult =
     }
   | {
       readonly status:
-        | 'download-failed'
-        | 'install-permission-required'
-        | 'installer-unavailable'
-        | 'invalid-apk';
+        'download-failed' | 'install-permission-required' | 'installer-unavailable' | 'invalid-apk';
     };
 
 export interface AppUpdatePlugin {

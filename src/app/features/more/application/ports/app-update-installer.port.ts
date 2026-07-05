@@ -8,10 +8,7 @@ export type AppUpdateInstallResult =
   | {
       readonly ok: false;
       readonly reason:
-        | 'download-failed'
-        | 'install-permission-required'
-        | 'installer-unavailable'
-        | 'invalid-apk';
+        'download-failed' | 'install-permission-required' | 'installer-unavailable' | 'invalid-apk';
     };
 
 export interface AppUpdateInstallerPort {
