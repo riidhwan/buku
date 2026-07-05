@@ -2,6 +2,8 @@ import { BrowserUrlPolicy } from './browser-url-policy';
 import {
   browserNoticeForReadingModeResult,
   browserNoticeForUnsupportedCapability,
+} from './explore-browser-notice-policy';
+import {
   readingChapterLinkForDirection,
   resolveReadingModeTargetUrl,
 } from './explore-browser-reading-mode-policy';
