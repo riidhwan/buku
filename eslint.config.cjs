@@ -1,4 +1,5 @@
 const angular = require('@angular-eslint/eslint-plugin');
+const angularEslint = require('angular-eslint');
 const angularTemplate = require('@angular-eslint/eslint-plugin-template');
 const angularTemplateParser = require('@angular-eslint/template-parser');
 const boundaries = require('eslint-plugin-boundaries');
@@ -10,6 +11,13 @@ const tsStrictRules = {
   ...ts.configs['strict-type-checked'].rules,
   ...ts.configs['stylistic-type-checked'].rules,
 };
+const rulesFromConfigs = (configs) =>
+  Object.assign({}, ...configs.map((config) => config.rules ?? {}));
+const angularRecommendedRules = rulesFromConfigs(angularEslint.configs.tsRecommended);
+const angularTemplateRecommendedRules = rulesFromConfigs(angularEslint.configs.templateRecommended);
+const angularTemplateAccessibilityRules = rulesFromConfigs(
+  angularEslint.configs.templateAccessibility,
+);
 
 const applicationLayerRelativeImports = [
   '../application/*',
@@ -74,7 +82,7 @@ module.exports = [
     },
     rules: {
       ...tsStrictRules,
-      ...angular.configs.recommended.rules,
+      ...angularRecommendedRules,
       '@angular-eslint/component-class-suffix': [
         'error',
         {
@@ -461,8 +469,8 @@ module.exports = [
       '@angular-eslint/template': angularTemplate,
     },
     rules: {
-      ...angularTemplate.configs.recommended.rules,
-      ...angularTemplate.configs.accessibility.rules,
+      ...angularTemplateRecommendedRules,
+      ...angularTemplateAccessibilityRules,
     },
   },
 ];

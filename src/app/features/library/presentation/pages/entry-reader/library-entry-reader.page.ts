@@ -83,8 +83,8 @@ export class LibraryEntryReaderPage implements OnInit {
     void this.loadEntry();
   }
 
-  public ionViewWillEnter(): void {
-    void this.loadEntry();
+  public ionViewWillEnter(): Promise<void> {
+    return this.loadEntry();
   }
 
   protected editActiveEntry(): void {
