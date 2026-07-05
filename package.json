@@ -18,6 +18,9 @@
     "architecture:changed": "node scripts/architecture-report.mjs --changed",
     "architecture:check": "node scripts/architecture-report.mjs --all --fail-on-hard",
     "architecture:staged": "node scripts/architecture-report.mjs --staged",
+    "test-obligation:changed": "node scripts/test-obligation.mjs --changed",
+    "test-obligation:check": "node scripts/test-obligation.mjs --all",
+    "test-obligation:staged": "node scripts/test-obligation.mjs --staged",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "cap:sync:android": "cap sync android",
@@ -98,7 +101,8 @@
     "*.{ts,html,scss,json,md}": "prettier --write",
     "*.ts": [
       "eslint --max-warnings=0",
-      "node scripts/architecture-report.mjs"
+      "node scripts/architecture-report.mjs",
+      "node scripts/test-obligation.mjs"
     ],
     "*.scss": "stylelint --max-warnings=0"
   }

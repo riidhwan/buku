@@ -28,6 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm lint
+      - run: pnpm test-obligation:check
       - run: pnpm lint:styles
       - run: pnpm test
       - name: Comment coverage below 100%

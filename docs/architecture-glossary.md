@@ -44,6 +44,8 @@ Facades live under `src/app/features/<feature>/application/` and are named `<fea
 
 A facade may expose feature-local signal state, call use cases or policies, coordinate ports, and return typed results for expected failures. Presentation code should call a facade instead of directly coordinating ports or adapters.
 
+When a class primarily owns workflow behavior rather than serving as the presentation-facing Angular dependency-injection boundary, name it as a workflow instead of a facade. This keeps the facade role narrow enough for test-obligation tooling and review.
+
 ## Feature
 
 A vertical product slice under `src/app/features/<feature-name>/`.
@@ -112,6 +114,12 @@ Use typed results when a user action or outside-world operation can fail in a kn
 
 Infrastructure adapters should map native, storage, and network failures into typed application errors before presentation code turns them into UI state.
 
+## Test Obligation
+
+The expectation that a production file or behavior-owning unit has focused automated tests proving its meaningful behavior.
+
+Test obligation follows behavioral responsibility rather than file count. Files that own rules, state transitions, workflow decisions, persistence behavior, error mapping, or UI behavior need focused tests. Thin dependency-injection wrappers, route declarations, provider wiring, tokens, ports, and type-only files may lack nearby specs when their behavior is covered through the nearest meaningful boundary or when they contain no behavior to test.
+
 ## SQLite Migration
 
 An ordered database schema change for the app-wide SQLite database.
@@ -125,3 +133,9 @@ An application-layer operation that performs one focused user or system action.
 Use cases live under `src/app/features/<feature>/application/` and are named `<action>.use-case.ts`.
 
 Use cases may coordinate domain rules and ports. They should return typed results for expected failures.
+
+## Workflow
+
+An application-layer coordinator that owns a multi-step feature interaction, state transition sequence, or long-lived application state that is broader than one use case.
+
+Workflows live under `src/app/features/<feature>/application/` and are named `<feature-or-interaction>-workflow.ts`. A workflow is behavior-owning and carries test obligation by default.
