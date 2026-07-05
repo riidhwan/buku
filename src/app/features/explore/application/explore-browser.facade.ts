@@ -6,7 +6,7 @@ import type {
   BrowserReadingChapterNavigationResult,
   BrowserReadingModeResult,
 } from './explore-browser-results';
-import { ExploreBrowserWorkflow } from './explore-browser-workflow.facade';
+import { ExploreBrowserWorkflow } from './explore-browser-workflow';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
 import {
   BROWSER_SESSION_STORE,
