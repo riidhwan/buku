@@ -2,7 +2,7 @@ import {
   browserNoticeForLoadFailure,
   browserNoticeForUnsupportedCapability,
   type BrowserNotice,
-} from './explore-browser-reading-mode-policy';
+} from './explore-browser-notice-policy';
 import type { BrowserViewportEvent } from './ports/browser-viewport.port';
 
 export interface BrowserViewportNavigationCommit {

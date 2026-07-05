@@ -10,7 +10,7 @@ import {
   lastExploreBrowserUrl,
   recentExploreBrowserTabs,
 } from './explore-browser-session-policy';
-import type { BrowserNotice } from './explore-browser-reading-mode-policy';
+import type { BrowserNotice } from './explore-browser-notice-policy';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
 
 export class ExploreBrowserWorkflowState {

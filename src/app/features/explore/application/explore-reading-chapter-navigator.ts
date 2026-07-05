@@ -5,9 +5,11 @@ import { BrowserUrlPolicy } from './browser-url-policy';
 import {
   browserNoticeForLoadFailure,
   browserNoticeForReadingModeResult,
+  type BrowserNotice,
+} from './explore-browser-notice-policy';
+import {
   readingChapterLinkForDirection,
   resolveReadingModeTargetUrl,
-  type BrowserNotice,
   type ReadingChapterDirection,
 } from './explore-browser-reading-mode-policy';
 import { BROWSER_VIEWPORT, type BrowserViewportPort } from './ports/browser-viewport.port';
