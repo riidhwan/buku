@@ -260,6 +260,12 @@ module.exports = [
   {
     files: ['src/app/features/*/application/**/*.facade.ts'],
     rules: {
+      'max-lines': fileSizeBudget(260),
+    },
+  },
+  {
+    files: ['src/app/features/*/application/**/*-workflow.ts'],
+    rules: {
       'max-lines': fileSizeBudget(650),
     },
   },

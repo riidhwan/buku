@@ -22,6 +22,7 @@ const budgetByKind = {
   'feature-domain': { soft: 140, hard: 180 },
   'feature-application-port': { soft: 140, hard: 180 },
   'feature-application-facade': { soft: 450, hard: 650 },
+  'feature-application-workflow': { soft: 450, hard: 650 },
   'feature-application-use-case': { soft: 140, hard: 180 },
   'feature-application': { soft: 180, hard: 260 },
   'feature-infrastructure': { soft: 300, hard: 450 },
@@ -180,6 +181,10 @@ function classifyFile(file) {
 
   if (/^src\/app\/features\/[^/]+\/application\/.*\.facade\.ts$/.test(file)) {
     return 'feature-application-facade';
+  }
+
+  if (/^src\/app\/features\/[^/]+\/application\/.*-workflow\.ts$/.test(file)) {
+    return 'feature-application-workflow';
   }
 
   if (/^src\/app\/features\/[^/]+\/application\/.*\.use-case\.ts$/.test(file)) {
