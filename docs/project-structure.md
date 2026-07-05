@@ -189,6 +189,8 @@ Global state is reserved for true app-wide concerns such as session, settings, n
 
 The default test strategy is unit-heavy.
 
+For the test-obligation policy that distinguishes behavior-owning files from thin wiring files, see `docs/testing-policy.md`.
+
 - Prefer Vitest for unit tests if the current Ionic Angular toolchain supports it cleanly.
 - Use the Angular-supported default runner temporarily only if Vitest is brittle at scaffold time.
 - Test domain rules with pure unit tests.

@@ -11,6 +11,7 @@ Future agents must read `AGENTS.md` first. It points to the project structure do
 - `docs/project-structure.md` defines the target source layout.
 - `docs/scaffold-checklist.md` defines the scaffold and verification checklist.
 - `docs/architecture-glossary.md` defines binding engineering terms for code placement and dependency decisions.
+- `docs/testing-policy.md` defines test obligation, nearby spec expectations, and exception handling.
 - `CONTEXT.md` defines product and domain language.
 - `docs/adr/` records architectural decisions and their rationale.
 
@@ -26,6 +27,7 @@ The following rules are enforced by tooling:
 - ESLint complexity limits for TypeScript control flow, nesting, function length, and parameter count
 - ESLint boundaries for architectural imports
 - path-specific ESLint rules for domain, application, ports, infrastructure, presentation, core, and shared code
+- test-obligation checks for behavior-owning files with missing nearby specs
 - restricted feature, environment, Capacitor, and console imports
 - Stylelint for SCSS, including selector nesting limits
 - Prettier formatting
@@ -36,6 +38,7 @@ Run:
 ```bash
 pnpm format:check
 pnpm lint
+pnpm test-obligation:check
 pnpm lint:styles
 pnpm exec tsc -p tsconfig.spec.json --noEmit
 pnpm build
@@ -57,5 +60,5 @@ Some rules need review judgment:
 - whether a concept belongs in `core/`, `shared/`, or a feature
 - whether duplication is ready to become shared
 - whether a new adapter properly isolates native, storage, or network APIs
-- whether a feature has enough unit coverage at the domain/application boundary
+- whether a feature has enough behavior-focused unit coverage at the domain/application boundary
 - whether a proposed architecture change needs a new ADR
