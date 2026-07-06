@@ -1,8 +1,10 @@
 import {
   Component,
+  computed,
   ElementRef,
   OnInit,
   QueryList,
+  signal,
   ViewChildren,
   ViewEncapsulation,
   inject,
@@ -17,13 +19,22 @@ import {
   IonIcon,
   IonInfiniteScroll,
   IonInfiniteScrollContent,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonPopover,
   IonText,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { createOutline } from 'ionicons/icons';
+import { checkmarkOutline, createOutline, textOutline } from 'ionicons/icons';
+import { SeriesEntryReadingFontId } from '../../../domain/series-entry-reading-appearance';
 import { LibraryFacade } from '../../../application/library.facade';
+import {
+  libraryEntryReaderFontOption,
+  libraryEntryReaderFontOptions,
+} from './library-entry-reader-font-options';
 import {
   LibraryEntryReaderInfiniteScrollEvent,
   LibraryEntryReaderWorkflow,
@@ -43,6 +54,10 @@ import {
     IonIcon,
     IonInfiniteScroll,
     IonInfiniteScrollContent,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonPopover,
     IonText,
     IonTitle,
     IonToolbar,
@@ -70,16 +85,24 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly loadedEntries = this.workflow.loadedEntries;
   protected readonly loadState = this.workflow.loadState;
   protected readonly activeEntry = this.workflow.activeEntry;
+  protected readonly appearance = this.workflow.appearance;
+  protected readonly fontOptions = libraryEntryReaderFontOptions;
+  protected readonly selectedFont = computed(() =>
+    libraryEntryReaderFontOption(this.appearance().fontId),
+  );
+  protected readonly appearanceMenuOpen = signal(false);
+  protected readonly appearanceMenuEvent = signal<Event | undefined>(undefined);
   protected readonly infiniteScrollDisabled = this.workflow.infiniteScrollDisabled;
 
   @ViewChildren('readerArticle')
   private readonly readerArticles!: QueryList<ElementRef<HTMLElement>>;
 
   public constructor() {
-    addIcons({ createOutline });
+    addIcons({ checkmarkOutline, createOutline, textOutline });
   }
 
   public ngOnInit(): void {
+    void this.workflow.loadAppearance();
     void this.loadEntry();
   }
 
@@ -125,6 +148,19 @@ export class LibraryEntryReaderPage implements OnInit {
 
   protected async loadNextEntry(event?: LibraryEntryReaderInfiniteScrollEvent): Promise<void> {
     await this.workflow.loadNextEntry(event);
+  }
+
+  protected openAppearanceMenu(event: Event): void {
+    this.appearanceMenuEvent.set(event);
+    this.appearanceMenuOpen.set(true);
+  }
+
+  protected closeAppearanceMenu(): void {
+    this.appearanceMenuOpen.set(false);
+  }
+
+  protected async selectReadingFont(fontId: SeriesEntryReadingFontId): Promise<void> {
+    await this.workflow.selectFont(fontId);
   }
 
   protected updateActiveEntryFromScroll(): void {

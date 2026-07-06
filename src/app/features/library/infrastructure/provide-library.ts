@@ -5,10 +5,12 @@ import { LIBRARY_CLOCK } from '../application/ports/library-clock.port';
 import { LIBRARY_CONTENT_SANITIZER } from '../application/ports/library-content-sanitizer.port';
 import { LIBRARY_ID_GENERATOR } from '../application/ports/library-id-generator.port';
 import { LIBRARY_REPOSITORY } from '../application/ports/library-repository.token';
+import { SERIES_ENTRY_READING_APPEARANCE_STORE } from '../application/ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from '../application/reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from '../application/save-series-entry-content-override.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from '../application/save-reading-snapshot-to-library.use-case';
 import { BrowserLibraryContentSanitizerAdapter } from './browser-library-content-sanitizer.adapter';
+import { CapacitorSeriesEntryReadingAppearanceStoreAdapter } from './capacitor-series-entry-reading-appearance-store.adapter';
 import { CryptoLibraryIdGeneratorAdapter } from './crypto-library-id-generator.adapter';
 import { LibraryLegacyPreferencesStore } from './library-legacy-preferences.store';
 import { SqliteLibraryRepositoryAdapter } from './sqlite/sqlite-library-repository.adapter';
@@ -21,6 +23,7 @@ export function provideLibrary(): Provider[] {
     SaveSeriesEntryContentOverrideUseCase,
     ResetSeriesEntryContentOverrideUseCase,
     BrowserLibraryContentSanitizerAdapter,
+    CapacitorSeriesEntryReadingAppearanceStoreAdapter,
     LibraryLegacyPreferencesStore,
     SqliteLibraryRepositoryAdapter,
     SystemLibraryClockAdapter,
@@ -40,6 +43,10 @@ export function provideLibrary(): Provider[] {
     {
       provide: LIBRARY_CONTENT_SANITIZER,
       useExisting: BrowserLibraryContentSanitizerAdapter,
+    },
+    {
+      provide: SERIES_ENTRY_READING_APPEARANCE_STORE,
+      useExisting: CapacitorSeriesEntryReadingAppearanceStoreAdapter,
     },
   ];
 }

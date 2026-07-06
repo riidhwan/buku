@@ -4,6 +4,10 @@ import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
+import {
+  SeriesEntryReadingAppearance,
+  SeriesEntryReadingFontId,
+} from '../../../domain/series-entry-reading-appearance';
 import { LibraryEntryReaderPage } from './library-entry-reader.page';
 
 let routeSeriesId = 'series-1';
@@ -32,6 +36,8 @@ let series: LibrarySeries | null = {
 };
 
 let entriesById = new Map<string, LibrarySeriesEntry>();
+let readingAppearance: SeriesEntryReadingAppearance = { fontId: 'nv-charis' };
+let savedReadingAppearances: SeriesEntryReadingAppearance[] = [];
 let navigateSpy: jasmine.Spy;
 
 class FakeLibraryFacade {
@@ -44,6 +50,16 @@ class FakeLibraryFacade {
       series !== null && seriesId === series.id ? (entriesById.get(entryId) ?? null) : null,
     );
   }
+
+  public getSeriesEntryReadingAppearance(): Promise<SeriesEntryReadingAppearance> {
+    return Promise.resolve(readingAppearance);
+  }
+
+  public saveSeriesEntryReadingAppearance(appearance: SeriesEntryReadingAppearance): Promise<void> {
+    readingAppearance = appearance;
+    savedReadingAppearances.push(appearance);
+    return Promise.resolve();
+  }
 }
 
 interface LibraryEntryReaderPageHarness {
@@ -54,6 +70,8 @@ interface LibraryEntryReaderPageHarness {
   loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
   editActiveEntry(): void;
+  openAppearanceMenu(event: Event): void;
+  selectReadingFont(fontId: SeriesEntryReadingFontId): Promise<void>;
   updateActiveEntryFromScroll(): void;
 }
 
@@ -98,6 +116,8 @@ describe('LibraryEntryReaderPage', () => {
       ['entry-2', entryFixture('entry-2', 'Chapter 2', 'More saved reading content.')],
       ['entry-3', entryFixture('entry-3', 'Chapter 3', 'Final saved reading content.')],
     ]);
+    readingAppearance = { fontId: 'nv-charis' };
+    savedReadingAppearances = [];
     navigateSpy = jasmine.createSpy('navigate').and.resolveTo(true);
 
     await TestBed.configureTestingModule({
@@ -132,6 +152,61 @@ describe('LibraryEntryReaderPage', () => {
     expect(nativeElement.querySelector('.library-reader-body')?.textContent).toContain(
       'Saved reading content.',
     );
+  });
+
+  it('loads the persisted reading font and applies it to the reader body', async () => {
+    readingAppearance = { fontId: 'libron' };
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const readerBody = nativeElement.querySelector<HTMLElement>('.library-reader-body');
+
+    expect(readerBody?.style.getPropertyValue('--library-reader-font-family')).toBe(
+      '"Buku Libron", serif',
+    );
+  });
+
+  it('persists selected reader fonts and keeps the appearance menu available', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.selectReadingFont('sourcerer');
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const readerBody = nativeElement.querySelector<HTMLElement>('.library-reader-body');
+
+    expect(savedReadingAppearances).toEqual([{ fontId: 'sourcerer' }]);
+    expect(readerBody?.style.getPropertyValue('--library-reader-font-family')).toBe(
+      '"Buku Sourcerer", serif',
+    );
+    expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
+  });
+
+  it('opens and closes the appearance menu without changing the selected font', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    component.openAppearanceMenu(new MouseEvent('click'));
+    fixture.detectChanges();
+    let popover = (fixture.nativeElement as HTMLElement).querySelector<HTMLIonPopoverElement>(
+      'ion-popover',
+    );
+
+    expect(popover?.isOpen).toBeTrue();
+
+    popover?.dispatchEvent(new CustomEvent('didDismiss'));
+    fixture.detectChanges();
+    popover = (fixture.nativeElement as HTMLElement).querySelector<HTMLIonPopoverElement>(
+      'ion-popover',
+    );
+
+    expect(popover?.isOpen).toBeFalse();
+    expect(savedReadingAppearances).toEqual([]);
   });
 
   it('renders effective content and shows the edited indicator for overrides', async () => {
@@ -198,7 +273,7 @@ describe('LibraryEntryReaderPage', () => {
     expect(articles.length).toBe(2);
     expect(articles.item(0).textContent).toContain('Saved reading content.');
     expect(articles.item(1).textContent).toContain('More saved reading content.');
-    expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(1);
+    expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(2);
   });
 
   it('updates the toolbar title when the next saved entry reaches the top threshold', async () => {

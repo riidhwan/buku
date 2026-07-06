@@ -8,6 +8,10 @@ import {
 import { LIBRARY_ID_GENERATOR, LibraryIdGenerator } from './ports/library-id-generator.port';
 import { LibraryRepository } from './ports/library-repository.port';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
+import {
+  SERIES_ENTRY_READING_APPEARANCE_STORE,
+  SeriesEntryReadingAppearanceStore,
+} from './ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from './reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from './save-series-entry-content-override.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from './save-reading-snapshot-to-library.use-case';
@@ -99,6 +103,10 @@ describe('LibraryFacade', () => {
       ],
     });
     await expectAsync(facade.getEntry('series-1', 'entry-1')).toBeResolvedTo(entry);
+    await expectAsync(facade.getSeriesEntryReadingAppearance()).toBeResolvedTo({
+      fontId: 'nv-charis',
+    });
+    await expectAsync(facade.saveSeriesEntryReadingAppearance({ fontId: 'libron' })).toBeResolved();
     await expectAsync(
       facade.saveReadingSnapshot({
         snapshot: {
@@ -153,6 +161,10 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
   const sanitizer: LibraryContentSanitizer = {
     sanitizeContentHtml: (contentHtml) => ({ contentHtml, hasRenderableContent: true }),
   };
+  const appearanceStore: SeriesEntryReadingAppearanceStore = {
+    readAppearance: () => Promise.resolve({ fontId: 'nv-charis' }),
+    saveAppearance: () => Promise.resolve(),
+  };
 
   TestBed.configureTestingModule({
     providers: [
@@ -164,6 +176,7 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
       { provide: LIBRARY_CLOCK, useValue: clock },
       { provide: LIBRARY_ID_GENERATOR, useValue: idGenerator },
       { provide: LIBRARY_CONTENT_SANITIZER, useValue: sanitizer },
+      { provide: SERIES_ENTRY_READING_APPEARANCE_STORE, useValue: appearanceStore },
     ],
   });
 

@@ -5,6 +5,9 @@
     </ion-buttons>
     <ion-title>{{ activeEntry()?.displayTitle ?? 'Entry not found' }}</ion-title>
     <ion-buttons slot="end">
+      <ion-button aria-label="Reading appearance" (click)="openAppearanceMenu($event)">
+        <ion-icon slot="icon-only" name="text-outline"></ion-icon>
+      </ion-button>
       <ion-button
         aria-label="Edit entry"
         [disabled]="activeEntry() === null"
@@ -15,6 +18,42 @@
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
+
+<ion-popover
+  class="library-reader-appearance-popover"
+  [isOpen]="appearanceMenuOpen()"
+  [event]="appearanceMenuEvent()"
+  (didDismiss)="closeAppearanceMenu()"
+>
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Reading Appearance</ion-title>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="library-reader-appearance-menu">
+      <ion-list>
+        <ion-item class="library-reader-appearance-section" lines="none">
+          <ion-label>Font</ion-label>
+        </ion-item>
+        @for (font of fontOptions; track font.id) {
+        <ion-item
+          button="true"
+          [detail]="false"
+          [class.library-reader-font-selected]="appearance().fontId === font.id"
+          (click)="selectReadingFont(font.id)"
+        >
+          <ion-label [style.font-family]="font.cssValue">{{ font.label }}</ion-label>
+          @if (appearance().fontId === font.id) {
+          <ion-icon slot="end" name="checkmark-outline" aria-hidden="true"></ion-icon>
+          }
+        </ion-item>
+        }
+      </ion-list>
+    </ion-content>
+  </ng-template>
+</ion-popover>
 
 <ion-content [scrollEvents]="true" (ionScroll)="updateActiveEntryFromScroll()">
   @if (loadedEntries().length > 0) { @for (selectedEntry of loadedEntries(); track selectedEntry.id;
@@ -48,6 +87,7 @@
     <div
       class="library-reader-body"
       tabindex="0"
+      [style.--library-reader-font-family]="selectedFont().cssValue"
       [innerHTML]="selectedEntry.effectiveContentHtml"
       (click)="preventReaderLinkNavigation($event)"
       (keydown.enter)="preventReaderLinkNavigation($event)"
