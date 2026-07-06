@@ -34,10 +34,26 @@ pnpm-lock.yaml
 ```text
 src/app/
   app.routes.ts
+  composition/
   core/
   shared/
   features/
 ```
+
+## Composition
+
+`composition/` contains app-level feature collaboration wiring that cannot live inside one feature without creating a direct feature-to-feature dependency.
+
+```text
+src/app/composition/
+  <integration>.adapter.ts
+  <integration>.adapter.spec.ts
+  provide-composition.ts
+```
+
+Use composition for narrow adapters that bind one feature's application port to another feature's application facade or use case. Composition may import feature application interfaces from more than one feature, but it must not own feature domain rules, persistence behavior, native adapters, or UI.
+
+Do not put feature collaboration in `core/`. Core stays feature-agnostic app-wide wiring and platform capability. Do not put collaboration adapters in anonymous root-level files under `src/app/`; give the seam an explicit composition module.
 
 ## Core
 
@@ -124,6 +140,20 @@ src/app/features/<feature-name>/
     components/
 ```
 
+## Module Depth
+
+The folder structure is a starting point, not the definition of good architecture. Every behavior-owning module should have enough depth: callers learn a small interface and get meaningful behavior, locality, and test leverage in return.
+
+Use these review questions before adding or splitting a module:
+
+- What interface will callers and tests use?
+- What behavior or dependency knowledge is hidden behind that interface?
+- If this module were deleted, would complexity disappear or spread across callers?
+- Does the seam have a real reason to exist, such as multiple adapters, volatile native/storage behavior, or a product workflow that needs locality?
+- Are callers coordinating several methods in the right order when one deeper operation would better express the product action?
+
+Prefer deepening an existing module when a new file would only pass data through, rename a call, or satisfy the feature template without hiding behavior. Prefer splitting when one interface forces unrelated callers to learn unrelated capabilities.
+
 ## Dependency Direction
 
 Features must not import from other features directly.
@@ -143,6 +173,10 @@ Rules:
 - `presentation/` owns Ionic pages, components, and feature route declarations.
 - Capacitor APIs are allowed only inside infrastructure adapters or app-wide core native adapters.
 - Expected application failures should be returned as typed results; exceptions are reserved for unexpected failures and programmer errors.
+
+Dependency direction does not prove module depth. Passing the import rules means the code is allowed to compile; it does not mean the interface is small, the seam is useful, or the behavior has good locality.
+
+Feature-to-feature collaboration must go through an explicit seam. If a product workflow needs one feature to call another, put the composition adapter in `src/app/composition/` or another documented owning module, not in an anonymous root-level file. Do not hide cross-feature imports by placing them outside `features/`.
 
 ## Routing
 
@@ -185,6 +219,10 @@ Feature state is local by default and exposed from the application layer with An
 
 Global state is reserved for true app-wide concerns such as session, settings, network status, and device capabilities.
 
+Long-lived product state belongs behind an application interface when more than one presentation action depends on its ordering or invariants. Presentation may keep UI state such as editor focus, selected DOM ranges, modal visibility, and transient Ionic event state.
+
+Promote presentation workflows into `application/` when they own product state transitions, persistence decisions, expected failure mapping, route-independent user decisions, or behavior that should be tested without Ionic or DOM setup. Keep DOM mechanics and Ionic event adaptation in `presentation/`.
+
 ## Testing
 
 The default test strategy is unit-heavy.
@@ -199,6 +237,10 @@ For the test-obligation policy that distinguishes behavior-owning files from thi
 - Test presentation components only when they contain meaningful UI behavior.
 - Do not add e2e tooling until the first critical user or native integration flow exists.
 - Use Maestro as the likely default when Android e2e tests become necessary.
+
+The module interface is the preferred test surface. If tests must reach through a facade into private policies, duplicate page setup across many specs, or coordinate several calls to prove one product behavior, reconsider whether the module should be deeper.
+
+Large page specs are a design signal, not automatically a failure. Keep them when the risk is genuinely UI behavior; move behavior behind application workflows when the spec is mostly proving feature state transitions or persistence outcomes.
 
 ## Logging And Errors
 
