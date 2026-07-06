@@ -23,6 +23,10 @@ _Avoid_: edited chapter, replacement content, note
 The Library reading experience that starts from a selected Series Entry and continues forward through later saved Series Entries in the same Series.
 _Avoid_: source chapter discovery, browser reading, reading history
 
+**Series Entry Reading Appearance**:
+The user's persisted comfort preferences for how Series Entry Reading displays saved readable content. These preferences change the reading presentation, not the saved Series Entry content.
+_Avoid_: entry formatting, content style, theme
+
 **Explore**:
 The browsing-oriented area for discovering readable or book-related content on the net from inside Buku. Explore may navigate to ordinary web pages, but it is product-framed around content discovery rather than being a standalone browser.
 

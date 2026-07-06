@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { LibrarySeries, LibrarySeriesEntry, LibrarySeriesSummary } from '../domain/library-series';
+import { SeriesEntryReadingAppearance } from '../domain/series-entry-reading-appearance';
 import { LIBRARY_REPOSITORY } from './ports/library-repository.token';
+import { SERIES_ENTRY_READING_APPEARANCE_STORE } from './ports/series-entry-reading-appearance-store.port';
 import {
   ResetSeriesEntryContentOverrideInput,
   ResetSeriesEntryContentOverrideResult,
@@ -20,6 +22,7 @@ import {
 @Injectable()
 export class LibraryFacade {
   private readonly repository = inject(LIBRARY_REPOSITORY);
+  private readonly appearanceStore = inject(SERIES_ENTRY_READING_APPEARANCE_STORE);
   private readonly saveReadingSnapshotUseCase = inject(SaveReadingSnapshotToLibraryUseCase);
   private readonly saveContentOverrideUseCase = inject(SaveSeriesEntryContentOverrideUseCase);
   private readonly resetContentOverrideUseCase = inject(ResetSeriesEntryContentOverrideUseCase);
@@ -37,6 +40,14 @@ export class LibraryFacade {
   public async getEntry(seriesId: string, entryId: string): Promise<LibrarySeriesEntry | null> {
     const result = await this.repository.getEntry(seriesId, entryId);
     return result.ok ? result.entry : null;
+  }
+
+  public getSeriesEntryReadingAppearance(): Promise<SeriesEntryReadingAppearance> {
+    return this.appearanceStore.readAppearance();
+  }
+
+  public saveSeriesEntryReadingAppearance(appearance: SeriesEntryReadingAppearance): Promise<void> {
+    return this.appearanceStore.saveAppearance(appearance);
   }
 
   public saveReadingSnapshot(

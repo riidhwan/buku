@@ -1,6 +1,10 @@
 import { computed, signal } from '@angular/core';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
+import {
+  defaultSeriesEntryReadingAppearance,
+  SeriesEntryReadingFontId,
+} from '../../../domain/series-entry-reading-appearance';
 
 export type LibraryEntryReaderLoadState = 'idle' | 'loading' | 'ended' | 'failed';
 
@@ -14,6 +18,7 @@ export class LibraryEntryReaderWorkflow {
   public readonly series = signal<LibrarySeries | null>(null);
   public readonly loadedEntries = signal<readonly LibrarySeriesEntry[]>([]);
   public readonly activeEntryId = signal<string | null>(null);
+  public readonly appearance = signal(defaultSeriesEntryReadingAppearance);
   public readonly loadState = signal<LibraryEntryReaderLoadState>('idle');
   public readonly entry = computed(() => this.loadedEntries()[0] ?? null);
   public readonly activeEntry = computed(
@@ -45,6 +50,10 @@ export class LibraryEntryReaderWorkflow {
     this.loadedEntries.set(series === null || entry === null ? [] : [entry]);
     this.activeEntryId.set(entry?.id ?? null);
     this.loadState.set('idle');
+  }
+
+  public async loadAppearance(): Promise<void> {
+    this.appearance.set(await this.dependencies.library.getSeriesEntryReadingAppearance());
   }
 
   public async loadNextEntry(event?: LibraryEntryReaderInfiniteScrollEvent): Promise<void> {
@@ -80,6 +89,12 @@ export class LibraryEntryReaderWorkflow {
 
   public setActiveEntryId(entryId: string): void {
     this.activeEntryId.set(entryId);
+  }
+
+  public async selectFont(fontId: SeriesEntryReadingFontId): Promise<void> {
+    const appearance = { ...this.appearance(), fontId };
+    this.appearance.set(appearance);
+    await this.dependencies.library.saveSeriesEntryReadingAppearance(appearance);
   }
 
   private nextEntryId(): string | null {

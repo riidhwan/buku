@@ -33,3 +33,291 @@
  */
 
 @import '@ionic/angular/css/palettes/dark.system.css';
+
+@font-face {
+  font-family: 'Buku Cartisse';
+  src: url('/assets/fonts/ebook-fonts/core/Cartisse-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Cartisse';
+  src: url('/assets/fonts/ebook-fonts/core/Cartisse-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Cartisse';
+  src: url('/assets/fonts/ebook-fonts/core/Cartisse-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Cartisse';
+  src: url('/assets/fonts/ebook-fonts/core/Cartisse-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Libron';
+  src: url('/assets/fonts/ebook-fonts/core/Libron-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Libron';
+  src: url('/assets/fonts/ebook-fonts/core/Libron-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Libron';
+  src: url('/assets/fonts/ebook-fonts/core/Libron-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Libron';
+  src: url('/assets/fonts/ebook-fonts/core/Libron-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Bitter';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Bitter-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Bitter';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Bitter-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Bitter';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Bitter-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Bitter';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Bitter-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Charis';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Charis-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Charis';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Charis-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Charis';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Charis-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Charis';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Charis-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Garamond';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Garamond-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Garamond';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Garamond-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Garamond';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Garamond-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Garamond';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Garamond-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Jost';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Jost-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Jost';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Jost-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Jost';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Jost-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Jost';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Jost-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Legible Next';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Legible_Next-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Legible Next';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Legible_Next-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Legible Next';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Legible_Next-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Legible Next';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Legible_Next-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Palatium';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Palatium-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Palatium';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Palatium-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Palatium';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Palatium-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku NV Palatium';
+  src: url('/assets/fonts/ebook-fonts/core/NV_Palatium-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Sourcerer';
+  src: url('/assets/fonts/ebook-fonts/core/Sourcerer-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Sourcerer';
+  src: url('/assets/fonts/ebook-fonts/core/Sourcerer-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Sourcerer';
+  src: url('/assets/fonts/ebook-fonts/core/Sourcerer-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Buku Sourcerer';
+  src: url('/assets/fonts/ebook-fonts/core/Sourcerer-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}

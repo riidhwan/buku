@@ -1,5 +1,6 @@
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
+import { SeriesEntryReadingAppearance } from '../../../domain/series-entry-reading-appearance';
 import { LibraryEntryReaderWorkflow } from './library-entry-reader-workflow';
 
 describe('LibraryEntryReaderWorkflow', () => {
@@ -18,6 +19,21 @@ describe('LibraryEntryReaderWorkflow', () => {
     expect(workflow.loadedEntries()).toEqual([library.entry('entry-1')]);
     expect(workflow.activeEntry()).toEqual(library.entry('entry-1'));
     expect(workflow.loadState()).toBe('idle');
+  });
+
+  it('loads the persisted reading appearance', async () => {
+    library.appearance = { fontId: 'libron' };
+
+    await workflow.loadAppearance();
+
+    expect(workflow.appearance()).toEqual({ fontId: 'libron' });
+  });
+
+  it('persists selected reader fonts immediately', async () => {
+    await workflow.selectFont('sourcerer');
+
+    expect(workflow.appearance()).toEqual({ fontId: 'sourcerer' });
+    expect(library.savedAppearances).toEqual([{ fontId: 'sourcerer' }]);
   });
 
   it('appends the next series entry and keeps the infinite scroll event completed', async () => {
@@ -78,6 +94,8 @@ describe('LibraryEntryReaderWorkflow', () => {
 });
 
 class FakeLibraryFacade {
+  public appearance: SeriesEntryReadingAppearance = { fontId: 'nv-charis' };
+  public readonly savedAppearances: SeriesEntryReadingAppearance[] = [];
   public readonly series: LibrarySeries = {
     id: 'series-1',
     title: 'The Clockwork Archive',
@@ -101,6 +119,16 @@ class FakeLibraryFacade {
     return Promise.resolve(
       seriesId === this.series.id ? (this.entriesById.get(entryId) ?? null) : null,
     );
+  }
+
+  public getSeriesEntryReadingAppearance(): Promise<SeriesEntryReadingAppearance> {
+    return Promise.resolve(this.appearance);
+  }
+
+  public saveSeriesEntryReadingAppearance(appearance: SeriesEntryReadingAppearance): Promise<void> {
+    this.appearance = appearance;
+    this.savedAppearances.push(appearance);
+    return Promise.resolve();
   }
 
   public entry(entryId: string): LibrarySeriesEntry {

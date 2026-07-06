@@ -46,6 +46,7 @@ app-library-entry-reader-page {
 }
 
 .library-reader-body {
+  font-family: var(--library-reader-font-family, 'Buku NV Charis', serif);
   color: var(--ion-color-dark);
   font-size: 1.08rem;
   line-height: 1.7;
@@ -90,4 +91,19 @@ app-library-entry-reader-page {
   justify-content: center;
   gap: 8px;
   text-align: center;
+}
+
+.library-reader-appearance-popover {
+  --width: min(320px, 92vw);
+}
+
+.library-reader-appearance-section {
+  color: var(--ion-color-medium);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.library-reader-font-selected {
+  --color: var(--ion-color-primary);
 }
