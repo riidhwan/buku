@@ -36,6 +36,13 @@ export interface LibraryEntryToSave {
   readonly updatedAt: string;
 }
 
+export interface SaveSeriesEntryHeaderVisibilityInput {
+  readonly seriesId: string;
+  readonly entryId: string;
+  readonly headerVisible: boolean;
+  readonly savedAt: string;
+}
+
 export interface SaveSeriesEntryContentOverrideInput {
   readonly seriesId: string;
   readonly entryId: string;
@@ -116,6 +123,20 @@ export type SaveSeriesEntryContentOverrideRepositoryResult =
       readonly reason: LibraryPersistenceFailure;
     };
 
+export type SaveSeriesEntryHeaderVisibilityRepositoryResult =
+  | {
+      readonly ok: true;
+      readonly status: 'saved';
+    }
+  | {
+      readonly ok: true;
+      readonly status: 'missingEntry';
+    }
+  | {
+      readonly ok: false;
+      readonly reason: LibraryPersistenceFailure;
+    };
+
 export type ResetSeriesEntryContentOverrideRepositoryResult =
   | {
       readonly ok: true;
@@ -138,6 +159,9 @@ export interface LibraryRepository {
   saveSeriesEntryContentOverride(
     input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideRepositoryResult>;
+  saveSeriesEntryHeaderVisibility(
+    input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityRepositoryResult>;
   resetSeriesEntryContentOverride(
     input: ResetSeriesEntryContentOverrideInput,
   ): Promise<ResetSeriesEntryContentOverrideRepositoryResult>;

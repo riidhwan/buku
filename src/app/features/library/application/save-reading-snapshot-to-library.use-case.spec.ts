@@ -12,6 +12,8 @@ import {
   ResetSeriesEntryContentOverrideRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
+  SaveSeriesEntryHeaderVisibilityInput,
+  SaveSeriesEntryHeaderVisibilityRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
   SaveSeriesEntryContentOverrideRepositoryResult,
 } from './ports/library-repository.port';
@@ -73,6 +75,7 @@ describe('SaveReadingSnapshotToLibraryUseCase', () => {
       seriesId: 'series-created',
       seriesTitle: 'New Series',
       displayTitle: 'Chapter 1',
+      headerVisible: true,
       sourceUrl: 'https://example.com/story/chapter-1',
       sourceHost: 'example.com',
       articleTitle: 'Chapter 1',
@@ -235,6 +238,12 @@ class FakeLibraryRepository implements LibraryRepository {
     throw new Error('Not used in this spec.');
   }
 
+  public saveSeriesEntryHeaderVisibility(
+    _input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityRepositoryResult> {
+    throw new Error('Not used in this spec.');
+  }
+
   public resetSeriesEntryContentOverride(
     _input: ResetSeriesEntryContentOverrideInput,
   ): Promise<ResetSeriesEntryContentOverrideRepositoryResult> {
@@ -278,6 +287,7 @@ function toEntry(
     ...input.entry,
     seriesId: series.id,
     seriesTitle: series.title,
+    headerVisible: true,
   };
 }
 
@@ -290,6 +300,7 @@ function entry(override: {
     seriesId: 'series-1',
     seriesTitle: 'Series',
     displayTitle: 'Existing',
+    headerVisible: true,
     sourceUrl: override.sourceUrl,
     sourceHost: 'example.com',
     articleTitle: 'Existing',

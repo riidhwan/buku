@@ -25,6 +25,7 @@ export interface LibrarySeriesEntry {
   readonly seriesId: string;
   readonly seriesTitle: string;
   readonly displayTitle: string;
+  readonly headerVisible: boolean;
   readonly sourceUrl: string;
   readonly sourceHost: string | null;
   readonly articleTitle: string;
@@ -44,6 +45,7 @@ export interface LibraryStoredSeriesEntry {
   readonly seriesId: string;
   readonly seriesTitle: string;
   readonly displayTitle: string;
+  readonly headerVisible: boolean;
   readonly sourceUrl: string;
   readonly sourceHost: string | null;
   readonly articleTitle: string;

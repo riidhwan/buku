@@ -14,6 +14,7 @@ import {
 } from './ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from './reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from './save-series-entry-content-override.use-case';
+import { SaveSeriesEntryHeaderVisibilityUseCase } from './save-series-entry-header-visibility.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from './save-reading-snapshot-to-library.use-case';
 
 describe('LibraryFacade', () => {
@@ -23,6 +24,7 @@ describe('LibraryFacade', () => {
       seriesId: 'series-1',
       seriesTitle: 'Mock Series',
       displayTitle: 'Entry 1',
+      headerVisible: true,
       sourceUrl: 'https://example.com/entry-1',
       sourceHost: 'example.com',
       articleTitle: 'Article 1',
@@ -76,6 +78,7 @@ describe('LibraryFacade', () => {
           entryId: input.entry.id,
         }),
       saveSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'saved' }),
+      saveSeriesEntryHeaderVisibility: () => Promise.resolve({ ok: true, status: 'saved' }),
       resetSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'reset' }),
     };
     const facade = createFacade(repository);
@@ -132,6 +135,13 @@ describe('LibraryFacade', () => {
       }),
     ).toBeResolvedTo({ status: 'saved' });
     await expectAsync(
+      facade.saveSeriesEntryHeaderVisibility({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        headerVisible: false,
+      }),
+    ).toBeResolvedTo({ status: 'saved' });
+    await expectAsync(
       facade.resetSeriesEntryContentOverride({
         seriesId: 'series-1',
         entryId: 'entry-1',
@@ -146,6 +156,8 @@ describe('LibraryFacade', () => {
       getEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveSeriesEntryContentOverride: () =>
+        Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
+      saveSeriesEntryHeaderVisibility: () =>
         Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       resetSeriesEntryContentOverride: () =>
         Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
@@ -174,6 +186,7 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
       LibraryFacade,
       SaveReadingSnapshotToLibraryUseCase,
       SaveSeriesEntryContentOverrideUseCase,
+      SaveSeriesEntryHeaderVisibilityUseCase,
       ResetSeriesEntryContentOverrideUseCase,
       { provide: LIBRARY_REPOSITORY, useValue: repository },
       { provide: LIBRARY_CLOCK, useValue: clock },

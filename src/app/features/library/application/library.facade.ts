@@ -18,6 +18,11 @@ import {
   SaveReadingSnapshotToLibraryResult,
   SaveReadingSnapshotToLibraryUseCase,
 } from './save-reading-snapshot-to-library.use-case';
+import {
+  SaveSeriesEntryHeaderVisibilityInput,
+  SaveSeriesEntryHeaderVisibilityResult,
+  SaveSeriesEntryHeaderVisibilityUseCase,
+} from './save-series-entry-header-visibility.use-case';
 
 @Injectable()
 export class LibraryFacade {
@@ -25,6 +30,7 @@ export class LibraryFacade {
   private readonly appearanceStore = inject(SERIES_ENTRY_READING_APPEARANCE_STORE);
   private readonly saveReadingSnapshotUseCase = inject(SaveReadingSnapshotToLibraryUseCase);
   private readonly saveContentOverrideUseCase = inject(SaveSeriesEntryContentOverrideUseCase);
+  private readonly saveHeaderVisibilityUseCase = inject(SaveSeriesEntryHeaderVisibilityUseCase);
   private readonly resetContentOverrideUseCase = inject(ResetSeriesEntryContentOverrideUseCase);
 
   public async listSeries(): Promise<readonly LibrarySeriesSummary[]> {
@@ -60,6 +66,12 @@ export class LibraryFacade {
     input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideResult> {
     return this.saveContentOverrideUseCase.execute(input);
+  }
+
+  public saveSeriesEntryHeaderVisibility(
+    input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityResult> {
+    return this.saveHeaderVisibilityUseCase.execute(input);
   }
 
   public resetSeriesEntryContentOverride(

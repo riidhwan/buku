@@ -159,6 +159,30 @@ describe('LibraryEntryReaderPage', () => {
     );
   });
 
+  it('hides the article header when entry header visibility is off', async () => {
+    entriesById.set('entry-1', {
+      ...entryFixture('entry-1', 'Chapter 1', 'Saved reading content.'),
+      headerVisible: false,
+      hasContentOverride: true,
+    });
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelector('.library-reader-header')).toBeNull();
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 1');
+    expect(nativeElement.querySelector('.library-reader-body')?.textContent).toContain(
+      'Saved reading content.',
+    );
+    expect(nativeElement.textContent).not.toContain('Mira Vale');
+    expect(nativeElement.textContent).not.toContain('Edited');
+  });
+
   it('loads the persisted reading font and applies it to the reader body', async () => {
     readingAppearance = { fontId: 'libron', colorSchemeId: 'sepia' };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
@@ -696,6 +720,7 @@ function entryFixture(id: string, displayTitle: string, bodyText: string): Libra
     seriesId: 'series-1',
     seriesTitle: 'The Clockwork Archive',
     displayTitle,
+    headerVisible: true,
     sourceUrl: `https://example.com/${id}`,
     sourceHost: 'example.com',
     articleTitle: `The Clockwork Archive - ${displayTitle}`,

@@ -13,6 +13,8 @@ import {
   SaveLibraryEntryTarget,
   ResetSeriesEntryContentOverrideInput,
   ResetSeriesEntryContentOverrideRepositoryResult,
+  SaveSeriesEntryHeaderVisibilityInput,
+  SaveSeriesEntryHeaderVisibilityRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
   SaveSeriesEntryContentOverrideRepositoryResult,
 } from '../../application/ports/library-repository.port';
@@ -44,6 +46,7 @@ type EntrySummaryRow = SqliteRow & {
 
 type EntryRow = EntrySummaryRow & {
   readonly series_title: string;
+  readonly reader_header_visible: number;
   readonly source_url: string;
   readonly article_title: string;
   readonly byline: string | null;
@@ -119,6 +122,23 @@ export class SqliteLibraryQueries {
       entryId: input.entryId,
     });
     return { ok: true, status: 'reset' };
+  }
+
+  public async saveSeriesEntryHeaderVisibility(
+    input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityRepositoryResult> {
+    const entry = await this.getEntry(input.seriesId, input.entryId);
+    if (entry === null) {
+      return { ok: true, status: 'missingEntry' };
+    }
+
+    await this.database.run(sqliteLibraryStatements.updateEntryHeaderVisibility, {
+      seriesId: input.seriesId,
+      entryId: input.entryId,
+      headerVisible: input.headerVisible ? 1 : 0,
+      savedAt: input.savedAt,
+    });
+    return { ok: true, status: 'saved' };
   }
 
   public async importLegacySeries(
@@ -245,6 +265,7 @@ function toEntry(row: EntryRow): LibrarySeriesEntry {
     seriesId: row.series_id,
     seriesTitle: row.series_title,
     displayTitle: row.display_title,
+    headerVisible: row.reader_header_visible !== 0,
     sourceUrl: row.source_url,
     sourceHost: row.source_host,
     articleTitle: row.article_title,

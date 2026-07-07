@@ -19,6 +19,10 @@ _Avoid_: library item, bookmark, reading history entry, saved URL
 The user's edited version of a Series Entry's readable content. When present, it is the default content shown during Series Entry Reading while the original saved snapshot remains preserved.
 _Avoid_: edited chapter, replacement content, note
 
+**Series Entry Header Visibility**:
+A per-Series Entry setting that controls whether Series Entry Reading renders that entry's metadata header before its readable content. Hiding the header does not change the saved Series Entry metadata or content.
+_Avoid_: hidden title, content formatting, appearance
+
 **Series Entry Reading**:
 The Library reading experience that starts from a selected Series Entry and continues forward through later saved Series Entries in the same Series.
 _Avoid_: source chapter discovery, browser reading, reading history
