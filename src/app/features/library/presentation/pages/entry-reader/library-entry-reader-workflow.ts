@@ -3,6 +3,7 @@ import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
 import {
   defaultSeriesEntryReadingAppearance,
+  SeriesEntryReadingColorSchemeId,
   SeriesEntryReadingFontId,
 } from '../../../domain/series-entry-reading-appearance';
 
@@ -93,6 +94,12 @@ export class LibraryEntryReaderWorkflow {
 
   public async selectFont(fontId: SeriesEntryReadingFontId): Promise<void> {
     const appearance = { ...this.appearance(), fontId };
+    this.appearance.set(appearance);
+    await this.dependencies.library.saveSeriesEntryReadingAppearance(appearance);
+  }
+
+  public async selectColorScheme(colorSchemeId: SeriesEntryReadingColorSchemeId): Promise<void> {
+    const appearance = { ...this.appearance(), colorSchemeId };
     this.appearance.set(appearance);
     await this.dependencies.library.saveSeriesEntryReadingAppearance(appearance);
   }

@@ -76,6 +76,7 @@ Run the smallest useful checks while working, and before handoff run the relevan
 rtk pnpm format:check
 rtk pnpm lint
 rtk pnpm architecture:changed
+rtk pnpm test-obligation:check
 rtk pnpm lint:styles
 rtk pnpm exec tsc -p tsconfig.spec.json --noEmit
 rtk pnpm build

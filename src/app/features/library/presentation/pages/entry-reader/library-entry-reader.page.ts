@@ -28,9 +28,13 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { checkmarkOutline, createOutline, textOutline } from 'ionicons/icons';
-import { SeriesEntryReadingFontId } from '../../../domain/series-entry-reading-appearance';
+import { checkmarkOutline, colorPaletteOutline, createOutline } from 'ionicons/icons';
+import {
+  SeriesEntryReadingColorSchemeId,
+  SeriesEntryReadingFontId,
+} from '../../../domain/series-entry-reading-appearance';
 import { LibraryFacade } from '../../../application/library.facade';
+import { libraryEntryReaderColorSchemeOptions } from './library-entry-reader-color-scheme-options';
 import {
   libraryEntryReaderFontOption,
   libraryEntryReaderFontOptions,
@@ -86,6 +90,7 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly loadState = this.workflow.loadState;
   protected readonly activeEntry = this.workflow.activeEntry;
   protected readonly appearance = this.workflow.appearance;
+  protected readonly colorSchemeOptions = libraryEntryReaderColorSchemeOptions;
   protected readonly fontOptions = libraryEntryReaderFontOptions;
   protected readonly selectedFont = computed(() =>
     libraryEntryReaderFontOption(this.appearance().fontId),
@@ -98,7 +103,7 @@ export class LibraryEntryReaderPage implements OnInit {
   private readonly readerArticles!: QueryList<ElementRef<HTMLElement>>;
 
   public constructor() {
-    addIcons({ checkmarkOutline, createOutline, textOutline });
+    addIcons({ checkmarkOutline, colorPaletteOutline, createOutline });
   }
 
   public ngOnInit(): void {
@@ -161,6 +166,12 @@ export class LibraryEntryReaderPage implements OnInit {
 
   protected async selectReadingFont(fontId: SeriesEntryReadingFontId): Promise<void> {
     await this.workflow.selectFont(fontId);
+  }
+
+  protected async selectReadingColorScheme(
+    colorSchemeId: SeriesEntryReadingColorSchemeId,
+  ): Promise<void> {
+    await this.workflow.selectColorScheme(colorSchemeId);
   }
 
   protected updateActiveEntryFromScroll(): void {

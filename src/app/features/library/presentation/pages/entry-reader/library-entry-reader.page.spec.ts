@@ -6,6 +6,7 @@ import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries, LibrarySeriesEntry } from '../../../domain/library-series';
 import {
   SeriesEntryReadingAppearance,
+  SeriesEntryReadingColorSchemeId,
   SeriesEntryReadingFontId,
 } from '../../../domain/series-entry-reading-appearance';
 import { LibraryEntryReaderPage } from './library-entry-reader.page';
@@ -36,7 +37,10 @@ let series: LibrarySeries | null = {
 };
 
 let entriesById = new Map<string, LibrarySeriesEntry>();
-let readingAppearance: SeriesEntryReadingAppearance = { fontId: 'nv-charis' };
+let readingAppearance: SeriesEntryReadingAppearance = {
+  fontId: 'nv-charis',
+  colorSchemeId: 'system',
+};
 let savedReadingAppearances: SeriesEntryReadingAppearance[] = [];
 let navigateSpy: jasmine.Spy;
 
@@ -72,6 +76,7 @@ interface LibraryEntryReaderPageHarness {
   editActiveEntry(): void;
   openAppearanceMenu(event: Event): void;
   selectReadingFont(fontId: SeriesEntryReadingFontId): Promise<void>;
+  selectReadingColorScheme(colorSchemeId: SeriesEntryReadingColorSchemeId): Promise<void>;
   updateActiveEntryFromScroll(): void;
 }
 
@@ -116,7 +121,7 @@ describe('LibraryEntryReaderPage', () => {
       ['entry-2', entryFixture('entry-2', 'Chapter 2', 'More saved reading content.')],
       ['entry-3', entryFixture('entry-3', 'Chapter 3', 'Final saved reading content.')],
     ]);
-    readingAppearance = { fontId: 'nv-charis' };
+    readingAppearance = { fontId: 'nv-charis', colorSchemeId: 'system' };
     savedReadingAppearances = [];
     navigateSpy = jasmine.createSpy('navigate').and.resolveTo(true);
 
@@ -155,7 +160,7 @@ describe('LibraryEntryReaderPage', () => {
   });
 
   it('loads the persisted reading font and applies it to the reader body', async () => {
-    readingAppearance = { fontId: 'libron' };
+    readingAppearance = { fontId: 'libron', colorSchemeId: 'sepia' };
     fixture = TestBed.createComponent(LibraryEntryReaderPage);
     fixture.detectChanges();
     await (
@@ -171,6 +176,21 @@ describe('LibraryEntryReaderPage', () => {
     );
   });
 
+  it('loads the persisted reading color scheme and applies it to the reader content', async () => {
+    readingAppearance = { fontId: 'nv-charis', colorSchemeId: 'sepia' };
+    fixture = TestBed.createComponent(LibraryEntryReaderPage);
+    fixture.detectChanges();
+    await (
+      fixture.componentInstance as unknown as LibraryEntryReaderPageHarness
+    ).ionViewWillEnter?.();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const content = nativeElement.querySelector('ion-content');
+
+    expect(content?.classList.contains('library-reader-color-sepia')).toBeTrue();
+  });
+
   it('persists selected reader fonts and keeps the appearance menu available', async () => {
     await fixture.whenStable();
     const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
@@ -180,10 +200,24 @@ describe('LibraryEntryReaderPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const readerBody = nativeElement.querySelector<HTMLElement>('.library-reader-body');
 
-    expect(savedReadingAppearances).toEqual([{ fontId: 'sourcerer' }]);
+    expect(savedReadingAppearances).toEqual([{ fontId: 'sourcerer', colorSchemeId: 'system' }]);
     expect(readerBody?.style.getPropertyValue('--library-reader-font-family')).toBe(
       '"Buku Sourcerer", serif',
     );
+    expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
+  });
+
+  it('persists selected reader color schemes and keeps the appearance menu available', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.selectReadingColorScheme('paper');
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const content = nativeElement.querySelector('ion-content');
+
+    expect(savedReadingAppearances).toEqual([{ fontId: 'nv-charis', colorSchemeId: 'paper' }]);
+    expect(content?.classList.contains('library-reader-color-paper')).toBeTrue();
     expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
   });
 

@@ -6,7 +6,7 @@
     <ion-title>{{ activeEntry()?.displayTitle ?? 'Entry not found' }}</ion-title>
     <ion-buttons slot="end">
       <ion-button aria-label="Reading appearance" (click)="openAppearanceMenu($event)">
-        <ion-icon slot="icon-only" name="text-outline"></ion-icon>
+        <ion-icon slot="icon-only" name="color-palette-outline"></ion-icon>
       </ion-button>
       <ion-button
         aria-label="Edit entry"
@@ -35,13 +35,41 @@
     <ion-content class="library-reader-appearance-menu">
       <ion-list>
         <ion-item class="library-reader-appearance-section" lines="none">
+          <ion-label>Color</ion-label>
+        </ion-item>
+        @for (colorScheme of colorSchemeOptions; track colorScheme.id) {
+        <ion-item
+          button="true"
+          [detail]="false"
+          [class.library-reader-appearance-selected]="
+            appearance().colorSchemeId === colorScheme.id
+          "
+          (click)="selectReadingColorScheme(colorScheme.id)"
+        >
+          <span
+            class="library-reader-color-swatch"
+            [class.library-reader-color-swatch-system]="colorScheme.id === 'system'"
+            [class.library-reader-color-swatch-light]="colorScheme.id === 'light'"
+            [class.library-reader-color-swatch-paper]="colorScheme.id === 'paper'"
+            [class.library-reader-color-swatch-sepia]="colorScheme.id === 'sepia'"
+            [class.library-reader-color-swatch-dark]="colorScheme.id === 'dark'"
+            aria-hidden="true"
+          ></span>
+          <ion-label>{{ colorScheme.label }}</ion-label>
+          @if (appearance().colorSchemeId === colorScheme.id) {
+          <ion-icon slot="end" name="checkmark-outline" aria-hidden="true"></ion-icon>
+          }
+        </ion-item>
+        }
+
+        <ion-item class="library-reader-appearance-section" lines="none">
           <ion-label>Font</ion-label>
         </ion-item>
         @for (font of fontOptions; track font.id) {
         <ion-item
           button="true"
           [detail]="false"
-          [class.library-reader-font-selected]="appearance().fontId === font.id"
+          [class.library-reader-appearance-selected]="appearance().fontId === font.id"
           (click)="selectReadingFont(font.id)"
         >
           <ion-label [style.font-family]="font.cssValue">{{ font.label }}</ion-label>
@@ -55,7 +83,16 @@
   </ng-template>
 </ion-popover>
 
-<ion-content [scrollEvents]="true" (ionScroll)="updateActiveEntryFromScroll()">
+<ion-content
+  class="library-reader-content"
+  [class.library-reader-color-system]="appearance().colorSchemeId === 'system'"
+  [class.library-reader-color-light]="appearance().colorSchemeId === 'light'"
+  [class.library-reader-color-paper]="appearance().colorSchemeId === 'paper'"
+  [class.library-reader-color-sepia]="appearance().colorSchemeId === 'sepia'"
+  [class.library-reader-color-dark]="appearance().colorSchemeId === 'dark'"
+  [scrollEvents]="true"
+  (ionScroll)="updateActiveEntryFromScroll()"
+>
   @if (loadedEntries().length > 0) { @for (selectedEntry of loadedEntries(); track selectedEntry.id;
   let first = $first) {
   <article
@@ -80,7 +117,7 @@
         }
       </ion-text>
       } @if (selectedEntry.hasContentOverride) {
-      <ion-text class="library-reader-edited" color="medium">Edited</ion-text>
+      <ion-text class="library-reader-edited">Edited</ion-text>
       }
     </header>
 
@@ -95,13 +132,13 @@
   </article>
   } @if (loadState() === 'failed') {
   <div class="library-reader-boundary">
-    <ion-text color="medium">Could not load the next saved entry.</ion-text>
+    <ion-text>Could not load the next saved entry.</ion-text>
     <ion-button class="library-reader-retry" fill="clear" size="small" (click)="loadNextEntry()">
       Retry
     </ion-button>
   </div>
   } @else if (loadState() === 'ended') {
-  <ion-text class="library-reader-boundary" color="medium">No more saved entries.</ion-text>
+  <ion-text class="library-reader-boundary">No more saved entries.</ion-text>
   }
 
   <ion-infinite-scroll
