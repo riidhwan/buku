@@ -60,6 +60,7 @@ describe('LibraryLegacyPreferencesStore', () => {
               seriesId: 'series-1',
               seriesTitle: 'Series',
               displayTitle: 'Entry',
+              headerVisible: true,
               sourceUrl: 'https://example.com/entry',
               sourceHost: 'example.com',
               articleTitle: 'Article',

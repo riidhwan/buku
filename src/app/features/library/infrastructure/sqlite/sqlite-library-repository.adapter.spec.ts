@@ -76,6 +76,7 @@ describe('SqliteLibraryRepositoryAdapter', () => {
         seriesId: 'series-1',
         seriesTitle: 'Series',
         displayTitle: 'Chapter 1',
+        headerVisible: true,
         sourceUrl: 'https://example.com/story/chapter-1',
         sourceHost: 'example.com',
         articleTitle: 'Chapter 1',
@@ -161,6 +162,48 @@ describe('SqliteLibraryRepositoryAdapter', () => {
         effectiveContentHtml: '<p>Edited body</p>',
         hasContentOverride: true,
       }),
+    });
+  });
+
+  it('saves entry header visibility without creating a content override', async () => {
+    await repository.saveEntry(saveInput());
+
+    await expectAsync(
+      repository.saveSeriesEntryHeaderVisibility({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        headerVisible: false,
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'saved' });
+
+    expect(database.overrides).toEqual([]);
+    expect(database.entries[0]?.updatedAt).toBe('2026-06-28T10:00:00.000Z');
+    await expectAsync(repository.getEntry('series-1', 'entry-1')).toBeResolvedTo({
+      ok: true,
+      entry: jasmine.objectContaining({
+        headerVisible: false,
+        contentOverrideHtml: null,
+        hasContentOverride: false,
+      }),
+    });
+  });
+
+  it('keeps visible entry header visibility explicit when saving true', async () => {
+    await repository.saveEntry(saveInput());
+
+    await expectAsync(
+      repository.saveSeriesEntryHeaderVisibility({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        headerVisible: true,
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'saved' });
+
+    await expectAsync(repository.getEntry('series-1', 'entry-1')).toBeResolvedTo({
+      ok: true,
+      entry: jasmine.objectContaining({ headerVisible: true }),
     });
   });
 
@@ -254,6 +297,17 @@ describe('SqliteLibraryRepositoryAdapter', () => {
     ).toBeResolvedTo({ ok: true, status: 'missingEntry' });
   });
 
+  it('returns missingEntry when saving header visibility for an unknown entry', async () => {
+    await expectAsync(
+      repository.saveSeriesEntryHeaderVisibility({
+        seriesId: 'series-1',
+        entryId: 'missing-entry',
+        headerVisible: false,
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({ ok: true, status: 'missingEntry' });
+  });
+
   it('imports the legacy Preferences document once before repository operations', async () => {
     legacyStore.migrated = false;
     legacyStore.document = {
@@ -267,6 +321,7 @@ describe('SqliteLibraryRepositoryAdapter', () => {
               seriesId: 'legacy-series',
               seriesTitle: 'Legacy Series',
               displayTitle: 'Legacy Entry',
+              headerVisible: true,
               sourceUrl: 'https://example.com/legacy',
               sourceHost: 'example.com',
               articleTitle: 'Legacy Article',
@@ -282,6 +337,7 @@ describe('SqliteLibraryRepositoryAdapter', () => {
               seriesId: 'legacy-series',
               seriesTitle: 'Legacy Series',
               displayTitle: 'Legacy Older Entry',
+              headerVisible: true,
               sourceUrl: 'https://example.com/legacy-older',
               sourceHost: 'example.com',
               articleTitle: 'Legacy Older Article',
@@ -297,6 +353,7 @@ describe('SqliteLibraryRepositoryAdapter', () => {
               seriesId: 'legacy-series',
               seriesTitle: 'Legacy Series',
               displayTitle: 'Legacy Newer Entry',
+              headerVisible: true,
               sourceUrl: 'https://example.com/legacy-newer',
               sourceHost: 'example.com',
               articleTitle: 'Legacy Newer Article',
@@ -416,6 +473,17 @@ describe('SqliteLibraryRepositoryAdapter', () => {
       ok: false,
       reason: 'persistenceFailed',
     });
+    await expectAsync(
+      repository.saveSeriesEntryHeaderVisibility({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        headerVisible: false,
+        savedAt: '2026-06-28T10:00:00.000Z',
+      }),
+    ).toBeResolvedTo({
+      ok: false,
+      reason: 'persistenceFailed',
+    });
   });
 });
 
@@ -424,13 +492,14 @@ interface FakeSeries {
   readonly title: string;
   readonly normalizedTitle: string;
   readonly createdAt: string;
-  readonly updatedAt: string;
+  updatedAt: string;
 }
 
 interface FakeEntry {
   readonly id: string;
   readonly seriesId: string;
   readonly displayTitle: string;
+  headerVisible: boolean;
   readonly sourceUrl: string;
   readonly sourceHost: string | null;
   readonly articleTitle: string;
@@ -439,7 +508,7 @@ interface FakeEntry {
   readonly publishedTime: string | null;
   readonly contentHtml: string;
   readonly createdAt: string;
-  readonly updatedAt: string;
+  updatedAt: string;
 }
 
 interface FakeOverride {
@@ -471,6 +540,10 @@ class FakeSqliteDatabase implements SqliteDatabase {
     const bound = bindSqliteStatement(statement, values);
     if (bound.statement.includes('DELETE FROM library_series_entry_content_overrides')) {
       this.deleteOverride(bound.values);
+      return Promise.resolve();
+    }
+    if (bound.statement.includes('UPDATE library_series_entries')) {
+      this.updateEntryHeaderVisibility(bound.values);
       return Promise.resolve();
     }
     if (bound.statement.includes('library_series_entries')) {
@@ -577,6 +650,7 @@ class FakeSqliteDatabase implements SqliteDatabase {
       id: text(values, 0),
       seriesId,
       displayTitle: text(values, 2),
+      headerVisible: true,
       sourceUrl,
       sourceHost: nullableText(values, 4),
       articleTitle: text(values, 5),
@@ -621,6 +695,18 @@ class FakeSqliteDatabase implements SqliteDatabase {
     if (existingIndex >= 0) {
       this.overrides.splice(existingIndex, 1);
     }
+  }
+
+  private updateEntryHeaderVisibility(values: SqliteValues): void {
+    const entry = this.entries.find(
+      (candidate) => candidate.seriesId === text(values, 2) && candidate.id === text(values, 3),
+    );
+    if (entry === undefined) {
+      return;
+    }
+
+    entry.headerVisible = number(values, 0) !== 0;
+    entry.updatedAt = text(values, 1);
   }
 }
 
@@ -709,6 +795,7 @@ function toEntryRow(
   return {
     ...toEntrySummaryRow(entry),
     series_title: series.find((candidate) => candidate.id === entry.seriesId)?.title ?? '',
+    reader_header_visible: entry.headerVisible ? 1 : 0,
     source_url: entry.sourceUrl,
     article_title: entry.articleTitle,
     byline: entry.byline,
@@ -761,6 +848,15 @@ function nullableText(values: SqliteValues, index: number): string | null {
   }
 
   throw new Error('Expected nullable text SQLite value.');
+}
+
+function number(values: SqliteValues, index: number): number {
+  const value = values[index];
+  if (typeof value !== 'number') {
+    throw new Error('Expected number SQLite value.');
+  }
+
+  return value;
 }
 
 function maxString(values: readonly string[]): string | null {

@@ -101,6 +101,7 @@
     [class.library-reader-article-continued]="!first"
     [attr.data-entry-id]="selectedEntry.id"
   >
+    @if (selectedEntry.headerVisible) {
     <header class="library-reader-header">
       <p class="library-reader-source">
         {{ selectedEntry.siteName ?? selectedEntry.sourceHost ?? selectedEntry.sourceUrl }}
@@ -120,6 +121,7 @@
       <ion-text class="library-reader-edited">Edited</ion-text>
       }
     </header>
+    }
 
     <div
       class="library-reader-body"

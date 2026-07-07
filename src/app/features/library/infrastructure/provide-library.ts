@@ -8,6 +8,7 @@ import { LIBRARY_REPOSITORY } from '../application/ports/library-repository.toke
 import { SERIES_ENTRY_READING_APPEARANCE_STORE } from '../application/ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from '../application/reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from '../application/save-series-entry-content-override.use-case';
+import { SaveSeriesEntryHeaderVisibilityUseCase } from '../application/save-series-entry-header-visibility.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from '../application/save-reading-snapshot-to-library.use-case';
 import { BrowserLibraryContentSanitizerAdapter } from './browser-library-content-sanitizer.adapter';
 import { CapacitorSeriesEntryReadingAppearanceStoreAdapter } from './capacitor-series-entry-reading-appearance-store.adapter';
@@ -21,6 +22,7 @@ export function provideLibrary(): Provider[] {
     LibraryFacade,
     SaveReadingSnapshotToLibraryUseCase,
     SaveSeriesEntryContentOverrideUseCase,
+    SaveSeriesEntryHeaderVisibilityUseCase,
     ResetSeriesEntryContentOverrideUseCase,
     BrowserLibraryContentSanitizerAdapter,
     CapacitorSeriesEntryReadingAppearanceStoreAdapter,

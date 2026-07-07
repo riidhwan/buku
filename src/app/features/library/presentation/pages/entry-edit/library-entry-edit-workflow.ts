@@ -10,10 +10,12 @@ export type LibraryEntryEditSaveState = 'idle' | 'saving' | 'resetting' | 'faile
 export class LibraryEntryEditWorkflow {
   public readonly entry = signal<LibrarySeriesEntry | null>(null);
   public readonly draftHtml = signal('');
+  public readonly draftHeaderVisible = signal(true);
   public readonly saveState = signal<LibraryEntryEditSaveState>('idle');
   public readonly validationMessage = signal<string | null>(null);
 
   private startingSanitizedHtml = '';
+  private startingHeaderVisible = true;
 
   public constructor(
     private readonly dependencies: {
@@ -33,29 +35,46 @@ export class LibraryEntryEditWorkflow {
     );
     this.entry.set(entry);
     const contentHtml = entry?.effectiveContentHtml ?? '';
+    this.startingHeaderVisible = entry?.headerVisible ?? true;
     this.startingSanitizedHtml = this.sanitizeForComparison(contentHtml);
     this.draftHtml.set(contentHtml);
+    this.draftHeaderVisible.set(this.startingHeaderVisible);
   }
 
-  public async save(contentHtml: string): Promise<boolean> {
+  public async save(contentHtml: string, headerVisible: boolean): Promise<boolean> {
     this.saveState.set('saving');
     this.validationMessage.set(null);
 
-    const result = await this.dependencies.library.saveSeriesEntryContentOverride({
-      seriesId: this.dependencies.seriesId,
-      entryId: this.dependencies.entryId,
-      contentHtml,
-    });
-    if (result.status === 'saved') {
-      await this.navigateToReader();
-      return true;
+    if (this.hasUnsavedContentChanges(contentHtml)) {
+      const result = await this.dependencies.library.saveSeriesEntryContentOverride({
+        seriesId: this.dependencies.seriesId,
+        entryId: this.dependencies.entryId,
+        contentHtml,
+      });
+      if (result.status !== 'saved') {
+        this.saveState.set('failed');
+        this.validationMessage.set(
+          result.status === 'validationFailed' ? result.message : 'Could not save this edit.',
+        );
+        return false;
+      }
     }
 
-    this.saveState.set('failed');
-    this.validationMessage.set(
-      result.status === 'validationFailed' ? result.message : 'Could not save this edit.',
-    );
-    return false;
+    if (this.hasUnsavedHeaderVisibilityChanges(headerVisible)) {
+      const result = await this.dependencies.library.saveSeriesEntryHeaderVisibility({
+        seriesId: this.dependencies.seriesId,
+        entryId: this.dependencies.entryId,
+        headerVisible,
+      });
+      if (result.status !== 'saved') {
+        this.saveState.set('failed');
+        this.validationMessage.set('Could not save this edit.');
+        return false;
+      }
+    }
+
+    await this.navigateToReader();
+    return true;
   }
 
   public async resetToOriginal(): Promise<boolean> {
@@ -85,9 +104,9 @@ export class LibraryEntryEditWorkflow {
     return false;
   }
 
-  public async requestLeave(currentDraftHtml: string): Promise<boolean> {
+  public async requestLeave(currentDraftHtml: string, headerVisible: boolean): Promise<boolean> {
     if (
-      this.hasUnsavedChanges(currentDraftHtml) &&
+      this.hasUnsavedChanges(currentDraftHtml, headerVisible) &&
       !(await this.confirm({
         header: 'Discard changes?',
         message: 'Your unsaved edits will be lost.',
@@ -111,8 +130,19 @@ export class LibraryEntryEditWorkflow {
     ]);
   }
 
-  private hasUnsavedChanges(contentHtml: string): boolean {
+  private hasUnsavedChanges(contentHtml: string, headerVisible: boolean): boolean {
+    return (
+      this.hasUnsavedContentChanges(contentHtml) ||
+      this.hasUnsavedHeaderVisibilityChanges(headerVisible)
+    );
+  }
+
+  private hasUnsavedContentChanges(contentHtml: string): boolean {
     return this.sanitizeForComparison(contentHtml) !== this.startingSanitizedHtml;
+  }
+
+  private hasUnsavedHeaderVisibilityChanges(headerVisible: boolean): boolean {
+    return headerVisible !== this.startingHeaderVisible;
   }
 
   private sanitizeForComparison(contentHtml: string): string {

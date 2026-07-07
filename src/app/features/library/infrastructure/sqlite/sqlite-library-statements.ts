@@ -32,6 +32,7 @@ export const sqliteLibraryStatements = {
       entries.series_id,
       series.title AS series_title,
       entries.display_title,
+      entries.reader_header_visible,
       entries.source_url,
       entries.source_host,
       entries.article_title,
@@ -110,5 +111,11 @@ export const sqliteLibraryStatements = {
   deleteEntryContentOverride: `
     DELETE FROM library_series_entry_content_overrides
     WHERE entry_id = :entryId;
+  `,
+  updateEntryHeaderVisibility: `
+    UPDATE library_series_entries
+    SET reader_header_visible = :headerVisible,
+        updated_at = :savedAt
+    WHERE series_id = :seriesId AND id = :entryId;
   `,
 } as const;

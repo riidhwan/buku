@@ -13,6 +13,10 @@ import {
   SaveSeriesEntryContentOverrideInput,
   SaveSeriesEntryContentOverrideResult,
 } from '../../../application/save-series-entry-content-override.use-case';
+import {
+  SaveSeriesEntryHeaderVisibilityInput,
+  SaveSeriesEntryHeaderVisibilityResult,
+} from '../../../application/save-series-entry-header-visibility.use-case';
 import { LibrarySeriesEntry } from '../../../domain/library-series';
 import { LibraryEntryEditWorkflow } from './library-entry-edit-workflow';
 
@@ -34,10 +38,13 @@ describe('LibraryEntryEditWorkflow', () => {
 
     expect(workflow.entry()).toEqual(library.entry);
     expect(workflow.draftHtml()).toBe('<p>Original content.</p>');
+    expect(workflow.draftHeaderVisible()).toBeTrue();
   });
 
   it('saves edited content and navigates back to the reader', async () => {
-    const saved = await workflow.save('<p>Edited content.</p>');
+    await workflow.loadEntry();
+
+    const saved = await workflow.save('<p>Edited content.</p>', true);
 
     expect(saved).toBeTrue();
     expect(library.savedInputs).toEqual([
@@ -52,13 +59,45 @@ describe('LibraryEntryEditWorkflow', () => {
     ]);
   });
 
+  it('saves changed header visibility without creating a content override', async () => {
+    await workflow.loadEntry();
+
+    const saved = await workflow.save('<p>Original content.</p>', false);
+
+    expect(saved).toBeTrue();
+    expect(library.savedInputs).toEqual([]);
+    expect(library.savedHeaderVisibilityInputs).toEqual([
+      {
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        headerVisible: false,
+      },
+    ]);
+    expect(router.navigateCalls).toEqual([
+      ['/library', 'series', 'series-1', 'entries', 'entry-1'],
+    ]);
+  });
+
+  it('keeps header visibility save failures in workflow state', async () => {
+    await workflow.loadEntry();
+    library.saveHeaderVisibilityResult = { status: 'missingEntry' };
+
+    const saved = await workflow.save('<p>Original content.</p>', false);
+
+    expect(saved).toBeFalse();
+    expect(workflow.saveState()).toBe('failed');
+    expect(workflow.validationMessage()).toBe('Could not save this edit.');
+    expect(router.navigateCalls).toEqual([]);
+  });
+
   it('keeps validation failures in workflow state', async () => {
+    await workflow.loadEntry();
     library.saveResult = {
       status: 'validationFailed',
       message: 'Edited content must not be empty.',
     };
 
-    const saved = await workflow.save('');
+    const saved = await workflow.save('', true);
 
     expect(saved).toBeFalse();
     expect(workflow.saveState()).toBe('failed');
@@ -75,6 +114,7 @@ describe('LibraryEntryEditWorkflow', () => {
 
     expect(await resetPromise).toBeTrue();
     expect(library.resetInputs).toEqual([{ seriesId: 'series-1', entryId: 'entry-1' }]);
+    expect(library.savedHeaderVisibilityInputs).toEqual([]);
     expect(router.navigateCalls).toEqual([
       ['/library', 'series', 'series-1', 'entries', 'entry-1'],
     ]);
@@ -94,7 +134,27 @@ describe('LibraryEntryEditWorkflow', () => {
   it('asks before leaving changed sanitized content', async () => {
     await workflow.loadEntry();
 
-    const leavePromise = workflow.requestLeave('<p>Changed content.</p><script>bad()</script>');
+    const leavePromise = workflow.requestLeave(
+      '<p>Changed content.</p><script>bad()</script>',
+      true,
+    );
+    await flushAlertPresentation();
+
+    expect(alertController.latest?.header).toBe('Discard changes?');
+    expect(router.navigateCalls).toEqual([]);
+
+    alertController.confirmLatest();
+
+    expect(await leavePromise).toBeTrue();
+    expect(router.navigateCalls).toEqual([
+      ['/library', 'series', 'series-1', 'entries', 'entry-1'],
+    ]);
+  });
+
+  it('asks before leaving changed header visibility', async () => {
+    await workflow.loadEntry();
+
+    const leavePromise = workflow.requestLeave('<p>Original content.</p>', false);
     await flushAlertPresentation();
 
     expect(alertController.latest?.header).toBe('Discard changes?');
@@ -112,8 +172,10 @@ describe('LibraryEntryEditWorkflow', () => {
 class FakeLibraryFacade {
   public entry: LibrarySeriesEntry | null = entryFixture();
   public saveResult: SaveSeriesEntryContentOverrideResult = { status: 'saved' };
+  public saveHeaderVisibilityResult: SaveSeriesEntryHeaderVisibilityResult = { status: 'saved' };
   public resetResult: ResetSeriesEntryContentOverrideResult = { status: 'reset' };
   public readonly savedInputs: SaveSeriesEntryContentOverrideInput[] = [];
+  public readonly savedHeaderVisibilityInputs: SaveSeriesEntryHeaderVisibilityInput[] = [];
   public readonly resetInputs: ResetSeriesEntryContentOverrideInput[] = [];
 
   public getEntry(seriesId: string, entryId: string): Promise<LibrarySeriesEntry | null> {
@@ -129,6 +191,13 @@ class FakeLibraryFacade {
   ): Promise<SaveSeriesEntryContentOverrideResult> {
     this.savedInputs.push(input);
     return Promise.resolve(this.saveResult);
+  }
+
+  public saveSeriesEntryHeaderVisibility(
+    input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityResult> {
+    this.savedHeaderVisibilityInputs.push(input);
+    return Promise.resolve(this.saveHeaderVisibilityResult);
   }
 
   public resetSeriesEntryContentOverride(
@@ -251,6 +320,7 @@ function entryFixture(): LibrarySeriesEntry {
     seriesId: 'series-1',
     seriesTitle: 'Series',
     displayTitle: 'Chapter 1',
+    headerVisible: true,
     sourceUrl: 'https://example.com/chapter-1',
     sourceHost: 'example.com',
     articleTitle: 'Chapter 1',

@@ -8,8 +8,11 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonItem,
+  IonLabel,
   IonText,
   IonTitle,
+  IonToggle,
   IonToolbar,
   Platform,
 } from '@ionic/angular/standalone';
@@ -29,7 +32,19 @@ import { LibraryEntryEditWorkflow } from './library-entry-edit-workflow';
   selector: 'app-library-entry-edit-page',
   templateUrl: './library-entry-edit.page.html',
   styleUrl: './library-entry-edit.page.scss',
-  imports: [IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonText, IonTitle, IonToolbar],
+  imports: [
+    IonButton,
+    IonButtons,
+    IonContent,
+    IonHeader,
+    IonIcon,
+    IonItem,
+    IonLabel,
+    IonText,
+    IonTitle,
+    IonToggle,
+    IonToolbar,
+  ],
 })
 export class LibraryEntryEditPage implements OnInit, OnDestroy {
   private readonly library = inject(LibraryFacade);
@@ -52,6 +67,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   });
   protected readonly entry = this.workflow.entry;
   protected readonly draftHtml = this.workflow.draftHtml;
+  protected readonly draftHeaderVisible = this.workflow.draftHeaderVisible;
   protected readonly saveState = this.workflow.saveState;
   protected readonly validationMessage = this.workflow.validationMessage;
   private readonly mediaSelection = new LibraryEntryEditMediaSelection();
@@ -89,7 +105,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   protected async save(): Promise<void> {
-    await this.workflow.save(this.currentDraftHtml());
+    await this.workflow.save(this.currentDraftHtml(), this.draftHeaderVisible());
   }
 
   protected async resetToOriginal(): Promise<void> {
@@ -147,13 +163,17 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     );
   }
 
+  protected setDraftHeaderVisible(visible: boolean): void {
+    this.draftHeaderVisible.set(visible);
+  }
+
   private async loadEntry(): Promise<void> {
     await this.workflow.loadEntry();
     this.refreshFormattingState();
   }
 
   private async requestLeave(): Promise<void> {
-    await this.workflow.requestLeave(this.currentDraftHtml());
+    await this.workflow.requestLeave(this.currentDraftHtml(), this.draftHeaderVisible());
   }
 
   private registerBackButtonHandler(): void {

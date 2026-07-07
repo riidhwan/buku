@@ -191,6 +191,7 @@ function entryFixture(id: string, displayTitle: string): LibrarySeriesEntry {
     seriesId: 'series-1',
     seriesTitle: 'The Clockwork Archive',
     displayTitle,
+    headerVisible: true,
     sourceUrl: `https://example.com/${id}`,
     sourceHost: 'example.com',
     articleTitle: `The Clockwork Archive - ${displayTitle}`,

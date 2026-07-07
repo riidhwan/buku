@@ -30,6 +30,11 @@
   display: none;
 }
 
+.library-entry-edit-header-visibility {
+  margin: 0 0 16px;
+  border-radius: 8px;
+}
+
 .library-entry-edit-formatting ion-button {
   --border-radius: 6px;
   --color: var(--ion-color-medium);

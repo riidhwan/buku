@@ -12,6 +12,8 @@ import {
   ResetSeriesEntryContentOverrideRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
+  SaveSeriesEntryHeaderVisibilityInput,
+  SaveSeriesEntryHeaderVisibilityRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
   SaveSeriesEntryContentOverrideRepositoryResult,
 } from '../../application/ports/library-repository.port';
@@ -84,6 +86,19 @@ export class SqliteLibraryRepositoryAdapter implements LibraryRepository {
       await this.ensureLegacyDataMigrated();
       return await this.database.transaction((database) =>
         new SqliteLibraryQueries(database).resetSeriesEntryContentOverride(input),
+      );
+    } catch (_error) {
+      return { ok: false, reason: 'persistenceFailed' };
+    }
+  }
+
+  public async saveSeriesEntryHeaderVisibility(
+    input: SaveSeriesEntryHeaderVisibilityInput,
+  ): Promise<SaveSeriesEntryHeaderVisibilityRepositoryResult> {
+    try {
+      await this.ensureLegacyDataMigrated();
+      return await this.database.transaction((database) =>
+        new SqliteLibraryQueries(database).saveSeriesEntryHeaderVisibility(input),
       );
     } catch (_error) {
       return { ok: false, reason: 'persistenceFailed' };
