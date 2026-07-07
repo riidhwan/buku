@@ -2,6 +2,62 @@ app-library-entry-reader-page {
   display: block;
 }
 
+.library-reader-content {
+  --background: var(--library-reader-background);
+  --library-reader-badge-background: transparent;
+}
+
+.library-reader-color-system,
+.library-reader-color-light {
+  --library-reader-background: #fff;
+  --library-reader-heading: #111827;
+  --library-reader-text: #1f2937;
+  --library-reader-muted: #6b7280;
+  --library-reader-border: #d7d8da;
+  --library-reader-link: #2458a6;
+}
+
+.library-reader-color-dark {
+  --library-reader-background: #111214;
+  --library-reader-heading: #f8fafc;
+  --library-reader-text: #e5e7eb;
+  --library-reader-muted: #b7bcc7;
+  --library-reader-border: #34383f;
+  --library-reader-link: #93c5fd;
+  --library-reader-badge-background: #1d2025;
+}
+
+@media (prefers-color-scheme: dark) {
+  .library-reader-color-system {
+    --library-reader-background: #121212;
+    --library-reader-heading: #f8fafc;
+    --library-reader-text: #e5e7eb;
+    --library-reader-muted: #b8bcc6;
+    --library-reader-border: #34383f;
+    --library-reader-link: #93c5fd;
+  }
+}
+
+.library-reader-color-paper {
+  --library-reader-background: #f7f1e3;
+  --library-reader-heading: #241f19;
+  --library-reader-text: #302a22;
+  --library-reader-muted: #7c6f5d;
+  --library-reader-border: #d8cdb9;
+  --library-reader-link: #7251a0;
+  --library-reader-badge-background: #fff8e8;
+}
+
+.library-reader-color-sepia {
+  --library-reader-background: #ead6aa;
+  --library-reader-heading: #2f2115;
+  --library-reader-text: #3a2a1b;
+  --library-reader-muted: #735f45;
+  --library-reader-border: #c9aa72;
+  --library-reader-link: #674b8f;
+  --library-reader-badge-background: #f4e3bf;
+}
+
 .library-reader-article {
   box-sizing: border-box;
   max-width: 720px;
@@ -10,7 +66,7 @@ app-library-entry-reader-page {
 }
 
 .library-reader-article-continued {
-  border-top: 1px solid var(--ion-color-step-150, #d7d8da);
+  border-top: 1px solid var(--library-reader-border);
   padding-top: 40px;
 }
 
@@ -25,7 +81,7 @@ app-library-entry-reader-page {
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 10px;
-  color: var(--ion-color-medium);
+  color: var(--library-reader-muted);
   font-size: 0.875rem;
   line-height: 1.4;
 }
@@ -33,13 +89,14 @@ app-library-entry-reader-page {
 .library-reader-edited {
   display: inline-flex;
   padding: 2px 8px;
-  border: 1px solid var(--ion-color-step-200, #c8c7cc);
+  border: 1px solid var(--library-reader-border);
   border-radius: 999px;
+  background: var(--library-reader-badge-background);
 }
 
 .library-reader-header h1 {
   margin: 0 0 12px;
-  color: var(--ion-color-dark);
+  color: var(--library-reader-heading);
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.15;
@@ -47,7 +104,7 @@ app-library-entry-reader-page {
 
 .library-reader-body {
   font-family: var(--library-reader-font-family, 'Buku NV Charis', serif);
-  color: var(--ion-color-dark);
+  color: var(--library-reader-text);
   font-size: 1.08rem;
   line-height: 1.7;
 }
@@ -65,13 +122,13 @@ app-library-entry-reader-page {
 .library-reader-body h3,
 .library-reader-body h4 {
   margin: 1.8rem 0 0.8rem;
-  color: var(--ion-color-dark);
+  color: var(--library-reader-heading);
   font-weight: 700;
   line-height: 1.25;
 }
 
 .library-reader-body a {
-  color: var(--ion-color-primary);
+  color: var(--library-reader-link);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.18em;
 }
@@ -90,6 +147,7 @@ app-library-entry-reader-page {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  color: var(--library-reader-muted);
   text-align: center;
 }
 
@@ -104,6 +162,37 @@ app-library-entry-reader-page {
   text-transform: uppercase;
 }
 
-.library-reader-font-selected {
+.library-reader-appearance-selected {
   --color: var(--ion-color-primary);
+}
+
+.library-reader-color-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  margin-right: 12px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ion-color-step-250, #bfc0c4);
+  border-radius: 50%;
+  background: #fff;
+}
+
+.library-reader-color-swatch-system {
+  background: linear-gradient(135deg, #fff 0 50%, #121212 50% 100%);
+}
+
+.library-reader-color-swatch-light {
+  background: #fff;
+}
+
+.library-reader-color-swatch-paper {
+  background: #f7f1e3;
+}
+
+.library-reader-color-swatch-sepia {
+  background: #ead6aa;
+}
+
+.library-reader-color-swatch-dark {
+  background: #111214;
 }

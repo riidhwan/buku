@@ -105,8 +105,11 @@ describe('LibraryFacade', () => {
     await expectAsync(facade.getEntry('series-1', 'entry-1')).toBeResolvedTo(entry);
     await expectAsync(facade.getSeriesEntryReadingAppearance()).toBeResolvedTo({
       fontId: 'nv-charis',
+      colorSchemeId: 'system',
     });
-    await expectAsync(facade.saveSeriesEntryReadingAppearance({ fontId: 'libron' })).toBeResolved();
+    await expectAsync(
+      facade.saveSeriesEntryReadingAppearance({ fontId: 'libron', colorSchemeId: 'sepia' }),
+    ).toBeResolved();
     await expectAsync(
       facade.saveReadingSnapshot({
         snapshot: {
@@ -162,7 +165,7 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
     sanitizeContentHtml: (contentHtml) => ({ contentHtml, hasRenderableContent: true }),
   };
   const appearanceStore: SeriesEntryReadingAppearanceStore = {
-    readAppearance: () => Promise.resolve({ fontId: 'nv-charis' }),
+    readAppearance: () => Promise.resolve({ fontId: 'nv-charis', colorSchemeId: 'system' }),
     saveAppearance: () => Promise.resolve(),
   };
 

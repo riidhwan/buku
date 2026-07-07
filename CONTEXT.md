@@ -27,6 +27,10 @@ _Avoid_: source chapter discovery, browser reading, reading history
 The user's persisted comfort preferences for how Series Entry Reading displays saved readable content. These preferences change the reading presentation, not the saved Series Entry content.
 _Avoid_: entry formatting, content style, theme
 
+**Series Entry Reading Color Scheme**:
+A finite Series Entry Reading Appearance choice that pairs the reading background with readable foreground colors. It may follow the device color scheme or use an explicit reader scheme.
+_Avoid_: theme, custom color, background-only color
+
 **Explore**:
 The browsing-oriented area for discovering readable or book-related content on the net from inside Buku. Explore may navigate to ordinary web pages, but it is product-framed around content discovery rather than being a standalone browser.
 

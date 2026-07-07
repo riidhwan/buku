@@ -22,18 +22,31 @@ describe('LibraryEntryReaderWorkflow', () => {
   });
 
   it('loads the persisted reading appearance', async () => {
-    library.appearance = { fontId: 'libron' };
+    library.appearance = { fontId: 'libron', colorSchemeId: 'sepia' };
 
     await workflow.loadAppearance();
 
-    expect(workflow.appearance()).toEqual({ fontId: 'libron' });
+    expect(workflow.appearance()).toEqual({ fontId: 'libron', colorSchemeId: 'sepia' });
   });
 
   it('persists selected reader fonts immediately', async () => {
+    library.appearance = { fontId: 'nv-charis', colorSchemeId: 'dark' };
+    await workflow.loadAppearance();
+
     await workflow.selectFont('sourcerer');
 
-    expect(workflow.appearance()).toEqual({ fontId: 'sourcerer' });
-    expect(library.savedAppearances).toEqual([{ fontId: 'sourcerer' }]);
+    expect(workflow.appearance()).toEqual({ fontId: 'sourcerer', colorSchemeId: 'dark' });
+    expect(library.savedAppearances).toEqual([{ fontId: 'sourcerer', colorSchemeId: 'dark' }]);
+  });
+
+  it('persists selected reader color schemes immediately', async () => {
+    library.appearance = { fontId: 'libron', colorSchemeId: 'system' };
+    await workflow.loadAppearance();
+
+    await workflow.selectColorScheme('paper');
+
+    expect(workflow.appearance()).toEqual({ fontId: 'libron', colorSchemeId: 'paper' });
+    expect(library.savedAppearances).toEqual([{ fontId: 'libron', colorSchemeId: 'paper' }]);
   });
 
   it('appends the next series entry and keeps the infinite scroll event completed', async () => {
@@ -94,7 +107,10 @@ describe('LibraryEntryReaderWorkflow', () => {
 });
 
 class FakeLibraryFacade {
-  public appearance: SeriesEntryReadingAppearance = { fontId: 'nv-charis' };
+  public appearance: SeriesEntryReadingAppearance = {
+    fontId: 'nv-charis',
+    colorSchemeId: 'system',
+  };
   public readonly savedAppearances: SeriesEntryReadingAppearance[] = [];
   public readonly series: LibrarySeries = {
     id: 'series-1',

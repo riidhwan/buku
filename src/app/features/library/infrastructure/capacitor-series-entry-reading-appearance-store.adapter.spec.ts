@@ -34,17 +34,20 @@ describe('CapacitorSeriesEntryReadingAppearanceStoreAdapter', () => {
     adapter = TestBed.inject(CapacitorSeriesEntryReadingAppearanceStoreAdapter);
   });
 
-  it('returns NV Charis when no appearance is stored', async () => {
+  it('returns the default appearance when no appearance is stored', async () => {
     await expectAsync(adapter.readAppearance()).toBeResolvedTo(defaultSeriesEntryReadingAppearance);
   });
 
-  it('writes and reads the selected font id', async () => {
-    await adapter.saveAppearance({ fontId: 'libron' });
+  it('writes and reads the selected appearance', async () => {
+    await adapter.saveAppearance({ fontId: 'libron', colorSchemeId: 'sepia' });
 
-    await expectAsync(adapter.readAppearance()).toBeResolvedTo({ fontId: 'libron' });
+    await expectAsync(adapter.readAppearance()).toBeResolvedTo({
+      fontId: 'libron',
+      colorSchemeId: 'sepia',
+    });
   });
 
-  it('falls back to NV Charis for invalid stored values', async () => {
+  it('falls back to the default appearance for invalid stored values', async () => {
     preferences.values.set('library.seriesEntryReading.appearance', '{');
 
     await expectAsync(adapter.readAppearance()).toBeResolvedTo(defaultSeriesEntryReadingAppearance);
@@ -55,6 +58,25 @@ describe('CapacitorSeriesEntryReadingAppearanceStoreAdapter', () => {
     );
 
     await expectAsync(adapter.readAppearance()).toBeResolvedTo(defaultSeriesEntryReadingAppearance);
+
+    preferences.values.set(
+      'library.seriesEntryReading.appearance',
+      JSON.stringify({ colorSchemeId: 'missing-color' }),
+    );
+
+    await expectAsync(adapter.readAppearance()).toBeResolvedTo(defaultSeriesEntryReadingAppearance);
+  });
+
+  it('keeps old stored font-only appearances on system color', async () => {
+    preferences.values.set(
+      'library.seriesEntryReading.appearance',
+      JSON.stringify({ fontId: 'cartisse' }),
+    );
+
+    await expectAsync(adapter.readAppearance()).toBeResolvedTo({
+      fontId: 'cartisse',
+      colorSchemeId: 'system',
+    });
   });
 
   it('wraps Capacitor Preferences in a plain injectable object', async () => {
