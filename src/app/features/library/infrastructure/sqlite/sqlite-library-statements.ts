@@ -118,4 +118,11 @@ export const sqliteLibraryStatements = {
         updated_at = :savedAt
     WHERE series_id = :seriesId AND id = :entryId;
   `,
+  updateEntryEditMetadata: `
+    UPDATE library_series_entries
+    SET display_title = :displayTitle,
+        reader_header_visible = :headerVisible,
+        updated_at = :savedAt
+    WHERE series_id = :seriesId AND id = :entryId;
+  `,
 } as const;

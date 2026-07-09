@@ -8,6 +8,7 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonInput,
   IonItem,
   IonLabel,
   IonText,
@@ -38,6 +39,7 @@ import { LibraryEntryEditWorkflow } from './library-entry-edit-workflow';
     IonContent,
     IonHeader,
     IonIcon,
+    IonInput,
     IonItem,
     IonLabel,
     IonText,
@@ -66,6 +68,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     entryId: this.entryId,
   });
   protected readonly entry = this.workflow.entry;
+  protected readonly draftTitle = this.workflow.draftTitle;
   protected readonly draftHtml = this.workflow.draftHtml;
   protected readonly draftHeaderVisible = this.workflow.draftHeaderVisible;
   protected readonly saveState = this.workflow.saveState;
@@ -105,7 +108,7 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   protected async save(): Promise<void> {
-    await this.workflow.save(this.currentDraftHtml(), this.draftHeaderVisible());
+    await this.workflow.save(this.draftTitle(), this.currentDraftHtml(), this.draftHeaderVisible());
   }
 
   protected async resetToOriginal(): Promise<void> {
@@ -167,13 +170,21 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     this.draftHeaderVisible.set(visible);
   }
 
+  protected setDraftTitle(title: string | null | undefined): void {
+    this.draftTitle.set(title ?? '');
+  }
+
   private async loadEntry(): Promise<void> {
     await this.workflow.loadEntry();
     this.refreshFormattingState();
   }
 
   private async requestLeave(): Promise<void> {
-    await this.workflow.requestLeave(this.currentDraftHtml(), this.draftHeaderVisible());
+    await this.workflow.requestLeave(
+      this.draftTitle(),
+      this.currentDraftHtml(),
+      this.draftHeaderVisible(),
+    );
   }
 
   private registerBackButtonHandler(): void {

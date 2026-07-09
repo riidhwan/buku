@@ -57,6 +57,16 @@
     @if (validationMessage() !== null) {
     <ion-text class="library-entry-edit-error" color="danger">{{ validationMessage() }}</ion-text>
     }
+    <ion-item class="library-entry-edit-title" lines="full">
+      <ion-input
+        label="Title"
+        labelPlacement="stacked"
+        aria-label="Entry title"
+        [value]="draftTitle()"
+        [disabled]="saveState() === 'saving' || saveState() === 'resetting'"
+        (ionInput)="setDraftTitle($event.detail.value)"
+      ></ion-input>
+    </ion-item>
     <ion-item class="library-entry-edit-header-visibility" lines="full">
       <ion-label>Show header in reader</ion-label>
       <ion-toggle

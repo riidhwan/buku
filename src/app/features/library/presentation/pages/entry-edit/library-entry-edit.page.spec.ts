@@ -12,25 +12,19 @@ import {
   ResetSeriesEntryContentOverrideResult,
 } from '../../../application/reset-series-entry-content-override.use-case';
 import {
-  SaveSeriesEntryContentOverrideInput,
-  SaveSeriesEntryContentOverrideResult,
-} from '../../../application/save-series-entry-content-override.use-case';
-import {
-  SaveSeriesEntryHeaderVisibilityInput,
-  SaveSeriesEntryHeaderVisibilityResult,
-} from '../../../application/save-series-entry-header-visibility.use-case';
+  SaveSeriesEntryEditInput,
+  SaveSeriesEntryEditResult,
+} from '../../../application/save-series-entry-edit.use-case';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeriesEntry } from '../../../domain/library-series';
 import { LibraryEntryEditPage } from './library-entry-edit.page';
 
 let entry: LibrarySeriesEntry | null;
-let savedInputs: SaveSeriesEntryContentOverrideInput[];
-let savedHeaderVisibilityInputs: SaveSeriesEntryHeaderVisibilityInput[];
+let savedEditInputs: SaveSeriesEntryEditInput[];
 let resetInputs: ResetSeriesEntryContentOverrideInput[];
-let saveResult: SaveSeriesEntryContentOverrideResult;
-let saveHeaderVisibilityResult: SaveSeriesEntryHeaderVisibilityResult;
+let saveResult: SaveSeriesEntryEditResult;
 let resetResult: ResetSeriesEntryContentOverrideResult;
-let deferredSave: Deferred<SaveSeriesEntryContentOverrideResult> | null;
+let deferredSave: Deferred<SaveSeriesEntryEditResult> | null;
 let deferredReset: Deferred<ResetSeriesEntryContentOverrideResult> | null;
 let navigateSpy: jasmine.Spy;
 let alerts: FakeAlertController;
@@ -43,22 +37,13 @@ class FakeLibraryFacade {
     );
   }
 
-  public saveSeriesEntryContentOverride(
-    input: SaveSeriesEntryContentOverrideInput,
-  ): Promise<SaveSeriesEntryContentOverrideResult> {
-    savedInputs.push(input);
+  public saveSeriesEntryEdit(input: SaveSeriesEntryEditInput): Promise<SaveSeriesEntryEditResult> {
+    savedEditInputs.push(input);
     if (deferredSave !== null) {
       return deferredSave.promise;
     }
 
     return Promise.resolve(saveResult);
-  }
-
-  public saveSeriesEntryHeaderVisibility(
-    input: SaveSeriesEntryHeaderVisibilityInput,
-  ): Promise<SaveSeriesEntryHeaderVisibilityResult> {
-    savedHeaderVisibilityInputs.push(input);
-    return Promise.resolve(saveHeaderVisibilityResult);
   }
 
   public resetSeriesEntryContentOverride(
@@ -83,11 +68,9 @@ describe('LibraryEntryEditPage', () => {
       effectiveContentHtml: '<p>Original content.</p>',
       hasContentOverride: false,
     });
-    savedInputs = [];
-    savedHeaderVisibilityInputs = [];
+    savedEditInputs = [];
     resetInputs = [];
     saveResult = { status: 'saved' };
-    saveHeaderVisibilityResult = { status: 'saved' };
     resetResult = { status: 'reset' };
     deferredSave = null;
     deferredReset = null;
@@ -123,6 +106,13 @@ describe('LibraryEntryEditPage', () => {
     fixture.detectChanges();
 
     expect(editorBody(fixture).textContent).toContain('Original content.');
+  });
+
+  it('loads the entry title into the editable title field', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(titleInput(fixture).value).toBe('Chapter 1');
   });
 
   it('renders the formatting toolbar only when an entry is loaded', async () => {
@@ -163,14 +153,15 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs).toEqual([
+    expect(savedEditInputs).toEqual([
       {
         seriesId: 'series-1',
         entryId: 'entry-1',
+        displayTitle: 'Chapter 1',
+        headerVisible: true,
         contentHtml: '<p>Edited content.</p>',
       },
     ]);
-    expect(savedHeaderVisibilityInputs).toEqual([]);
     expect(navigateSpy).toHaveBeenCalledOnceWith([
       '/library',
       'series',
@@ -191,12 +182,13 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs).toEqual([]);
-    expect(savedHeaderVisibilityInputs).toEqual([
+    expect(savedEditInputs).toEqual([
       {
         seriesId: 'series-1',
         entryId: 'entry-1',
+        displayTitle: 'Chapter 1',
         headerVisible: false,
+        contentHtml: null,
       },
     ]);
     expect(navigateSpy).toHaveBeenCalledOnceWith([
@@ -208,6 +200,52 @@ describe('LibraryEntryEditPage', () => {
     ]);
   });
 
+  it('saves a title-only edit without creating a content override', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    titleInput(fixture).dispatchEvent(
+      new CustomEvent('ionInput', { detail: { value: 'Renamed Chapter' } }),
+    );
+    fixture.detectChanges();
+    saveButton(fixture).click();
+    await fixture.whenStable();
+
+    expect(savedEditInputs).toEqual([
+      {
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        displayTitle: 'Renamed Chapter',
+        headerVisible: true,
+        contentHtml: null,
+      },
+    ]);
+    expect(navigateSpy).toHaveBeenCalledOnceWith([
+      '/library',
+      'series',
+      'series-1',
+      'entries',
+      'entry-1',
+    ]);
+  });
+
+  it('treats a null title input value as an empty title draft', async () => {
+    saveResult = { status: 'validationFailed', message: 'Entry title is required.' };
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    titleInput(fixture).dispatchEvent(new CustomEvent('ionInput', { detail: { value: null } }));
+    fixture.detectChanges();
+    saveButton(fixture).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(savedEditInputs[0]?.displayTitle).toBe('');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Entry title is required.',
+    );
+  });
+
   it('persists formatted HTML through the existing save path', async () => {
     await fixture.whenStable();
     fixture.detectChanges();
@@ -216,7 +254,7 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs[0]?.contentHtml).toBe(
+    expect(savedEditInputs[0]?.contentHtml).toBe(
       '<h2>Heading</h2><p><strong>Edited</strong> content.</p>',
     );
   });
@@ -244,7 +282,7 @@ describe('LibraryEntryEditPage', () => {
   });
 
   it('ignores formatting commands while the editor is disabled', async () => {
-    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    deferredSave = new Deferred<SaveSeriesEntryEditResult>();
     await fixture.whenStable();
     fixture.detectChanges();
     const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
@@ -277,7 +315,7 @@ describe('LibraryEntryEditPage', () => {
     fixture.detectChanges();
     const execCommand = spyOn(document, 'execCommand').and.returnValue(true);
 
-    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    deferredSave = new Deferred<SaveSeriesEntryEditResult>();
     editorBody(fixture).innerHTML = '<p>Saving content.</p>';
     saveButton(fixture).click();
     fixture.detectChanges();
@@ -352,7 +390,7 @@ describe('LibraryEntryEditPage', () => {
   });
 
   it('disables formatting controls while saving', async () => {
-    deferredSave = new Deferred<SaveSeriesEntryContentOverrideResult>();
+    deferredSave = new Deferred<SaveSeriesEntryEditResult>();
     await fixture.whenStable();
     fixture.detectChanges();
     editorBody(fixture).innerHTML = '<p>Saving content.</p>';
@@ -424,8 +462,7 @@ describe('LibraryEntryEditPage', () => {
     await component.save();
     fixture.detectChanges();
 
-    expect(savedInputs).toEqual([]);
-    expect(savedHeaderVisibilityInputs).toEqual([]);
+    expect(savedEditInputs).toEqual([]);
   });
 
   it('shows generic save failures without navigating', async () => {
@@ -451,7 +488,7 @@ describe('LibraryEntryEditPage', () => {
     cancelButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs).toEqual([]);
+    expect(savedEditInputs).toEqual([]);
     expect(navigateSpy).toHaveBeenCalledOnceWith([
       '/library',
       'series',
@@ -600,7 +637,35 @@ describe('LibraryEntryEditPage', () => {
     await flushAlertPresentation();
     await fixture.whenStable();
 
-    expect(savedHeaderVisibilityInputs).toEqual([]);
+    expect(savedEditInputs).toEqual([]);
+    expect(navigateSpy).toHaveBeenCalledOnceWith([
+      '/library',
+      'series',
+      'series-1',
+      'entries',
+      'entry-1',
+    ]);
+  });
+
+  it('asks before discarding a changed title', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    titleInput(fixture).dispatchEvent(
+      new CustomEvent('ionInput', { detail: { value: 'Renamed Chapter' } }),
+    );
+    fixture.detectChanges();
+    cancelButton(fixture).click();
+    await flushAlertPresentation();
+
+    expect(alerts.latest?.header).toBe('Discard changes?');
+    expect(navigateSpy).not.toHaveBeenCalled();
+
+    alerts.confirmLatest();
+    await flushAlertPresentation();
+    await fixture.whenStable();
+
+    expect(savedEditInputs).toEqual([]);
     expect(navigateSpy).toHaveBeenCalledOnceWith([
       '/library',
       'series',
@@ -703,7 +768,7 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs[0]?.contentHtml).toBe('<p>Original content.</p>');
+    expect(savedEditInputs[0]?.contentHtml).toBe('<p>Original content.</p>');
   });
 
   it('clears selected media when non-media content is tapped', async () => {
@@ -757,7 +822,7 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs[0]?.contentHtml).toBe(
+    expect(savedEditInputs[0]?.contentHtml).toBe(
       '<p>Original content.</p><img src="https://example.com/a.jpg"><p>Changed content.</p>',
     );
   });
@@ -788,7 +853,7 @@ describe('LibraryEntryEditPage', () => {
     saveButton(fixture).click();
     await fixture.whenStable();
 
-    expect(savedInputs[0]?.contentHtml).toBe('<p>Original content.</p>');
+    expect(savedEditInputs[0]?.contentHtml).toBe('<p>Original content.</p>');
   });
 
   it('ignores media selection events without an editor target', async () => {
@@ -1064,6 +1129,17 @@ function headerVisibilityToggle(
   }
 
   return toggle;
+}
+
+function titleInput(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLIonInputElement {
+  const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLIonInputElement>(
+    '.library-entry-edit-title ion-input',
+  );
+  if (input === null) {
+    throw new Error('Expected title input.');
+  }
+
+  return input;
 }
 
 function deleteMediaButton(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLIonButtonElement {

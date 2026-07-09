@@ -9,11 +9,13 @@ export type LibraryEntryEditSaveState = 'idle' | 'saving' | 'resetting' | 'faile
 
 export class LibraryEntryEditWorkflow {
   public readonly entry = signal<LibrarySeriesEntry | null>(null);
+  public readonly draftTitle = signal('');
   public readonly draftHtml = signal('');
   public readonly draftHeaderVisible = signal(true);
   public readonly saveState = signal<LibraryEntryEditSaveState>('idle');
   public readonly validationMessage = signal<string | null>(null);
 
+  private startingTitle = '';
   private startingSanitizedHtml = '';
   private startingHeaderVisible = true;
 
@@ -34,43 +36,41 @@ export class LibraryEntryEditWorkflow {
       this.dependencies.entryId,
     );
     this.entry.set(entry);
+    this.startingTitle = entry?.displayTitle ?? '';
     const contentHtml = entry?.effectiveContentHtml ?? '';
     this.startingHeaderVisible = entry?.headerVisible ?? true;
     this.startingSanitizedHtml = this.sanitizeForComparison(contentHtml);
+    this.draftTitle.set(this.startingTitle);
     this.draftHtml.set(contentHtml);
     this.draftHeaderVisible.set(this.startingHeaderVisible);
   }
 
-  public async save(contentHtml: string, headerVisible: boolean): Promise<boolean> {
+  public async save(
+    displayTitle: string,
+    contentHtml: string,
+    headerVisible: boolean,
+  ): Promise<boolean> {
     this.saveState.set('saving');
     this.validationMessage.set(null);
 
-    if (this.hasUnsavedContentChanges(contentHtml)) {
-      const result = await this.dependencies.library.saveSeriesEntryContentOverride({
-        seriesId: this.dependencies.seriesId,
-        entryId: this.dependencies.entryId,
-        contentHtml,
-      });
-      if (result.status !== 'saved') {
-        this.saveState.set('failed');
-        this.validationMessage.set(
-          result.status === 'validationFailed' ? result.message : 'Could not save this edit.',
-        );
-        return false;
-      }
+    if (!this.hasUnsavedChanges(displayTitle, contentHtml, headerVisible)) {
+      await this.navigateToReader();
+      return true;
     }
 
-    if (this.hasUnsavedHeaderVisibilityChanges(headerVisible)) {
-      const result = await this.dependencies.library.saveSeriesEntryHeaderVisibility({
-        seriesId: this.dependencies.seriesId,
-        entryId: this.dependencies.entryId,
-        headerVisible,
-      });
-      if (result.status !== 'saved') {
-        this.saveState.set('failed');
-        this.validationMessage.set('Could not save this edit.');
-        return false;
-      }
+    const result = await this.dependencies.library.saveSeriesEntryEdit({
+      seriesId: this.dependencies.seriesId,
+      entryId: this.dependencies.entryId,
+      displayTitle,
+      headerVisible,
+      contentHtml: this.hasUnsavedContentChanges(contentHtml) ? contentHtml : null,
+    });
+    if (result.status !== 'saved') {
+      this.saveState.set('failed');
+      this.validationMessage.set(
+        result.status === 'validationFailed' ? result.message : 'Could not save this edit.',
+      );
+      return false;
     }
 
     await this.navigateToReader();
@@ -104,9 +104,13 @@ export class LibraryEntryEditWorkflow {
     return false;
   }
 
-  public async requestLeave(currentDraftHtml: string, headerVisible: boolean): Promise<boolean> {
+  public async requestLeave(
+    displayTitle: string,
+    currentDraftHtml: string,
+    headerVisible: boolean,
+  ): Promise<boolean> {
     if (
-      this.hasUnsavedChanges(currentDraftHtml, headerVisible) &&
+      this.hasUnsavedChanges(displayTitle, currentDraftHtml, headerVisible) &&
       !(await this.confirm({
         header: 'Discard changes?',
         message: 'Your unsaved edits will be lost.',
@@ -130,11 +134,20 @@ export class LibraryEntryEditWorkflow {
     ]);
   }
 
-  private hasUnsavedChanges(contentHtml: string, headerVisible: boolean): boolean {
+  private hasUnsavedChanges(
+    displayTitle: string,
+    contentHtml: string,
+    headerVisible: boolean,
+  ): boolean {
     return (
+      this.hasUnsavedTitleChanges(displayTitle) ||
       this.hasUnsavedContentChanges(contentHtml) ||
       this.hasUnsavedHeaderVisibilityChanges(headerVisible)
     );
+  }
+
+  private hasUnsavedTitleChanges(displayTitle: string): boolean {
+    return displayTitle !== this.startingTitle;
   }
 
   private hasUnsavedContentChanges(contentHtml: string): boolean {

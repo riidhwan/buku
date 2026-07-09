@@ -14,6 +14,11 @@ import {
   SaveSeriesEntryContentOverrideUseCase,
 } from './save-series-entry-content-override.use-case';
 import {
+  SaveSeriesEntryEditInput,
+  SaveSeriesEntryEditResult,
+  SaveSeriesEntryEditUseCase,
+} from './save-series-entry-edit.use-case';
+import {
   SaveReadingSnapshotToLibraryInput,
   SaveReadingSnapshotToLibraryResult,
   SaveReadingSnapshotToLibraryUseCase,
@@ -30,6 +35,7 @@ export class LibraryFacade {
   private readonly appearanceStore = inject(SERIES_ENTRY_READING_APPEARANCE_STORE);
   private readonly saveReadingSnapshotUseCase = inject(SaveReadingSnapshotToLibraryUseCase);
   private readonly saveContentOverrideUseCase = inject(SaveSeriesEntryContentOverrideUseCase);
+  private readonly saveEntryEditUseCase = inject(SaveSeriesEntryEditUseCase);
   private readonly saveHeaderVisibilityUseCase = inject(SaveSeriesEntryHeaderVisibilityUseCase);
   private readonly resetContentOverrideUseCase = inject(ResetSeriesEntryContentOverrideUseCase);
 
@@ -66,6 +72,10 @@ export class LibraryFacade {
     input: SaveSeriesEntryContentOverrideInput,
   ): Promise<SaveSeriesEntryContentOverrideResult> {
     return this.saveContentOverrideUseCase.execute(input);
+  }
+
+  public saveSeriesEntryEdit(input: SaveSeriesEntryEditInput): Promise<SaveSeriesEntryEditResult> {
+    return this.saveEntryEditUseCase.execute(input);
   }
 
   public saveSeriesEntryHeaderVisibility(

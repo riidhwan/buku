@@ -10,6 +10,8 @@ import {
   ListLibrarySeriesResult,
   ResetSeriesEntryContentOverrideInput,
   ResetSeriesEntryContentOverrideRepositoryResult,
+  SaveSeriesEntryEditInput,
+  SaveSeriesEntryEditRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
   SaveSeriesEntryHeaderVisibilityInput,
@@ -99,6 +101,19 @@ export class SqliteLibraryRepositoryAdapter implements LibraryRepository {
       await this.ensureLegacyDataMigrated();
       return await this.database.transaction((database) =>
         new SqliteLibraryQueries(database).saveSeriesEntryHeaderVisibility(input),
+      );
+    } catch (_error) {
+      return { ok: false, reason: 'persistenceFailed' };
+    }
+  }
+
+  public async saveSeriesEntryEdit(
+    input: SaveSeriesEntryEditInput,
+  ): Promise<SaveSeriesEntryEditRepositoryResult> {
+    try {
+      await this.ensureLegacyDataMigrated();
+      return await this.database.transaction((database) =>
+        new SqliteLibraryQueries(database).saveSeriesEntryEdit(input),
       );
     } catch (_error) {
       return { ok: false, reason: 'persistenceFailed' };
