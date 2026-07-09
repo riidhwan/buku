@@ -121,8 +121,14 @@ describe('SaveSeriesEntryEditUseCase', () => {
 
 class FakeContentSanitizer implements LibraryContentSanitizer {
   public sanitizeContentHtml(contentHtml: string): SanitizedLibraryContent {
+    const template = document.createElement('template');
+    template.innerHTML = contentHtml;
+    template.content.querySelectorAll('script').forEach((element) => {
+      element.remove();
+    });
+
     return {
-      contentHtml: contentHtml.replace(/<script>.*?<\/script>/g, '').trim(),
+      contentHtml: template.innerHTML.trim(),
       hasRenderableContent: contentHtml.trim() !== '',
     };
   }
