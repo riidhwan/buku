@@ -75,6 +75,7 @@ class FakeExploreBrowserFacade {
   public reloads = 0;
   public readingModeOpens = 0;
   public readingModeResult = true;
+  public openInputResult = true;
   public openedHref: string | null = null;
   public chapterDirection: 'previous' | 'next' | null = null;
   public rememberedSeriesTitle: string | null = null;
@@ -91,7 +92,10 @@ class FakeExploreBrowserFacade {
 
   public openInput(): Promise<{ readonly ok: boolean }> {
     this.openInputs += 1;
-    return Promise.resolve({ ok: true });
+    if (this.openInputResult) {
+      this.currentUrl.set(this.inputValue());
+    }
+    return Promise.resolve({ ok: this.openInputResult });
   }
 
   public showViewport(rect: BrowserViewportRect): Promise<void> {
@@ -260,6 +264,18 @@ function getOverflowButton(nativeElement: HTMLElement): Element {
   return getEndToolbarButtons(nativeElement).item(2);
 }
 
+function stubAddressInputBlur(component: ExploreBrowserPage): jasmine.Spy {
+  const blur = jasmine.createSpy('blur');
+  const addressInput = (component as unknown as { readonly addressInput: unknown }).addressInput;
+
+  Object.defineProperty(addressInput, 'getInputElement', {
+    configurable: true,
+    value: () => Promise.resolve({ blur } as unknown as HTMLInputElement),
+  });
+
+  return blur;
+}
+
 function getTabsIcon(button: Element): Element {
   const icon = button.querySelector('.tab-count-icon');
   if (icon === null) {
@@ -332,6 +348,39 @@ describe('ExploreBrowserPage', () => {
 
     expect(browser.inputValue()).toBe('https://edited.example/');
     expect(browser.openInputs).toBe(1);
+  });
+
+  it('blurs the address input after submitting a valid URL', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+    const blur = stubAddressInputBlur(fixture.componentInstance);
+    const form = nativeElement.querySelectorAll('form').item(0);
+
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+
+    expect(blur).toHaveBeenCalledOnceWith();
+    expect(fixture.componentInstance.pageActions.addressBarFocused()).toBeFalse();
+  });
+
+  it('keeps the address input focused after submitting an invalid URL', async () => {
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const input = nativeElement.querySelectorAll('ion-input').item(0);
+    const blur = stubAddressInputBlur(fixture.componentInstance);
+    const form = nativeElement.querySelectorAll('form').item(0);
+    browser.openInputResult = false;
+
+    input.dispatchEvent(new CustomEvent('ionFocus', { bubbles: true }));
+    fixture.detectChanges();
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+
+    expect(blur).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.pageActions.addressBarFocused()).toBeTrue();
   });
 
   it('opens the dedicated tabs view from the toolbar', async () => {

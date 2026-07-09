@@ -135,7 +135,10 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected async openUrl(): Promise<void> {
-    await this.browser.openInput();
+    const result = await this.browser.openInput();
+    if (result.ok) {
+      await this.pageShell.blurAddressBar();
+    }
   }
 
   protected async openTabs(): Promise<void> {
