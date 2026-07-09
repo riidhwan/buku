@@ -12,6 +12,8 @@ import {
   ResetSeriesEntryContentOverrideRepositoryResult,
   SaveLibraryEntryInput,
   SaveLibraryEntryResult,
+  SaveSeriesEntryEditInput,
+  SaveSeriesEntryEditRepositoryResult,
   SaveSeriesEntryHeaderVisibilityInput,
   SaveSeriesEntryHeaderVisibilityRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
@@ -241,6 +243,12 @@ class FakeLibraryRepository implements LibraryRepository {
   public saveSeriesEntryHeaderVisibility(
     _input: SaveSeriesEntryHeaderVisibilityInput,
   ): Promise<SaveSeriesEntryHeaderVisibilityRepositoryResult> {
+    throw new Error('Not used in this spec.');
+  }
+
+  public saveSeriesEntryEdit(
+    _input: SaveSeriesEntryEditInput,
+  ): Promise<SaveSeriesEntryEditRepositoryResult> {
     throw new Error('Not used in this spec.');
   }
 

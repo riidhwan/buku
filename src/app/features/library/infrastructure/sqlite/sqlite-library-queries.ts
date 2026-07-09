@@ -13,6 +13,8 @@ import {
   SaveLibraryEntryTarget,
   ResetSeriesEntryContentOverrideInput,
   ResetSeriesEntryContentOverrideRepositoryResult,
+  SaveSeriesEntryEditInput,
+  SaveSeriesEntryEditRepositoryResult,
   SaveSeriesEntryHeaderVisibilityInput,
   SaveSeriesEntryHeaderVisibilityRepositoryResult,
   SaveSeriesEntryContentOverrideInput,
@@ -138,6 +140,32 @@ export class SqliteLibraryQueries {
       headerVisible: input.headerVisible ? 1 : 0,
       savedAt: input.savedAt,
     });
+    return { ok: true, status: 'saved' };
+  }
+
+  public async saveSeriesEntryEdit(
+    input: SaveSeriesEntryEditInput,
+  ): Promise<SaveSeriesEntryEditRepositoryResult> {
+    const entry = await this.getEntry(input.seriesId, input.entryId);
+    if (entry === null) {
+      return { ok: true, status: 'missingEntry' };
+    }
+
+    await this.database.run(sqliteLibraryStatements.updateEntryEditMetadata, {
+      displayTitle: input.displayTitle,
+      headerVisible: input.headerVisible ? 1 : 0,
+      savedAt: input.savedAt,
+      seriesId: input.seriesId,
+      entryId: input.entryId,
+    });
+    if (input.contentHtml !== null) {
+      await this.database.run(sqliteLibraryStatements.upsertEntryContentOverride, {
+        entryId: input.entryId,
+        contentHtml: input.contentHtml,
+        savedAt: input.savedAt,
+      });
+    }
+
     return { ok: true, status: 'saved' };
   }
 

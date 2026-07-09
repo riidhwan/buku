@@ -14,6 +14,7 @@ import {
 } from './ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from './reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from './save-series-entry-content-override.use-case';
+import { SaveSeriesEntryEditUseCase } from './save-series-entry-edit.use-case';
 import { SaveSeriesEntryHeaderVisibilityUseCase } from './save-series-entry-header-visibility.use-case';
 import { SaveReadingSnapshotToLibraryUseCase } from './save-reading-snapshot-to-library.use-case';
 
@@ -78,6 +79,7 @@ describe('LibraryFacade', () => {
           entryId: input.entry.id,
         }),
       saveSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'saved' }),
+      saveSeriesEntryEdit: () => Promise.resolve({ ok: true, status: 'saved' }),
       saveSeriesEntryHeaderVisibility: () => Promise.resolve({ ok: true, status: 'saved' }),
       resetSeriesEntryContentOverride: () => Promise.resolve({ ok: true, status: 'reset' }),
     };
@@ -135,6 +137,15 @@ describe('LibraryFacade', () => {
       }),
     ).toBeResolvedTo({ status: 'saved' });
     await expectAsync(
+      facade.saveSeriesEntryEdit({
+        seriesId: 'series-1',
+        entryId: 'entry-1',
+        displayTitle: 'Renamed Entry',
+        headerVisible: false,
+        contentHtml: null,
+      }),
+    ).toBeResolvedTo({ status: 'saved' });
+    await expectAsync(
       facade.saveSeriesEntryHeaderVisibility({
         seriesId: 'series-1',
         entryId: 'entry-1',
@@ -157,6 +168,7 @@ describe('LibraryFacade', () => {
       saveEntry: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveSeriesEntryContentOverride: () =>
         Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
+      saveSeriesEntryEdit: () => Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       saveSeriesEntryHeaderVisibility: () =>
         Promise.resolve({ ok: false, reason: 'persistenceFailed' }),
       resetSeriesEntryContentOverride: () =>
@@ -186,6 +198,7 @@ function createFacade(repository: LibraryRepository): LibraryFacade {
       LibraryFacade,
       SaveReadingSnapshotToLibraryUseCase,
       SaveSeriesEntryContentOverrideUseCase,
+      SaveSeriesEntryEditUseCase,
       SaveSeriesEntryHeaderVisibilityUseCase,
       ResetSeriesEntryContentOverrideUseCase,
       { provide: LIBRARY_REPOSITORY, useValue: repository },
