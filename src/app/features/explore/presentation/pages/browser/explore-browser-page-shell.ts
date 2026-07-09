@@ -70,11 +70,15 @@ export class ExploreBrowserPageShell {
     });
   }
 
+  public async blurAddressBar(): Promise<void> {
+    this.host.blurAddressBar();
+    const inputElement = await this.host.getAddressInput().getInputElement();
+    inputElement.blur();
+  }
+
   private async handleHardwareBackButton(processNextHandler: () => void): Promise<void> {
     if (this.host.isAddressBarFocused()) {
-      this.host.blurAddressBar();
-      const inputElement = await this.host.getAddressInput().getInputElement();
-      inputElement.blur();
+      await this.blurAddressBar();
       return;
     }
 
