@@ -20,16 +20,29 @@ export class LibraryEntryReaderWorkflow {
   public readonly loadedEntries = signal<readonly LibrarySeriesEntry[]>([]);
   public readonly activeEntryId = signal<string | null>(null);
   public readonly appearance = signal(defaultSeriesEntryReadingAppearance);
-  public readonly loadState = signal<LibraryEntryReaderLoadState>('idle');
+  public readonly previousLoadState = signal<LibraryEntryReaderLoadState>('idle');
+  public readonly nextLoadState = signal<LibraryEntryReaderLoadState>('idle');
+  public readonly loadState = this.nextLoadState;
   public readonly entry = computed(() => this.loadedEntries()[0] ?? null);
   public readonly activeEntry = computed(
     () => this.loadedEntries().find((entry) => entry.id === this.activeEntryId()) ?? this.entry(),
   );
+  public readonly loadingAdjacentEntry = computed(
+    () => this.previousLoadState() === 'loading' || this.nextLoadState() === 'loading',
+  );
+  public readonly previousLoadingDisabled = computed(
+    () =>
+      this.loadedEntries().length === 0 ||
+      this.previousLoadState() === 'ended' ||
+      this.previousLoadState() === 'failed' ||
+      this.loadingAdjacentEntry(),
+  );
   public readonly infiniteScrollDisabled = computed(
     () =>
       this.loadedEntries().length === 0 ||
-      this.loadState() === 'ended' ||
-      this.loadState() === 'failed',
+      this.nextLoadState() === 'ended' ||
+      this.nextLoadState() === 'failed' ||
+      (this.loadingAdjacentEntry() && this.nextLoadState() !== 'loading'),
   );
 
   public constructor(
@@ -50,7 +63,8 @@ export class LibraryEntryReaderWorkflow {
     this.series.set(series);
     this.loadedEntries.set(series === null || entry === null ? [] : [entry]);
     this.activeEntryId.set(entry?.id ?? null);
-    this.loadState.set('idle');
+    this.previousLoadState.set('idle');
+    this.nextLoadState.set('idle');
   }
 
   public async loadAppearance(): Promise<void> {
@@ -58,17 +72,17 @@ export class LibraryEntryReaderWorkflow {
   }
 
   public async loadNextEntry(event?: LibraryEntryReaderInfiniteScrollEvent): Promise<void> {
-    if (this.loadState() === 'loading') {
+    if (this.loadingAdjacentEntry()) {
       await event?.target.complete();
       return;
     }
 
-    this.loadState.set('loading');
+    this.nextLoadState.set('loading');
 
     try {
       const nextEntryId = this.nextEntryId();
       if (nextEntryId === null) {
-        this.loadState.set('ended');
+        this.nextLoadState.set('ended');
         return;
       }
 
@@ -77,15 +91,42 @@ export class LibraryEntryReaderWorkflow {
         nextEntryId,
       );
       if (nextEntry === null) {
-        this.loadState.set('failed');
+        this.nextLoadState.set('failed');
         return;
       }
 
       this.loadedEntries.update((entries) => [...entries, nextEntry]);
-      this.loadState.set('idle');
+      this.nextLoadState.set('idle');
     } finally {
       await event?.target.complete();
     }
+  }
+
+  public async loadPreviousEntry(): Promise<boolean> {
+    if (this.loadingAdjacentEntry()) {
+      return false;
+    }
+
+    this.previousLoadState.set('loading');
+
+    const previousEntryId = this.previousEntryId();
+    if (previousEntryId === null) {
+      this.previousLoadState.set('ended');
+      return false;
+    }
+
+    const previousEntry = await this.dependencies.library.getEntry(
+      this.dependencies.seriesId,
+      previousEntryId,
+    );
+    if (previousEntry === null) {
+      this.previousLoadState.set('failed');
+      return false;
+    }
+
+    this.loadedEntries.update((entries) => [previousEntry, ...entries]);
+    this.previousLoadState.set('idle');
+    return true;
   }
 
   public setActiveEntryId(entryId: string): void {
@@ -105,19 +146,29 @@ export class LibraryEntryReaderWorkflow {
   }
 
   private nextEntryId(): string | null {
+    return this.adjacentEntryId('next');
+  }
+
+  private previousEntryId(): string | null {
+    return this.adjacentEntryId('previous');
+  }
+
+  private adjacentEntryId(direction: 'previous' | 'next'): string | null {
     const series = this.series();
     if (series === null) {
       return null;
     }
 
     const loadedEntries = this.loadedEntries();
-    const lastLoadedEntry = loadedEntries[loadedEntries.length - 1];
-    if (lastLoadedEntry === undefined) {
+    const boundaryEntry =
+      direction === 'previous' ? loadedEntries[0] : loadedEntries[loadedEntries.length - 1];
+    if (boundaryEntry === undefined) {
       return null;
     }
 
-    const entryIndex = series.entries.findIndex((entry) => entry.id === lastLoadedEntry.id);
-    const nextEntry = series.entries[entryIndex + 1];
-    return nextEntry?.id ?? null;
+    const entryIndex = series.entries.findIndex((entry) => entry.id === boundaryEntry.id);
+    const adjacentIndex = direction === 'previous' ? entryIndex - 1 : entryIndex + 1;
+    const adjacentEntry = series.entries[adjacentIndex];
+    return adjacentEntry?.id ?? null;
   }
 }

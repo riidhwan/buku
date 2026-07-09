@@ -1,9 +1,11 @@
 import {
   Component,
+  ChangeDetectorRef,
   computed,
   ElementRef,
   OnInit,
   QueryList,
+  ViewChild,
   signal,
   ViewChildren,
   ViewEncapsulation,
@@ -71,6 +73,7 @@ export class LibraryEntryReaderPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
     month: 'short',
@@ -88,6 +91,7 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly series = this.workflow.series;
   protected readonly loadedEntries = this.workflow.loadedEntries;
   protected readonly loadState = this.workflow.loadState;
+  protected readonly previousLoadState = this.workflow.previousLoadState;
   protected readonly activeEntry = this.workflow.activeEntry;
   protected readonly appearance = this.workflow.appearance;
   protected readonly colorSchemeOptions = libraryEntryReaderColorSchemeOptions;
@@ -98,6 +102,10 @@ export class LibraryEntryReaderPage implements OnInit {
   protected readonly appearanceMenuOpen = signal(false);
   protected readonly appearanceMenuEvent = signal<Event | undefined>(undefined);
   protected readonly infiniteScrollDisabled = this.workflow.infiniteScrollDisabled;
+  protected readonly previousLoadingDisabled = this.workflow.previousLoadingDisabled;
+
+  @ViewChild(IonContent)
+  private readonly readerContent?: IonContent;
 
   @ViewChildren('readerArticle')
   private readonly readerArticles!: QueryList<ElementRef<HTMLElement>>;
@@ -155,6 +163,10 @@ export class LibraryEntryReaderPage implements OnInit {
     await this.workflow.loadNextEntry(event);
   }
 
+  protected async loadPreviousEntry(): Promise<void> {
+    await this.loadPreviousEntryPreservingScroll({ retry: true });
+  }
+
   protected openAppearanceMenu(event: Event): void {
     this.appearanceMenuEvent.set(event);
     this.appearanceMenuOpen.set(true);
@@ -181,6 +193,10 @@ export class LibraryEntryReaderPage implements OnInit {
       return;
     }
 
+    if (firstArticle.nativeElement.getBoundingClientRect().top >= -120) {
+      void this.loadPreviousEntryPreservingScroll({ retry: false });
+    }
+
     const activationLine = 16;
     let activeArticle = firstArticle;
     for (const article of remainingArticles.reverse()) {
@@ -198,5 +214,32 @@ export class LibraryEntryReaderPage implements OnInit {
 
   private async loadEntry(): Promise<void> {
     await this.workflow.loadEntry();
+  }
+
+  private async loadPreviousEntryPreservingScroll(options: {
+    readonly retry: boolean;
+  }): Promise<void> {
+    if (!this.canLoadPreviousEntry(options)) {
+      return;
+    }
+
+    const scrollElement = await this.readerContent?.getScrollElement();
+    const scrollHeightBefore = scrollElement?.scrollHeight ?? 0;
+    const loaded = await this.workflow.loadPreviousEntry();
+    if (!loaded || scrollElement === undefined) {
+      return;
+    }
+
+    this.changeDetector.detectChanges();
+    scrollElement.scrollTop += scrollElement.scrollHeight - scrollHeightBefore;
+  }
+
+  private canLoadPreviousEntry(options: { readonly retry: boolean }): boolean {
+    return (
+      this.loadedEntries().length > 0 &&
+      this.previousLoadState() !== 'ended' &&
+      !this.workflow.loadingAdjacentEntry() &&
+      (options.retry || this.previousLoadState() !== 'failed')
+    );
   }
 }

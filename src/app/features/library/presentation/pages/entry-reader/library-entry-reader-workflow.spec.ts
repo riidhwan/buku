@@ -61,6 +61,44 @@ describe('LibraryEntryReaderWorkflow', () => {
     expect(event.completeCalls).toBe(1);
   });
 
+  it('prepends the previous series entry without changing the active entry', async () => {
+    workflow = createWorkflow(library, 'entry-2');
+    await workflow.loadEntry();
+
+    const loaded = await workflow.loadPreviousEntry();
+
+    expect(loaded).toBeTrue();
+    expect(workflow.loadedEntries().map((entry) => entry.id)).toEqual(['entry-1', 'entry-2']);
+    expect(workflow.activeEntry()).toEqual(library.entry('entry-2'));
+    expect(workflow.previousLoadState()).toBe('idle');
+  });
+
+  it('marks previous loading ended when no earlier series entry exists', async () => {
+    await workflow.loadEntry();
+
+    const loaded = await workflow.loadPreviousEntry();
+
+    expect(loaded).toBeFalse();
+    expect(workflow.loadedEntries().map((entry) => entry.id)).toEqual(['entry-1']);
+    expect(workflow.previousLoadState()).toBe('ended');
+    expect(workflow.previousLoadingDisabled()).toBeTrue();
+    expect(workflow.infiniteScrollDisabled()).toBeFalse();
+  });
+
+  it('keeps rendered entries and reports failure when the previous entry cannot load', async () => {
+    workflow = createWorkflow(library, 'entry-2');
+    await workflow.loadEntry();
+    library.entriesById.delete('entry-1');
+
+    const loaded = await workflow.loadPreviousEntry();
+
+    expect(loaded).toBeFalse();
+    expect(workflow.loadedEntries().map((entry) => entry.id)).toEqual(['entry-2']);
+    expect(workflow.previousLoadState()).toBe('failed');
+    expect(workflow.previousLoadingDisabled()).toBeTrue();
+    expect(workflow.infiniteScrollDisabled()).toBeFalse();
+  });
+
   it('marks loading ended when no later series entry exists', async () => {
     await workflow.loadEntry();
 
@@ -96,6 +134,27 @@ describe('LibraryEntryReaderWorkflow', () => {
 
     expect(event.completeCalls).toBe(1);
     expect(workflow.loadState()).toBe('loading');
+  });
+
+  it('blocks bottom loading while a previous entry is loading', async () => {
+    workflow.previousLoadState.set('loading');
+    const event = new FakeInfiniteScrollEvent();
+
+    await workflow.loadNextEntry(event);
+
+    expect(event.completeCalls).toBe(1);
+    expect(workflow.loadedEntries()).toEqual([]);
+  });
+
+  it('blocks previous loading while another entry load is already in progress', async () => {
+    await workflow.loadEntry();
+    workflow.nextLoadState.set('loading');
+
+    const loaded = await workflow.loadPreviousEntry();
+
+    expect(loaded).toBeFalse();
+    expect(workflow.previousLoadState()).toBe('idle');
+    expect(workflow.previousLoadingDisabled()).toBeTrue();
   });
 
   it('uses the first loaded entry when the active id no longer points at a loaded entry', async () => {
@@ -166,11 +225,14 @@ class FakeInfiniteScrollEvent {
   };
 }
 
-function createWorkflow(library: FakeLibraryFacade): LibraryEntryReaderWorkflow {
+function createWorkflow(
+  library: FakeLibraryFacade,
+  entryId = 'entry-1',
+): LibraryEntryReaderWorkflow {
   return new LibraryEntryReaderWorkflow({
     library: library as unknown as LibraryFacade,
     seriesId: 'series-1',
-    entryId: 'entry-1',
+    entryId,
   });
 }
 

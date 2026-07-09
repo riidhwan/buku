@@ -93,8 +93,23 @@
   [scrollEvents]="true"
   (ionScroll)="updateActiveEntryFromScroll()"
 >
-  @if (loadedEntries().length > 0) { @for (selectedEntry of loadedEntries(); track selectedEntry.id;
-  let first = $first) {
+  @if (loadedEntries().length > 0) { @if (previousLoadState() === 'failed') {
+  <div class="library-reader-boundary library-reader-boundary-top">
+    <ion-text>Could not load the previous saved entry.</ion-text>
+    <ion-button
+      class="library-reader-retry"
+      fill="clear"
+      size="small"
+      (click)="loadPreviousEntry()"
+    >
+      Retry
+    </ion-button>
+  </div>
+  } @else if (previousLoadState() === 'ended') {
+  <ion-text class="library-reader-boundary library-reader-boundary-top">
+    No earlier saved entries.
+  </ion-text>
+  } @for (selectedEntry of loadedEntries(); track selectedEntry.id; let first = $first) {
   <article
     #readerArticle
     class="library-reader-article"
