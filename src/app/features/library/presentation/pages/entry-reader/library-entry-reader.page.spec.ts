@@ -70,7 +70,10 @@ interface LibraryEntryReaderPageHarness {
   readonly series: WritableSignal<LibrarySeries | null>;
   readonly loadedEntries: WritableSignal<readonly LibrarySeriesEntry[]>;
   readonly loadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
+  readonly previousLoadState: WritableSignal<'idle' | 'loading' | 'ended' | 'failed'>;
+  readerContent: { getScrollElement(): Promise<HTMLElement> } | undefined;
   ionViewWillEnter?(): Promise<void>;
+  loadPreviousEntry(): Promise<void>;
   loadNextEntry(event?: { readonly target: { complete(): void | Promise<void> } }): Promise<void>;
   preventReaderLinkNavigation(event: Event): void;
   editActiveEntry(): void;
@@ -332,6 +335,113 @@ describe('LibraryEntryReaderPage', () => {
     expect(articles.item(0).textContent).toContain('Saved reading content.');
     expect(articles.item(1).textContent).toContain('More saved reading content.');
     expect(nativeElement.querySelectorAll('ion-buttons[slot="end"] ion-button').length).toBe(2);
+  });
+
+  it('prepends one earlier saved entry and preserves the visible scroll position', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    component.loadedEntries.set([entry('entry-2')]);
+    const scrollElement = scrollElementForLoadedEntries(component, 240);
+    fixture.detectChanges();
+    setArticleTops(fixture, [-200]);
+    component.updateActiveEntryFromScroll();
+    stubReaderScrollElement(component, scrollElement);
+
+    await component.loadPreviousEntry();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const articles = nativeElement.querySelectorAll('.library-reader-article');
+
+    expect(Array.from(articles).map((article) => article.textContent)).toEqual([
+      jasmine.stringContaining('Saved reading content.'),
+      jasmine.stringContaining('More saved reading content.'),
+    ]);
+    expect(nativeElement.querySelector('ion-title')?.textContent).toContain('Chapter 2');
+    expect(scrollElement.scrollTop).toBe(1240);
+  });
+
+  it('loads the previous saved entry when scrolling near the top threshold', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    component.loadedEntries.set([entry('entry-2')]);
+    fixture.detectChanges();
+    stubReaderScrollElement(component, scrollElementForLoadedEntries(component, 100));
+    setArticleTops(fixture, [-80]);
+
+    component.updateActiveEntryFromScroll();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.loadedEntries().map((loadedEntry) => loadedEntry.id)).toEqual([
+      'entry-1',
+      'entry-2',
+    ]);
+  });
+
+  it('loads the previous saved entry when scroll content is unavailable', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    component.loadedEntries.set([entry('entry-2')]);
+    component.readerContent = undefined;
+
+    await component.loadPreviousEntry();
+
+    expect(component.loadedEntries().map((loadedEntry) => loadedEntry.id)).toEqual([
+      'entry-1',
+      'entry-2',
+    ]);
+  });
+
+  it('does not auto-retry previous loading after a top failure', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    component.loadedEntries.set([entry('entry-2')]);
+    component.previousLoadState.set('failed');
+    fixture.detectChanges();
+    setArticleTops(fixture, [-80]);
+
+    component.updateActiveEntryFromScroll();
+    await fixture.whenStable();
+
+    expect(component.loadedEntries().map((loadedEntry) => loadedEntry.id)).toEqual(['entry-2']);
+  });
+
+  it('shows the top end marker when no earlier saved entry exists', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+
+    await component.loadPreviousEntry();
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(1);
+    expect(nativeElement.textContent).toContain('No earlier saved entries.');
+  });
+
+  it('keeps rendered entries and exposes retry when the previous saved entry cannot load', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryReaderPageHarness;
+    component.loadedEntries.set([entry('entry-2')]);
+    entriesById.delete('entry-1');
+
+    await component.loadPreviousEntry();
+    fixture.detectChanges();
+    let nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(1);
+    expect(nativeElement.textContent).toContain('Could not load the previous saved entry.');
+
+    entriesById.set('entry-1', entryFixture('entry-1', 'Chapter 1', 'Recovered earlier content.'));
+    stubReaderScrollElement(component, scrollElementForLoadedEntries(component, 0));
+
+    nativeElement.querySelector<HTMLIonButtonElement>('.library-reader-retry')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    nativeElement = fixture.nativeElement as HTMLElement;
+
+    expect(nativeElement.querySelectorAll('.library-reader-article').length).toBe(2);
+    expect(nativeElement.textContent).toContain('Recovered earlier content.');
   });
 
   it('updates the toolbar title when the next saved entry reaches the top threshold', async () => {
@@ -734,6 +844,39 @@ function entryFixture(id: string, displayTitle: string, bodyText: string): Libra
     createdAt: '2026-01-12T09:30:00.000Z',
     updatedAt: '2026-01-12T09:30:00.000Z',
   };
+}
+
+function entry(entryId: string): LibrarySeriesEntry {
+  const libraryEntry = entriesById.get(entryId);
+  if (libraryEntry === undefined) {
+    throw new Error(`Missing test entry fixture: ${entryId}`);
+  }
+
+  return libraryEntry;
+}
+
+function scrollElementForLoadedEntries(
+  component: LibraryEntryReaderPageHarness,
+  scrollTop: number,
+): HTMLElement {
+  return {
+    get scrollHeight(): number {
+      return component.loadedEntries().length * 1000;
+    },
+    scrollTop,
+  } as HTMLElement;
+}
+
+function stubReaderScrollElement(
+  component: LibraryEntryReaderPageHarness,
+  scrollElement: HTMLElement,
+): void {
+  const readerContent = component.readerContent;
+  if (readerContent === undefined) {
+    throw new Error('Expected the reader page to expose Ionic content.');
+  }
+
+  readerContent.getScrollElement = () => Promise.resolve(scrollElement);
 }
 
 function infiniteScrollElement(

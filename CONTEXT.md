@@ -24,7 +24,7 @@ A per-Series Entry setting that controls whether Series Entry Reading renders th
 _Avoid_: hidden title, content formatting, appearance
 
 **Series Entry Reading**:
-The Library reading experience that starts from a selected Series Entry and continues forward through later saved Series Entries in the same Series.
+The Library reading experience that starts from a selected Series Entry and continues through adjacent saved Series Entries in the same Series.
 _Avoid_: source chapter discovery, browser reading, reading history
 
 **Series Entry Reading Appearance**:
