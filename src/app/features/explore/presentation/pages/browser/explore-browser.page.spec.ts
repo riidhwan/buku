@@ -816,6 +816,40 @@ describe('ExploreBrowserPage', () => {
     expect(nativeElement.querySelector('.browser-controls')).not.toBeNull();
   });
 
+  it('shows an accessible site-load indicator below the address toolbar while loading', () => {
+    browser.loading.set(true);
+    fixture.detectChanges();
+
+    const header = (fixture.nativeElement as HTMLElement).querySelector('ion-header');
+    const indicator = header?.querySelector(
+      'ion-progress-bar.site-load-progress[aria-label="Loading site"]',
+    );
+
+    expect(indicator).not.toBeNull();
+    expect(indicator?.parentElement?.classList.contains('address-toolbar')).toBeTrue();
+
+    fixture.componentInstance.pageActions.openActions();
+    fixture.detectChanges();
+
+    expect(
+      indicator?.parentElement?.nextElementSibling?.classList.contains('browser-actions-toolbar'),
+    ).toBeTrue();
+
+    browser.loading.set(false);
+    fixture.detectChanges();
+
+    expect(header?.querySelector('.site-load-progress')).toBeNull();
+  });
+
+  it('does not show the site-load indicator for Chapter Navigation loading', () => {
+    browser.loading.set(true);
+    browser.readingModeActive.set(true);
+    browser.chapterNavigationLoading.set(true);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.site-load-progress')).toBeNull();
+  });
+
   it('keeps reader chapter controls in stable slots while the loading indicator appears', () => {
     browser.readingArticle.set(articleSnapshot);
     browser.readingModeActive.set(true);
