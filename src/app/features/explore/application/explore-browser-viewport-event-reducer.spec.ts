@@ -1,6 +1,30 @@
 import { reduceBrowserViewportEvent } from './explore-browser-viewport-event-reducer';
 
 describe('reduceBrowserViewportEvent', () => {
+  it('maps secure navigation failures to replacement state without committing navigation', () => {
+    expect(
+      reduceBrowserViewportEvent({
+        type: 'secureNavigationFailed',
+        event: {
+          reason: 'certificate',
+          url: 'https://example.com/',
+          originalHttpUrl: 'http://example.com/',
+        },
+      }),
+    ).toEqual({
+      inputValue: 'https://example.com/',
+      currentUrl: 'https://example.com/',
+      loading: false,
+      secureNavigationFailure: {
+        reason: 'certificate',
+        title: 'Secure connection could not be verified.',
+        message: 'Buku could not verify this site’s security certificate.',
+        attemptedUrl: 'https://example.com/',
+        externalUrl: 'https://example.com/',
+        externalActionLabel: 'Open in device browser',
+      },
+    });
+  });
   it('maps navigation events to browser state updates', () => {
     const reduction = reduceBrowserViewportEvent({
       type: 'navigation',
@@ -19,6 +43,7 @@ describe('reduceBrowserViewportEvent', () => {
       loading: true,
       nativeCanGoBack: true,
       canGoForward: false,
+      secureNavigationFailure: null,
     });
   });
 

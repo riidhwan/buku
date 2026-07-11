@@ -55,6 +55,10 @@ _Avoid_: browser tab, WebView session, reading history entry
 A capped per-tab list of recently visited Explore Browser URLs used to keep backward navigation useful across app restarts. It is not a user-visible browsing history, forward navigation history, or a restored live WebView session.
 _Avoid_: browser history, tab history, WebView session history
 
+**Explore HTTPS Upgrade**:
+The Explore Browser's replacement of an HTTP navigation target with the equivalent HTTPS target. Buku never loads the original cleartext target inside the Explore Browser; when the secure target is unavailable, the original target may only be handed off to the device browser by explicit user action.
+_Avoid_: HTTP redirect, cleartext fallback, automatic redirect
+
 **Reading Mode**:
 A Buku-rendered reader mode within the Explore Browser, created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling

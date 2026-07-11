@@ -4,6 +4,10 @@ import {
   type BrowserNotice,
 } from './explore-browser-notice-policy';
 import type { BrowserViewportEvent } from './ports/browser-viewport.port';
+import {
+  toSecureNavigationFailure,
+  type ExploreBrowserSecureNavigationFailure,
+} from './explore-browser-secure-navigation-failure';
 
 export interface BrowserViewportNavigationCommit {
   readonly url: string;
@@ -18,6 +22,7 @@ export interface BrowserViewportEventReduction {
   readonly canGoForward?: boolean;
   readonly notice?: BrowserNotice;
   readonly committedNavigation?: BrowserViewportNavigationCommit;
+  readonly secureNavigationFailure?: ExploreBrowserSecureNavigationFailure | null;
 }
 
 export function reduceBrowserViewportEvent(
@@ -26,6 +31,7 @@ export function reduceBrowserViewportEvent(
   switch (event.type) {
     case 'navigation':
       return {
+        secureNavigationFailure: null,
         inputValue: event.state.url,
         currentUrl: event.state.url,
         loading: event.state.loading,
@@ -44,6 +50,13 @@ export function reduceBrowserViewportEvent(
       return {
         loading: false,
         notice: browserNoticeForLoadFailure(event.event.description, event.event.url),
+      };
+    case 'secureNavigationFailed':
+      return {
+        inputValue: event.event.url,
+        currentUrl: event.event.url,
+        loading: false,
+        secureNavigationFailure: toSecureNavigationFailure(event.event),
       };
     case 'capabilityUnsupported':
       return {

@@ -7,6 +7,7 @@ import {
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
+  BrowserSecureNavigationFailureReason,
 } from '../application/ports/browser-viewport.port';
 import {
   EXPLORE_BROWSER_PLUGIN,
@@ -23,6 +24,15 @@ const browserCapabilities = new Set<BrowserCapability>([
   'microphone',
   'newWindow',
   'unknown',
+]);
+
+const secureNavigationFailureReasons = new Set<BrowserSecureNavigationFailureReason>([
+  'certificate',
+  'downgradeLoop',
+  'insecureForm',
+  'offline',
+  'secureUnavailable',
+  'tooManyUpgrades',
 ]);
 
 @Injectable()
@@ -119,6 +129,22 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
       this.eventsSubject.next({
         type: 'loadFailed',
         event,
+      });
+    });
+
+    await this.plugin.addListener('secureNavigationFailed', (event) => {
+      const reason = secureNavigationFailureReasons.has(
+        event.reason as BrowserSecureNavigationFailureReason,
+      )
+        ? (event.reason as BrowserSecureNavigationFailureReason)
+        : 'secureUnavailable';
+      this.eventsSubject.next({
+        type: 'secureNavigationFailed',
+        event: {
+          reason,
+          url: event.url,
+          originalHttpUrl: event.originalHttpUrl,
+        },
       });
     });
 

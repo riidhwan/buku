@@ -41,6 +41,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   public readonly canGoForward = this.workflow.canGoForward;
   public readonly validationError = this.workflow.validationError;
   public readonly notice = this.workflow.notice;
+  public readonly secureNavigationFailure = this.workflow.secureNavigationFailure;
   public readonly readingModeActive = this.workflow.readingModeActive;
   public readonly readingArticle = this.workflow.readingArticle;
   public readonly chapterNavigationLoading = this.workflow.chapterNavigationLoading;
@@ -121,6 +122,10 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   public openCurrentUrlExternally(): Promise<void> {
     return this.workflow.openCurrentUrlExternally();
+  }
+
+  public openSecureNavigationFailureExternally(): Promise<void> {
+    return this.workflow.openSecureNavigationFailureExternally();
   }
 
   public openReadingMode(): Promise<BrowserReadingModeResult> {
