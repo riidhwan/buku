@@ -395,8 +395,18 @@ public class ExploreBrowserPlugin extends Plugin {
 
         upgradedHttpUrls.add(originalUrl);
         httpsUpgradeCount += 1;
-        view.loadUrl(toHttpsUrl(httpUri));
+        String httpsUrl = toHttpsUrl(httpUri);
+        beginNavigation(httpsUrl);
+        view.loadUrl(httpsUrl);
         return true;
+    }
+
+    private void beginNavigation(String url) {
+        navigationFailed = false;
+        currentUrl = url;
+        currentTitle = null;
+        loading = true;
+        emitNavigationState(false);
     }
 
     private String toHttpsUrl(Uri httpUri) {
@@ -429,11 +439,7 @@ public class ExploreBrowserPlugin extends Plugin {
     private final class ExploreWebViewClient extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            navigationFailed = false;
-            currentUrl = url;
-            currentTitle = null;
-            loading = true;
-            emitNavigationState(false);
+            beginNavigation(url);
         }
 
         @Override
@@ -465,6 +471,10 @@ public class ExploreBrowserPlugin extends Plugin {
                 }
                 loadHttpsUpgrade(view, uri);
                 return true;
+            }
+
+            if (request.isForMainFrame()) {
+                beginNavigation(uri.toString());
             }
 
             return false;
@@ -526,6 +536,7 @@ public class ExploreBrowserPlugin extends Plugin {
                                 loadHttpsUpgrade(webView, uri);
                             }
                         } else {
+                            beginNavigation(uri.toString());
                             webView.loadUrl(uri.toString());
                         }
                     }
