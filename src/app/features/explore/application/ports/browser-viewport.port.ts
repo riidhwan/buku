@@ -36,6 +36,20 @@ export interface BrowserLoadFailedEvent {
   readonly description: string;
 }
 
+export type BrowserSecureNavigationFailureReason =
+  | 'certificate'
+  | 'downgradeLoop'
+  | 'insecureForm'
+  | 'offline'
+  | 'secureUnavailable'
+  | 'tooManyUpgrades';
+
+export interface BrowserSecureNavigationFailureEvent {
+  readonly reason: BrowserSecureNavigationFailureReason;
+  readonly url: string;
+  readonly originalHttpUrl: string | null;
+}
+
 export interface BrowserCapabilityEvent {
   readonly capability: BrowserCapability;
   readonly url: string | null;
@@ -50,6 +64,10 @@ export type BrowserViewportEvent =
   | {
       readonly type: 'loadFailed';
       readonly event: BrowserLoadFailedEvent;
+    }
+  | {
+      readonly type: 'secureNavigationFailed';
+      readonly event: BrowserSecureNavigationFailureEvent;
     }
   | {
       readonly type: 'capabilityUnsupported';

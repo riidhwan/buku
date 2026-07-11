@@ -159,6 +159,7 @@ describe('ExploreBrowserFacade', () => {
     await facade.goForward();
     await facade.copyCurrentUrl();
     await facade.openCurrentUrlExternally();
+    await facade.openSecureNavigationFailureExternally();
     await expectAsync(facade.openReadingMode()).toBeResolvedTo({ ok: false });
     facade.closeReadingMode();
     facade.discardReadingMode();
@@ -168,5 +169,6 @@ describe('ExploreBrowserFacade', () => {
     facade.dismissNotice();
 
     expect(facade.activeTab()?.url).toBeNull();
+    expect(facade.secureNavigationFailure()).toBeNull();
   });
 });

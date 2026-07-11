@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.os.Message;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,6 +17,7 @@ import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -22,6 +25,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.net.http.SslError;
 import android.widget.FrameLayout;
 
 import com.getcapacitor.JSObject;
@@ -34,15 +38,24 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+
 @CapacitorPlugin(name = "ExploreBrowser")
 public class ExploreBrowserPlugin extends Plugin {
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
+    private static final int MAX_HTTPS_UPGRADES = 10;
 
     private WebView webView;
     private String currentUrl;
     private String currentTitle;
     private boolean loading;
+    private final Set<String> upgradedHttpUrls = new HashSet<>();
+    private int httpsUpgradeCount;
+    private String latestOriginalHttpUrl;
+    private boolean navigationFailed;
 
     @PluginMethod
     public void show(PluginCall call) {
@@ -97,7 +110,14 @@ public class ExploreBrowserPlugin extends Plugin {
 
         Activity activity = getActivity();
         activity.runOnUiThread(() -> {
-            ensureWebView(activity).loadUrl(url);
+            resetUpgradeChain();
+            WebView browser = ensureWebView(activity);
+            Uri uri = Uri.parse(url);
+            if (HTTP_SCHEME.equals(uri.getScheme())) {
+                loadHttpsUpgrade(browser, uri);
+            } else {
+                browser.loadUrl(url);
+            }
             call.resolve();
         });
     }
@@ -220,6 +240,7 @@ public class ExploreBrowserPlugin extends Plugin {
         settings.setDomStorageEnabled(true);
         settings.setSupportMultipleWindows(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
@@ -354,9 +375,61 @@ public class ExploreBrowserPlugin extends Plugin {
         return scheme != null && !HTTP_SCHEME.equals(scheme) && !HTTPS_SCHEME.equals(scheme);
     }
 
+    private void resetUpgradeChain() {
+        upgradedHttpUrls.clear();
+        httpsUpgradeCount = 0;
+        latestOriginalHttpUrl = null;
+    }
+
+    private boolean loadHttpsUpgrade(WebView view, Uri httpUri) {
+        String originalUrl = httpUri.toString();
+        latestOriginalHttpUrl = originalUrl;
+        if (upgradedHttpUrls.contains(originalUrl)) {
+            notifySecureNavigationFailed("downgradeLoop", toHttpsUrl(httpUri), originalUrl);
+            return false;
+        }
+        if (httpsUpgradeCount >= MAX_HTTPS_UPGRADES) {
+            notifySecureNavigationFailed("tooManyUpgrades", toHttpsUrl(httpUri), originalUrl);
+            return false;
+        }
+
+        upgradedHttpUrls.add(originalUrl);
+        httpsUpgradeCount += 1;
+        view.loadUrl(toHttpsUrl(httpUri));
+        return true;
+    }
+
+    private String toHttpsUrl(Uri httpUri) {
+        String encodedAuthority = httpUri.getEncodedAuthority();
+        if (httpUri.getPort() == 80 && encodedAuthority != null) {
+            encodedAuthority = encodedAuthority.replaceFirst(":80$", ":443");
+        }
+        return httpUri.buildUpon().scheme(HTTPS_SCHEME).encodedAuthority(encodedAuthority).build().toString();
+    }
+
+    private void notifySecureNavigationFailed(String reason, String url, String originalHttpUrl) {
+        loading = false;
+        navigationFailed = true;
+        JSObject payload = new JSObject();
+        payload.put("reason", reason);
+        payload.put("url", url);
+        payload.put("originalHttpUrl", originalHttpUrl);
+        notifyListeners("secureNavigationFailed", payload);
+    }
+
+    private boolean isOffline() {
+        ConnectivityManager manager = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (manager == null || manager.getActiveNetwork() == null) {
+            return true;
+        }
+        NetworkCapabilities capabilities = manager.getNetworkCapabilities(manager.getActiveNetwork());
+        return capabilities == null || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
+
     private final class ExploreWebViewClient extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            navigationFailed = false;
             currentUrl = url;
             currentTitle = null;
             loading = true;
@@ -365,10 +438,15 @@ public class ExploreBrowserPlugin extends Plugin {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            if (navigationFailed) {
+                resetUpgradeChain();
+                return;
+            }
             currentUrl = url;
             currentTitle = normalizedTitle(view.getTitle());
             loading = false;
             emitNavigationState(true);
+            resetUpgradeChain();
         }
 
         @Override
@@ -376,6 +454,16 @@ public class ExploreBrowserPlugin extends Plugin {
             Uri uri = request.getUrl();
             if (shouldBlockUnsupported(uri)) {
                 notifyCapabilityUnsupported("customScheme", uri.toString());
+                return true;
+            }
+
+            if (request.isForMainFrame() && HTTP_SCHEME.equals(uri.getScheme())) {
+                if (!"GET".equals(request.getMethod().toUpperCase(Locale.ROOT))) {
+                    latestOriginalHttpUrl = uri.toString();
+                    notifySecureNavigationFailed("insecureForm", toHttpsUrl(uri), uri.toString());
+                    return true;
+                }
+                loadHttpsUpgrade(view, uri);
                 return true;
             }
 
@@ -389,8 +477,26 @@ public class ExploreBrowserPlugin extends Plugin {
             }
 
             loading = false;
+            if (isOffline() || latestOriginalHttpUrl != null) {
+                notifySecureNavigationFailed(
+                    isOffline() ? "offline" : "secureUnavailable",
+                    request.getUrl().toString(),
+                    latestOriginalHttpUrl
+                );
+                return;
+            }
             notifyLoadFailed(request.getUrl().toString(), error.getDescription().toString());
             emitNavigationState(false);
+        }
+
+        @Override
+        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            handler.cancel();
+            notifySecureNavigationFailed(
+                "certificate",
+                error.getUrl(),
+                latestOriginalHttpUrl
+            );
         }
     }
 
@@ -412,7 +518,16 @@ public class ExploreBrowserPlugin extends Plugin {
                     if (shouldBlockUnsupported(uri)) {
                         notifyCapabilityUnsupported("customScheme", uri.toString());
                     } else if (webView != null) {
-                        webView.loadUrl(uri.toString());
+                        resetUpgradeChain();
+                        if (HTTP_SCHEME.equals(uri.getScheme())) {
+                            if (!"GET".equals(request.getMethod().toUpperCase(Locale.ROOT))) {
+                                notifySecureNavigationFailed("insecureForm", toHttpsUrl(uri), uri.toString());
+                            } else {
+                                loadHttpsUpgrade(webView, uri);
+                            }
+                        } else {
+                            webView.loadUrl(uri.toString());
+                        }
                     }
                     return true;
                 }

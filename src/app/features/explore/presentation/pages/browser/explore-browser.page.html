@@ -65,7 +65,7 @@
   @if (pageActions.actionsOpen()) {
   <ion-toolbar>
     <ion-buttons class="browser-controls">
-      <ion-button aria-label="Go back" [disabled]="!browser.canGoBack()" (click)="browser.goBack()">
+      <ion-button aria-label="Go back" [disabled]="!browser.canGoBack()" (click)="goBack()">
         <ion-icon name="arrow-back-outline" aria-hidden="true"></ion-icon>
       </ion-button>
       <ion-button
@@ -75,7 +75,7 @@
       >
         <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
       </ion-button>
-      <ion-button aria-label="Reload or stop" (click)="browser.stopOrReload()">
+      <ion-button aria-label="Reload or stop" (click)="reloadOrRetry()">
         <ion-icon
           [name]="browser.loading() ? 'stop-outline' : 'refresh-outline'"
           aria-hidden="true"
@@ -139,8 +139,28 @@
 </ion-header>
 
 <ion-content fullscreen="true">
-  <div #viewportHost class="viewport-host" [hidden]="browser.readingModeActive()"></div>
-  @if (browser.readingArticle(); as article) {
+  <div
+    #viewportHost
+    class="viewport-host"
+    [hidden]="browser.readingModeActive() || browser.secureNavigationFailure() !== null"
+  ></div>
+  @if (browser.secureNavigationFailure(); as failure) {
+  <section class="secure-navigation-failure" role="alert" aria-live="polite">
+    <ion-icon name="warning-outline" color="warning" aria-hidden="true"></ion-icon>
+    <h1>{{ failure.title }}</h1>
+    <p>{{ failure.message }}</p>
+    <p class="secure-navigation-url">{{ failure.attemptedUrl }}</p>
+    <div class="secure-navigation-actions">
+      <ion-button (click)="goBack()">Go back</ion-button>
+      <ion-button fill="outline" (click)="reloadOrRetry()">Retry securely</ion-button>
+      @if (failure.externalUrl !== null && failure.externalActionLabel !== null) {
+      <ion-button fill="clear" color="warning" (click)="openSecureNavigationFailureExternally()">
+        {{ failure.externalActionLabel }}
+      </ion-button>
+      }
+    </div>
+  </section>
+  } @if (browser.readingArticle(); as article) {
   <article class="reader-article" [hidden]="!browser.readingModeActive()">
     <header class="reader-header">
       <p class="reader-source">{{ article.siteName ?? article.url }}</p>

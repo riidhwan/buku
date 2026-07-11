@@ -152,6 +152,26 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     this.browser.dismissNotice();
   }
 
+  protected async goBack(): Promise<void> {
+    const result = await this.browser.goBack();
+    if (result.didNavigate) {
+      this.pageShell.scheduleViewportRectUpdate();
+    }
+  }
+
+  protected async reloadOrRetry(): Promise<void> {
+    if (this.browser.secureNavigationFailure() !== null) {
+      await this.browser.retryCurrentUrl();
+    } else {
+      await this.browser.stopOrReload();
+    }
+    this.pageShell.scheduleViewportRectUpdate();
+  }
+
+  protected async openSecureNavigationFailureExternally(): Promise<void> {
+    await this.browser.openSecureNavigationFailureExternally();
+  }
+
   protected async openReadingMode(): Promise<void> {
     const wasActive = this.browser.readingModeActive();
     const result = await this.browser.openReadingMode();

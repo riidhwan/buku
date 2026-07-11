@@ -1843,4 +1843,60 @@ describe('ExploreBrowserWorkflow', () => {
 
     expect(workflow.currentUrl()).toBeNull();
   });
+
+  it('owns secure navigation failure recovery without committing the failed URL', async () => {
+    store.session = {
+      tabs: [browserTab('tab-1', 'https://committed.example/')],
+      selectedTabId: 'tab-1',
+    };
+    await workflow.initialize();
+    viewport.emit({
+      type: 'secureNavigationFailed',
+      event: {
+        reason: 'secureUnavailable',
+        url: 'https://failed.example/',
+        originalHttpUrl: 'http://failed.example/',
+      },
+    });
+
+    expect(workflow.secureNavigationFailure()?.attemptedUrl).toBe('https://failed.example/');
+    expect(workflow.activeTab()?.url).toBe('https://committed.example/');
+    await workflow.showViewport({ left: 0, top: 0, width: 100, height: 100 });
+    await workflow.openSecureNavigationFailureExternally();
+    expect(viewport.hideCount).toBe(2);
+    expect(opener.openedUrl).toBe('http://failed.example/');
+
+    expect(await workflow.goBack()).toEqual({ didNavigate: true });
+    expect(workflow.secureNavigationFailure()).toBeNull();
+    expect(viewport.loadedUrls[viewport.loadedUrls.length - 1]).toBe('https://committed.example/');
+  });
+
+  it('retries only the attempted secure URL and clears failure state', async () => {
+    viewport.emit({
+      type: 'secureNavigationFailed',
+      event: { reason: 'offline', url: 'https://example.com/', originalHttpUrl: null },
+    });
+
+    expect(await workflow.retryCurrentUrl()).toEqual({ ok: true });
+    expect(viewport.loadedUrls).toEqual(['https://example.com/']);
+    expect(workflow.secureNavigationFailure()).toBeNull();
+    expect(workflow.loading()).toBeTrue();
+  });
+
+  it('dismisses a failed first navigation back to a blank tab and on close', async () => {
+    await workflow.initialize();
+    viewport.emit({
+      type: 'secureNavigationFailed',
+      event: { reason: 'insecureForm', url: 'https://example.com/', originalHttpUrl: null },
+    });
+
+    expect(await workflow.goBack()).toEqual({ didNavigate: true });
+    expect(workflow.currentUrl()).toBeNull();
+    viewport.emit({
+      type: 'secureNavigationFailed',
+      event: { reason: 'offline', url: 'https://example.com/', originalHttpUrl: null },
+    });
+    await workflow.closeBrowser();
+    expect(workflow.secureNavigationFailure()).toBeNull();
+  });
 });

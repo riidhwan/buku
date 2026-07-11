@@ -97,6 +97,7 @@ export class ExploreBrowserPageShell {
     if (this.browser.canGoBack()) {
       const result = await this.browser.goBack();
       if (result.didNavigate) {
+        this.scheduleViewportRectUpdate();
         return;
       }
     }

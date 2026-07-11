@@ -11,6 +11,7 @@ import {
   recentExploreBrowserTabs,
 } from './explore-browser-session-policy';
 import type { BrowserNotice } from './explore-browser-notice-policy';
+import type { ExploreBrowserSecureNavigationFailure } from './explore-browser-secure-navigation-failure';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
 
 export class ExploreBrowserWorkflowState {
@@ -23,6 +24,8 @@ export class ExploreBrowserWorkflowState {
   public readonly canGoForwardSignal = signal(false);
   public readonly validationErrorSignal = signal<string | null>(null);
   public readonly noticeSignal = signal<BrowserNotice | null>(null);
+  public readonly secureNavigationFailureSignal =
+    signal<ExploreBrowserSecureNavigationFailure | null>(null);
   public readonly readingModeActiveSignal = signal(false);
   public readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
   public readonly chapterNavigationLoadingSignal = signal(false);
@@ -38,12 +41,14 @@ export class ExploreBrowserWorkflowState {
   public readonly loading = this.loadingSignal.asReadonly();
   public readonly canGoBack = computed(
     () =>
+      this.secureNavigationFailureSignal() !== null ||
       this.activeBackStack().length > 0 ||
       canUseNativeBackNavigation(this.nativeCanGoBackSignal(), this.backNavigationState),
   );
   public readonly canGoForward = this.canGoForwardSignal.asReadonly();
   public readonly validationError = this.validationErrorSignal.asReadonly();
   public readonly notice = this.noticeSignal.asReadonly();
+  public readonly secureNavigationFailure = this.secureNavigationFailureSignal.asReadonly();
   public readonly readingModeActive = this.readingModeActiveSignal.asReadonly();
   public readonly readingArticle = this.readingArticleSignal.asReadonly();
   public readonly chapterNavigationLoading = this.chapterNavigationLoadingSignal.asReadonly();

@@ -8,6 +8,7 @@ import {
   NativeBrowserHistoryNavigationResult,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
+  NativeBrowserSecureNavigationFailureEvent,
   NativeBrowserViewportRect,
 } from './capacitor-explore-browser';
 import { CapacitorBrowserViewportAdapter } from './capacitor-browser-viewport.adapter';
@@ -16,6 +17,7 @@ interface ListenerMap {
   navigationState?: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void;
   loadFailed?: (event: NativeBrowserLoadFailedEvent) => void;
   capabilityUnsupported?: (event: NativeBrowserCapabilityEvent) => void;
+  secureNavigationFailed?: (event: NativeBrowserSecureNavigationFailureEvent) => void;
 }
 
 class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
@@ -92,6 +94,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   }
 
   public addListener(
+    eventName: 'secureNavigationFailed',
+    listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
+  ): Promise<{ remove(): Promise<void> }>;
+  public addListener(
     eventName: 'navigationState',
     listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,
   ): Promise<{ remove(): Promise<void> }>;
@@ -108,6 +114,7 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     listenerFunc:
       | ((event: NativeBrowserNavigationState & { readonly committed: boolean }) => void)
       | ((event: NativeBrowserLoadFailedEvent) => void)
+      | ((event: NativeBrowserSecureNavigationFailureEvent) => void)
       | ((event: NativeBrowserCapabilityEvent) => void),
   ): Promise<{ remove(): Promise<void> }> {
     if (eventName === 'navigationState') {
@@ -116,9 +123,13 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
       ) => void;
     } else if (eventName === 'loadFailed') {
       this.listeners.loadFailed = listenerFunc as (event: NativeBrowserLoadFailedEvent) => void;
-    } else {
+    } else if (eventName === 'capabilityUnsupported') {
       this.listeners.capabilityUnsupported = listenerFunc as (
         event: NativeBrowserCapabilityEvent,
+      ) => void;
+    } else {
+      this.listeners.secureNavigationFailed = listenerFunc as (
+        event: NativeBrowserSecureNavigationFailureEvent,
       ) => void;
     }
 
@@ -161,6 +172,9 @@ describe('CapacitorBrowserViewportAdapter', () => {
     adapter.events$.subscribe((event) => {
       events.push(event);
     });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
   });
 
@@ -351,6 +365,16 @@ describe('CapacitorBrowserViewportAdapter', () => {
       url: 'https://example.com/',
       description: 'Failed',
     });
+    plugin.listeners.secureNavigationFailed?.({
+      reason: 'certificate',
+      url: 'https://insecure.example/',
+      originalHttpUrl: 'http://insecure.example/',
+    });
+    plugin.listeners.secureNavigationFailed?.({
+      reason: 'futureReason',
+      url: 'https://future.example/',
+      originalHttpUrl: null,
+    });
     plugin.listeners.capabilityUnsupported?.({
       capability: 'fileUpload',
       url: 'https://example.com/',
@@ -377,6 +401,22 @@ describe('CapacitorBrowserViewportAdapter', () => {
         event: {
           url: 'https://example.com/',
           description: 'Failed',
+        },
+      },
+      {
+        type: 'secureNavigationFailed',
+        event: {
+          reason: 'certificate',
+          url: 'https://insecure.example/',
+          originalHttpUrl: 'http://insecure.example/',
+        },
+      },
+      {
+        type: 'secureNavigationFailed',
+        event: {
+          reason: 'secureUnavailable',
+          url: 'https://future.example/',
+          originalHttpUrl: null,
         },
       },
       {

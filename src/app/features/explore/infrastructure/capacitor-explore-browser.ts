@@ -30,6 +30,12 @@ export interface NativeBrowserLoadFailedEvent {
   readonly description: string;
 }
 
+export interface NativeBrowserSecureNavigationFailureEvent {
+  readonly reason: string;
+  readonly url: string;
+  readonly originalHttpUrl: string | null;
+}
+
 export interface NativeBrowserCapabilityEvent {
   readonly capability: string;
   readonly url: string | null;
@@ -86,6 +92,10 @@ export interface ExploreBrowserPlugin {
   addListener(
     eventName: 'loadFailed',
     listenerFunc: (event: NativeBrowserLoadFailedEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'secureNavigationFailed',
+    listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
   ): Promise<PluginListenerHandle>;
   addListener(
     eventName: 'capabilityUnsupported',

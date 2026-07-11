@@ -7,6 +7,7 @@ import {
   NativeBrowserHistoryNavigationResult,
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
+  NativeBrowserSecureNavigationFailureEvent,
 } from './capacitor-explore-browser';
 import { CapacitorExternalUrlOpenerAdapter } from './capacitor-external-url-opener.adapter';
 
@@ -52,6 +53,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     });
   }
 
+  public addListener(
+    _eventName: 'secureNavigationFailed',
+    _listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
+  ): Promise<{ remove(): Promise<void> }>;
   public addListener(
     _eventName: 'navigationState',
     _listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,

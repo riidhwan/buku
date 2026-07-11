@@ -68,6 +68,7 @@ export class ExploreBrowserWorkflow {
   public readonly canGoForward = this.state.canGoForward;
   public readonly validationError = this.state.validationError;
   public readonly notice = this.state.notice;
+  public readonly secureNavigationFailure = this.state.secureNavigationFailure;
   public readonly readingModeActive = this.state.readingModeActive;
   public readonly readingArticle = this.state.readingArticle;
   public readonly chapterNavigationLoading = this.state.chapterNavigationLoading;
@@ -87,6 +88,7 @@ export class ExploreBrowserWorkflow {
       if (reduction.notice !== undefined) {
         this.state.noticeSignal.set(reduction.notice);
       }
+      this.applySecureNavigationFailure(reduction.secureNavigationFailure);
       if (reduction.committedNavigation !== undefined) {
         if (this.shouldDiscardReadingModeForCommittedUrl(reduction.committedNavigation.url)) {
           this.discardReadingMode();
@@ -220,12 +222,17 @@ export class ExploreBrowserWorkflow {
       return { ok: false };
     }
 
+    this.state.secureNavigationFailureSignal.set(null);
+    this.state.loadingSignal.set(true);
     await this.dependencies.viewport.load(currentUrl);
     return { ok: true };
   }
 
   public async showViewport(rect: BrowserViewportRect): Promise<void> {
-    if (this.state.readingModeActiveSignal()) {
+    if (
+      this.state.readingModeActiveSignal() ||
+      this.state.secureNavigationFailureSignal() !== null
+    ) {
       await this.dependencies.viewport.hide();
       return;
     }
@@ -239,6 +246,7 @@ export class ExploreBrowserWorkflow {
 
   public async closeBrowser(): Promise<void> {
     this.discardReadingMode();
+    this.state.secureNavigationFailureSignal.set(null);
     await this.dependencies.viewport.hide();
   }
 
@@ -255,6 +263,16 @@ export class ExploreBrowserWorkflow {
 
   public async goBack(): Promise<BrowserHistoryNavigationResult> {
     this.discardReadingMode();
+    if (this.state.secureNavigationFailureSignal() !== null) {
+      this.state.secureNavigationFailureSignal.set(null);
+      const committedUrl = this.state.findActiveTab()?.url ?? null;
+      if (committedUrl === null) {
+        await this.clearVisiblePageForBlankTab();
+      } else {
+        await this.loadSelectedTabUrl(committedUrl);
+      }
+      return { didNavigate: true };
+    }
     if (this.canUseNativeBack()) {
       const result = await this.dependencies.viewport.back();
       this.state.backNavigationState = recordNativeBackNavigation(
@@ -309,6 +327,13 @@ export class ExploreBrowserWorkflow {
     const currentUrl = this.state.currentUrlSignal();
     if (currentUrl !== null) {
       await this.dependencies.externalUrlOpener.open(currentUrl);
+    }
+  }
+
+  public async openSecureNavigationFailureExternally(): Promise<void> {
+    const externalUrl = this.state.secureNavigationFailureSignal()?.externalUrl ?? null;
+    if (externalUrl !== null) {
+      await this.dependencies.externalUrlOpener.open(externalUrl);
     }
   }
 
@@ -450,6 +475,7 @@ export class ExploreBrowserWorkflow {
   }
 
   private async loadSelectedTabUrl(url: string): Promise<void> {
+    this.state.secureNavigationFailureSignal.set(null);
     this.state.readingModeActiveSignal.set(false);
     this.state.inputValueSignal.set(url);
     this.state.currentUrlSignal.set(url);
@@ -473,11 +499,13 @@ export class ExploreBrowserWorkflow {
     this.state.canGoForwardSignal.set(false);
     this.state.backNavigationState = initialExploreBrowserBackNavigationState();
     this.state.validationErrorSignal.set(null);
+    this.state.secureNavigationFailureSignal.set(null);
     await this.dependencies.viewport.hide();
     await this.dependencies.viewport.destroy();
   }
 
   private applySession(session: BrowserTabSession): void {
+    this.state.secureNavigationFailureSignal.set(null);
     const selectedTabId = selectedTabIdForBrowserSession(session);
     this.state.tabsSignal.set(session.tabs);
     this.state.selectedTabIdSignal.set(selectedTabId);
@@ -507,6 +535,7 @@ export class ExploreBrowserWorkflow {
     this.state.selectedTabIdSignal.set(session.selectedTabId);
     this.state.currentUrlSignal.set(null);
     this.state.inputValueSignal.set('');
+    this.state.secureNavigationFailureSignal.set(null);
   }
 
   private commitActiveTabUrl(url: string, title: string | null): void {
@@ -538,6 +567,19 @@ export class ExploreBrowserWorkflow {
       tabs: this.state.tabsSignal(),
       selectedTabId: this.state.selectedTabIdSignal(),
     });
+  }
+
+  private applySecureNavigationFailure(
+    failure: ReturnType<typeof reduceBrowserViewportEvent>['secureNavigationFailure'],
+  ): void {
+    if (failure === undefined) {
+      return;
+    }
+
+    this.state.secureNavigationFailureSignal.set(failure);
+    if (failure !== null) {
+      void this.dependencies.viewport.hide();
+    }
   }
 
   private loadFailureMessage(error: unknown): string {

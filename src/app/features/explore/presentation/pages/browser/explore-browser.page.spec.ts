@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Platform } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import type { ExploreBrowserSecureNavigationFailure } from '../../../application/explore-browser-secure-navigation-failure';
 import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
 import {
   READING_LIBRARY_SAVE,
@@ -62,6 +63,9 @@ class FakeExploreBrowserFacade {
   public readonly notice = signal<{ readonly message: string; readonly url: string | null } | null>(
     null,
   );
+  public readonly secureNavigationFailure = signal<ExploreBrowserSecureNavigationFailure | null>(
+    null,
+  );
   public shownRect: BrowserViewportRect | null = null;
   public showCount = 0;
   public hidden = 0;
@@ -73,6 +77,8 @@ class FakeExploreBrowserFacade {
   public backNavigations = 0;
   public backDidNavigate = true;
   public reloads = 0;
+  public secureRetries = 0;
+  public secureExternalOpens = 0;
   public readingModeOpens = 0;
   public readingModeResult = true;
   public openInputResult = true;
@@ -125,6 +131,16 @@ class FakeExploreBrowserFacade {
 
   public stopOrReload(): Promise<void> {
     this.reloads += 1;
+    return Promise.resolve();
+  }
+
+  public retryCurrentUrl(): Promise<{ readonly ok: boolean }> {
+    this.secureRetries += 1;
+    return Promise.resolve({ ok: true });
+  }
+
+  public openSecureNavigationFailureExternally(): Promise<void> {
+    this.secureExternalOpens += 1;
     return Promise.resolve();
   }
 
@@ -239,6 +255,9 @@ interface ExploreBrowserPageHarness {
   openReaderLink(event: Event): Promise<void>;
   navigateChapter(direction: 'previous' | 'next'): Promise<void>;
   formatPublishedTime(publishedTime: string): string;
+  goBack(): Promise<void>;
+  reloadOrRetry(): Promise<void>;
+  openSecureNavigationFailureExternally(): Promise<void>;
 }
 
 function isIonButtonDisabled(button: Element): boolean {
@@ -939,5 +958,39 @@ describe('ExploreBrowserPage', () => {
 
     expect(browser.openedExternally).toBe(1);
     expect(browser.dismissed).toBe(1);
+  });
+
+  it('renders secure navigation recovery actions', async () => {
+    browser.secureNavigationFailure.set({
+      reason: 'secureUnavailable',
+      title: 'Secure site could not be reached.',
+      message: 'The secure destination did not load.',
+      attemptedUrl: 'https://example.com/',
+      externalUrl: 'http://example.com/',
+      externalActionLabel: 'Open insecure link in device browser',
+    });
+    fixture.detectChanges();
+
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll(
+      '.secure-navigation-actions ion-button',
+    );
+    buttons.item(1).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons.item(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(browser.secureRetries).toBe(1);
+    expect(browser.secureExternalOpens).toBe(1);
+  });
+
+  it('coordinates ordinary browser recovery actions with viewport layout', async () => {
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    await component.goBack();
+    await component.reloadOrRetry();
+    await component.openSecureNavigationFailureExternally();
+
+    expect(browser.backNavigations).toBe(1);
+    expect(browser.reloads).toBe(1);
+    expect(browser.secureExternalOpens).toBe(1);
   });
 });
