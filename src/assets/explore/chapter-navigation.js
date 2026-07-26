@@ -58,6 +58,14 @@
     return /\b(pager|pagination|page-links)\b/i.test(value);
   }
 
+  function directionalContainerMatches(anchor, direction) {
+    var selector =
+      direction === 'previous'
+        ? '.post-nav-prev,.post-nav-previous,.nav-prev,.nav-previous,.previous-post,.prev-post,.post-prev,.post-previous,.previous-entry,.prev-entry,.chapter-prev,.chapter-previous'
+        : '.post-nav-next,.nav-next,.next-post,.post-next,.next-entry,.chapter-next';
+    return navLikeContext(anchor) && anchor.closest(selector) !== null;
+  }
+
   function toChapterLink(element) {
     var href = element && element.getAttribute('href');
     if (!href) {
@@ -173,6 +181,13 @@
     });
     if (paginationLabelAnchors.length > 0) {
       return uniqueChapterCandidate(paginationLabelAnchors);
+    }
+
+    var directionalContainerAnchors = anchors.filter(function (anchor) {
+      return directionalContainerMatches(anchor, direction);
+    });
+    if (directionalContainerAnchors.length > 0) {
+      return uniqueChapterCandidate(directionalContainerAnchors);
     }
 
     var bareLabelAnchors = anchors.filter(function (anchor) {
