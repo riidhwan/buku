@@ -140,6 +140,24 @@ describe('Explore injected scripts', () => {
     expect(insideNavigation).toEqual({ href: '/chapter-2', label: 'Next' });
   });
 
+  it('detects WordPress post navigation when the direction label is outside the chapter link', async () => {
+    const result = await withScriptWindow(
+      '<article>' +
+        '<p>' +
+        '<a href="/chapter-1"><strong>Previous</strong></a> | ' +
+        '<a href="/toc"><strong>Main</strong></a> | ' +
+        '<a href="/chapter-2"><strong>Ne</strong><strong>x</strong><strong>t</strong></a>' +
+        '</p>' +
+        '</article>' +
+        '<div class="post-navigation">' +
+        '<div class="post-nav-next"><p>Next</p><h4><a href="/chapter-2">WM V1C0002</a></h4></div>' +
+        '</div>',
+      (scriptWindow) => scriptWindow.BukuExplore.findChapterLink('next'),
+    );
+
+    expect(result).toEqual({ href: '/chapter-2', label: 'WM V1C0002' });
+  });
+
   it('ignores self links and conflicting candidates', async () => {
     const selfLink = await withScriptWindow(
       '<nav><a href="#next">Next chapter</a></nav>',
