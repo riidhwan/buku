@@ -5,6 +5,9 @@ interface BukuExploreWindow extends Window {
       readonly status: 'ok' | 'unavailable' | 'failed';
       readonly article?: {
         readonly title: string;
+        readonly contentHtml: string;
+        readonly textContent: string;
+        readonly length: number;
         readonly previousChapter?: { readonly href: string; readonly label: string | null };
         readonly nextChapter?: { readonly href: string; readonly label: string | null };
       };
@@ -40,6 +43,7 @@ describe('Explore injected scripts', () => {
   async function withScriptWindow<T>(
     bodyHtml: string,
     callback: (scriptWindow: BukuExploreWindow & ReadabilityWindow) => T,
+    options: { readonly readableContentHtml?: string } = {},
   ): Promise<T> {
     const [chapterNavigationScript, articleExtractionScript] = await Promise.all([
       loadScript('assets/explore/chapter-navigation.js'),
@@ -75,13 +79,14 @@ describe('Explore injected scripts', () => {
 
         public parse() {
           const textContent = this.readableDocument.body.textContent;
+          const content = options.readableContentHtml ?? '<p>Readable body.</p>';
           return {
             title: 'Readable article',
             byline: null,
             siteName: null,
             excerpt: null,
             publishedTime: null,
-            content: '<p>Readable body.</p>',
+            content,
             textContent,
             length: textContent.length,
           };
@@ -193,5 +198,82 @@ describe('Explore injected scripts', () => {
         nextChapter: { href: '/chapter-3', label: 'Next chapter' },
       }),
     });
+  });
+
+  it('removes compact trailing chapter navigation from extracted article content', async () => {
+    const result = await withScriptWindow(
+      '<article>' +
+        '<p>His dreams were expanding!</p>' +
+        '<p><a href="/chapter-1">Previous</a> | <a href="/toc">Main</a> | <a href="/chapter-3">Ne x t</a></p>' +
+        '</article>',
+      (scriptWindow) => scriptWindow.BukuExplore.extractArticle(),
+      {
+        readableContentHtml:
+          '<div>' +
+          '<p>His dreams were expanding!</p>' +
+          '<p><a href="/chapter-1">Previous</a> | <a href="/toc">Main</a> | <a href="/chapter-3">Ne x t</a></p>' +
+          '</div>',
+      },
+    );
+
+    expect(result.article?.contentHtml).toContain('His dreams were expanding!');
+    expect(result.article?.contentHtml).not.toContain('Previous');
+    expect(result.article?.contentHtml).not.toContain('Main');
+    expect(result.article?.contentHtml).not.toContain('Next');
+    expect(result.article?.textContent).toBe('His dreams were expanding!');
+    expect(result.article?.length).toBe('His dreams were expanding!'.length);
+  });
+
+  it('removes trailing post navigation from extracted article content', async () => {
+    const result = await withScriptWindow(
+      '<article>' +
+        '<p>His dreams were expanding!</p>' +
+        '<div class="post-navigation">' +
+        '<div class="post-nav-prev"><p>Previous</p><h4><a href="/chapter-1">WM Prologue C0000</a></h4></div>' +
+        '<div class="post-nav-next"><p>Next</p><h4><a href="/chapter-3">WM V1C0002</a></h4></div>' +
+        '</div>' +
+        '</article>',
+      (scriptWindow) => scriptWindow.BukuExplore.extractArticle(),
+      {
+        readableContentHtml:
+          '<div>' +
+          '<p>His dreams were expanding!</p>' +
+          '<div class="post-navigation">' +
+          '<div class="post-nav-prev"><p>Previous</p><h4><a href="/chapter-1">WM Prologue C0000</a></h4></div>' +
+          '<div class="post-nav-next"><p>Next</p><h4><a href="/chapter-3">WM V1C0002</a></h4></div>' +
+          '</div>' +
+          '</div>',
+      },
+    );
+
+    expect(result.article?.contentHtml).toContain('His dreams were expanding!');
+    expect(result.article?.contentHtml).not.toContain('WM Prologue C0000');
+    expect(result.article?.contentHtml).not.toContain('WM V1C0002');
+    expect(result.article?.textContent).toBe('His dreams were expanding!');
+  });
+
+  it('removes compact chapter navigation even when post content follows it', async () => {
+    const result = await withScriptWindow(
+      '<article>' +
+        '<p>His dreams were expanding!</p>' +
+        '<p><a href="/chapter-1">Previous</a> | <a href="/toc">Main</a> | <a href="/chapter-3">Next</a></p>' +
+        '<h3>Share this:</h3>' +
+        '</article>',
+      (scriptWindow) => scriptWindow.BukuExplore.extractArticle(),
+      {
+        readableContentHtml:
+          '<div>' +
+          '<p>His dreams were expanding!</p>' +
+          '<p><a href="/chapter-1">Previous</a> | <a href="/toc">Main</a> | <a href="/chapter-3">Next</a></p>' +
+          '<h3>Share this:</h3>' +
+          '</div>',
+      },
+    );
+
+    expect(result.article?.contentHtml).toContain('His dreams were expanding!');
+    expect(result.article?.contentHtml).toContain('Share this:');
+    expect(result.article?.contentHtml).not.toContain('Previous');
+    expect(result.article?.contentHtml).not.toContain('Main');
+    expect(result.article?.contentHtml).not.toContain('Next');
   });
 });
