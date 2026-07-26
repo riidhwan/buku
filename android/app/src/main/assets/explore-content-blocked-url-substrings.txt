@@ -1,0 +1,11 @@
+# Conservative URL fragments for common ad resources.
+/pagead/
+/pagead2.
+/adsbygoogle
+/adservice/
+/googleads.
+/gampad/
+/securepubads.
+/doubleclick/
+/adserver/
+/adtech/

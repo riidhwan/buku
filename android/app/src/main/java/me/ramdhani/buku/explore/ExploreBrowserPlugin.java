@@ -22,6 +22,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -38,6 +39,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -47,8 +51,16 @@ public class ExploreBrowserPlugin extends Plugin {
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
     private static final int MAX_HTTPS_UPGRADES = 10;
+    private static final String CONTENT_BLOCKING_CSS =
+        "ins.adsbygoogle,.adsbygoogle,[id^=\"google_ads\"],[id*=\"google_ads\"]," +
+        "[class^=\"ad-container\"],[class*=\" ad-container\"]," +
+        "[class^=\"advertisement\"],[class*=\" advertisement\"]," +
+        "iframe[src*=\"doubleclick.net\"],iframe[src*=\"googlesyndication.com\"]" +
+        "{display:none!important;visibility:hidden!important;height:0!important;" +
+        "min-height:0!important;margin:0!important;padding:0!important;border:0!important;}";
 
     private WebView webView;
+    private ExploreContentBlocker contentBlocker;
     private String currentUrl;
     private String currentTitle;
     private boolean loading;
@@ -243,7 +255,7 @@ public class ExploreBrowserPlugin extends Plugin {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(browser, false);
 
         browser.setDownloadListener(downloadListener);
         browser.setWebViewClient(new ExploreWebViewClient());
@@ -375,6 +387,44 @@ public class ExploreBrowserPlugin extends Plugin {
         return scheme != null && !HTTP_SCHEME.equals(scheme) && !HTTPS_SCHEME.equals(scheme);
     }
 
+    private synchronized ExploreContentBlocker ensureContentBlocker() {
+        if (contentBlocker != null) {
+            return contentBlocker;
+        }
+
+        try {
+            contentBlocker = new ExploreContentBlocker(
+                new ExploreContentBlocklistLoader().load(getContext())
+            );
+        } catch (IOException error) {
+            contentBlocker = new ExploreContentBlocker(
+                new ExploreContentBlocklist(Collections.emptyList(), Collections.emptyList())
+            );
+        }
+
+        return contentBlocker;
+    }
+
+    private WebResourceResponse emptyBlockedResource() {
+        WebResourceResponse response = new WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            new ByteArrayInputStream(new byte[0])
+        );
+        response.setStatusCodeAndReasonPhrase(204, "No Content");
+        return response;
+    }
+
+    private void injectContentBlockingStyles(WebView view) {
+        String script =
+            "(function(){var id='buku-explore-content-blocking-styles';" +
+            "if(document.getElementById(id)){return;}" +
+            "var style=document.createElement('style');style.id=id;" +
+            "style.textContent=" + JSONObject.quote(CONTENT_BLOCKING_CSS) + ";" +
+            "document.documentElement.appendChild(style);})();";
+        view.evaluateJavascript(script, null);
+    }
+
     private void resetUpgradeChain() {
         upgradedHttpUrls.clear();
         httpsUpgradeCount = 0;
@@ -451,6 +501,7 @@ public class ExploreBrowserPlugin extends Plugin {
             currentUrl = url;
             currentTitle = normalizedTitle(view.getTitle());
             loading = false;
+            injectContentBlockingStyles(view);
             emitNavigationState(true);
             resetUpgradeChain();
         }
@@ -478,6 +529,15 @@ public class ExploreBrowserPlugin extends Plugin {
             }
 
             return false;
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (ensureContentBlocker().shouldBlock(request.isForMainFrame(), request.getUrl().toString())) {
+                return emptyBlockedResource();
+            }
+
+            return super.shouldInterceptRequest(view, request);
         }
 
         @Override

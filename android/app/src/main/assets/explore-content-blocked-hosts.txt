@@ -1,0 +1,25 @@
+# Common ad and tracker hosts blocked by Explore Content Blocking.
+doubleclick.net
+googlesyndication.com
+googleadservices.com
+googletagservices.com
+googletagmanager.com
+google-analytics.com
+adservice.google.com
+amazon-adsystem.com
+adsystem.com
+adnxs.com
+adsrvr.org
+pubmatic.com
+openx.net
+rubiconproject.com
+criteo.com
+taboola.com
+outbrain.com
+vdo.ai
+scorecardresearch.com
+quantserve.com
+moatads.com
+yieldmo.com
+yieldmanager.com
+zedo.com
