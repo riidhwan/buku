@@ -63,6 +63,10 @@ _Avoid_: app loading, reader loading, download progress
 The Explore Browser's replacement of an HTTP navigation target with the equivalent HTTPS target. Buku never loads the original cleartext target inside the Explore Browser; when the secure target is unavailable, the original target may only be handed off to the device browser by explicit user action.
 _Avoid_: HTTP redirect, cleartext fallback, automatic redirect
 
+**Explore Content Blocking**:
+The Explore Browser's always-on, conservative, best-effort reduction of distracting ads, third-party cookies, and tracking resources during content discovery. It improves reading comfort without promising full browser-extension ad-blocker parity, perfect cosmetic filtering, anti-adblock bypassing, or user-managed blocking rules.
+_Avoid_: ad blocker, privacy browser, uBlock-compatible blocking
+
 **Reading Mode**:
 A Buku-rendered reader mode within the Explore Browser, created from article content extracted from the current Explore Browser page.
 _Avoid_: reader overlay, simplified page, live page restyling
