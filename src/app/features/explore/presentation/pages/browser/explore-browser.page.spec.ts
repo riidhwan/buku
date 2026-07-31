@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Platform } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
+import { READING_APPEARANCE_STORE } from '../../../../../shared/application/reading-appearance-store.port';
+import { ReadingAppearance } from '../../../../../shared/domain/reading-appearance';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import type { ExploreBrowserSecureNavigationFailure } from '../../../application/explore-browser-secure-navigation-failure';
 import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
@@ -211,6 +213,24 @@ class FakeReadingLibrarySave {
   }
 }
 
+class FakeReadingAppearanceStore {
+  public appearance: ReadingAppearance = {
+    fontId: 'nv-charis',
+    colorSchemeId: 'system',
+  };
+  public readonly savedAppearances: ReadingAppearance[] = [];
+
+  public readAppearance(): Promise<ReadingAppearance> {
+    return Promise.resolve(this.appearance);
+  }
+
+  public saveAppearance(appearance: ReadingAppearance): Promise<void> {
+    this.appearance = appearance;
+    this.savedAppearances.push(appearance);
+    return Promise.resolve();
+  }
+}
+
 class FakeRouter {
   public readonly navigations: string[][] = [];
 
@@ -249,11 +269,16 @@ class FakePlatform {
 }
 
 interface ExploreBrowserPageHarness {
+  readonly appearanceMenuOpen: () => boolean;
   readonly readerSave: ExploreBrowserReaderSaveActions;
   ionViewWillLeave(): void;
   openReadingMode(): Promise<void>;
   openReaderLink(event: Event): Promise<void>;
   navigateChapter(direction: 'previous' | 'next'): Promise<void>;
+  openAppearanceMenu(event: Event): void;
+  closeAppearanceMenu(): void;
+  selectReadingFont(fontId: 'libron' | 'sourcerer'): Promise<void>;
+  selectReadingColorScheme(colorSchemeId: 'paper' | 'sepia'): Promise<void>;
   formatPublishedTime(publishedTime: string): string;
   goBack(): Promise<void>;
   reloadOrRetry(): Promise<void>;
@@ -316,17 +341,20 @@ describe('ExploreBrowserPage', () => {
   let router: FakeRouter;
   let platform: FakePlatform;
   let librarySave: FakeReadingLibrarySave;
+  let appearanceStore: FakeReadingAppearanceStore;
 
   beforeEach(async () => {
     browser = new FakeExploreBrowserFacade();
     router = new FakeRouter();
     platform = new FakePlatform();
     librarySave = new FakeReadingLibrarySave();
+    appearanceStore = new FakeReadingAppearanceStore();
 
     await TestBed.configureTestingModule({
       imports: [ExploreBrowserPage],
       providers: [
         { provide: ExploreBrowserFacade, useValue: browser },
+        { provide: READING_APPEARANCE_STORE, useValue: appearanceStore },
         { provide: READING_LIBRARY_SAVE, useValue: librarySave },
         { provide: Router, useValue: router },
         { provide: Platform, useValue: platform },
@@ -798,6 +826,54 @@ describe('ExploreBrowserPage', () => {
     expect(nativeElement.querySelector('.reader-body')?.textContent).toContain('Readable body.');
   });
 
+  it('loads persisted Reading Appearance for the retained article', async () => {
+    appearanceStore.appearance = { fontId: 'libron', colorSchemeId: 'sepia' };
+    fixture = TestBed.createComponent(ExploreBrowserPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const content = nativeElement.querySelector('ion-content');
+    const readerBody = nativeElement.querySelector<HTMLElement>('.reader-body');
+
+    expect(content?.classList.contains('reader-color-sepia')).toBeTrue();
+    expect(readerBody?.style.getPropertyValue('--buku-reader-font-family')).toBe(
+      '"Buku Libron", serif',
+    );
+  });
+
+  it('persists selected Reading Appearance from the Reading Mode toolbar menu', async () => {
+    browser.readingArticle.set(articleSnapshot);
+    browser.readingModeActive.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as ExploreBrowserPageHarness;
+
+    component.openAppearanceMenu(new MouseEvent('click'));
+    await component.selectReadingFont('sourcerer');
+    await component.selectReadingColorScheme('paper');
+    component.closeAppearanceMenu();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const content = nativeElement.querySelector('ion-content');
+    const readerBody = nativeElement.querySelector<HTMLElement>('.reader-body');
+
+    expect(appearanceStore.savedAppearances).toEqual([
+      { fontId: 'sourcerer', colorSchemeId: 'system' },
+      { fontId: 'sourcerer', colorSchemeId: 'paper' },
+    ]);
+    expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
+    expect(component.appearanceMenuOpen()).toBeFalse();
+    expect(content?.classList.contains('reader-color-paper')).toBeTrue();
+    expect(readerBody?.style.getPropertyValue('--buku-reader-font-family')).toBe(
+      '"Buku Sourcerer", serif',
+    );
+  });
+
   it('shows reader controls only while Reading Mode is active and overflow is closed', async () => {
     browser.readingArticle.set(articleSnapshot);
     browser.readingModeActive.set(true);
@@ -860,14 +936,15 @@ describe('ExploreBrowserPage', () => {
       nativeElement.querySelectorAll('.reader-controls [data-reader-control]'),
     );
     expect(slots.map((slot) => slot.getAttribute('data-reader-control'))).toEqual([
+      'appearance',
       'save',
       'loading',
       'previous',
       'next',
     ]);
-    expect(slots[1]?.querySelector('ion-spinner')).toBeNull();
-    expect(slots[2]?.getAttribute('aria-label')).toBe('Previous chapter');
-    expect(slots[3]?.getAttribute('aria-label')).toBe('Next chapter');
+    expect(slots[2]?.querySelector('ion-spinner')).toBeNull();
+    expect(slots[3]?.getAttribute('aria-label')).toBe('Previous chapter');
+    expect(slots[4]?.getAttribute('aria-label')).toBe('Next chapter');
 
     browser.chapterNavigationLoading.set(true);
     fixture.detectChanges();
@@ -875,14 +952,15 @@ describe('ExploreBrowserPage', () => {
     nativeElement = fixture.nativeElement as HTMLElement;
     slots = Array.from(nativeElement.querySelectorAll('.reader-controls [data-reader-control]'));
     expect(slots.map((slot) => slot.getAttribute('data-reader-control'))).toEqual([
+      'appearance',
       'save',
       'loading',
       'previous',
       'next',
     ]);
-    expect(slots[1]?.querySelector('ion-spinner[aria-label="Loading chapter"]')).not.toBeNull();
-    expect(slots[2]?.getAttribute('aria-label')).toBe('Previous chapter');
-    expect(slots[3]?.getAttribute('aria-label')).toBe('Next chapter');
+    expect(slots[2]?.querySelector('ion-spinner[aria-label="Loading chapter"]')).not.toBeNull();
+    expect(slots[3]?.getAttribute('aria-label')).toBe('Previous chapter');
+    expect(slots[4]?.getAttribute('aria-label')).toBe('Next chapter');
   });
 
   it('navigates reader chapters and refreshes the viewport afterwards', async () => {
@@ -913,7 +991,7 @@ describe('ExploreBrowserPage', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const addButton = nativeElement.querySelector('.reader-controls ion-button');
+    const addButton = nativeElement.querySelector('[data-reader-control="save"]');
     addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await fixture.whenStable();
     fixture.detectChanges();

@@ -1,0 +1,115 @@
+.reader-color-system,
+.reader-color-light {
+  --buku-reader-background: #fff;
+  --buku-reader-heading: #111827;
+  --buku-reader-text: #1f2937;
+  --buku-reader-muted: #6b7280;
+  --buku-reader-border: #d7d8da;
+  --buku-reader-link: #2458a6;
+  --buku-reader-badge-background: transparent;
+}
+
+.reader-color-dark {
+  --buku-reader-background: #111214;
+  --buku-reader-heading: #f8fafc;
+  --buku-reader-text: #e5e7eb;
+  --buku-reader-muted: #b7bcc7;
+  --buku-reader-border: #34383f;
+  --buku-reader-link: #93c5fd;
+  --buku-reader-badge-background: #1d2025;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reader-color-system {
+    --buku-reader-background: #121212;
+    --buku-reader-heading: #f8fafc;
+    --buku-reader-text: #e5e7eb;
+    --buku-reader-muted: #b8bcc6;
+    --buku-reader-border: #34383f;
+    --buku-reader-link: #93c5fd;
+    --buku-reader-badge-background: transparent;
+  }
+}
+
+.reader-color-paper {
+  --buku-reader-background: #f7f1e3;
+  --buku-reader-heading: #241f19;
+  --buku-reader-text: #302a22;
+  --buku-reader-muted: #7c6f5d;
+  --buku-reader-border: #d8cdb9;
+  --buku-reader-link: #7251a0;
+  --buku-reader-badge-background: #fff8e8;
+}
+
+.reader-color-sepia {
+  --buku-reader-background: #ead6aa;
+  --buku-reader-heading: #2f2115;
+  --buku-reader-text: #3a2a1b;
+  --buku-reader-muted: #735f45;
+  --buku-reader-border: #c9aa72;
+  --buku-reader-link: #674b8f;
+  --buku-reader-badge-background: #f4e3bf;
+}
+
+.reader-appearance-popover {
+  --width: min(320px, 92vw);
+}
+
+.reader-appearance-section {
+  color: var(--ion-color-medium);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.reader-appearance-selected {
+  --color: var(--ion-color-primary);
+}
+
+.reader-color-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  margin-right: 12px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ion-color-step-250, #bfc0c4);
+  border-radius: 50%;
+  background: #fff;
+}
+
+.reader-color-swatch-system {
+  background: linear-gradient(135deg, #fff 0 50%, #121212 50% 100%);
+}
+
+.reader-color-swatch-light {
+  background: #fff;
+}
+
+.reader-color-swatch-paper {
+  background: #f7f1e3;
+}
+
+.reader-color-swatch-sepia {
+  background: #ead6aa;
+}
+
+.reader-color-swatch-dark {
+  background: #111214;
+}
+
+.reader-body img,
+.reader-body video,
+.reader-body iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.reader-body blockquote {
+  padding: 0 0 0 16px;
+  border-left: 3px solid var(--buku-reader-border);
+  color: var(--buku-reader-muted);
+}
+
+.reader-body li + li {
+  margin-top: 0.35rem;
+}

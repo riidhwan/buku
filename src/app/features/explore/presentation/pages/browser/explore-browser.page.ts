@@ -1,9 +1,11 @@
 import {
   AfterViewInit,
   Component,
+  computed,
   ElementRef,
   OnDestroy,
   OnInit,
+  signal,
   ViewEncapsulation,
   ViewChild,
   inject,
@@ -23,6 +25,7 @@ import {
   IonList,
   IonModal,
   IonNote,
+  IonPopover,
   IonProgressBar,
   IonSpinner,
   IonText,
@@ -31,7 +34,18 @@ import {
   IonToolbar,
   Platform,
 } from '@ionic/angular/standalone';
+import { READING_APPEARANCE_STORE } from '../../../../../shared/application/reading-appearance-store.port';
+import {
+  ReadingColorSchemeId,
+  ReadingFontId,
+} from '../../../../../shared/domain/reading-appearance';
+import {
+  readingColorSchemeOptions,
+  readingFontOption,
+  readingFontOptions,
+} from '../../../../../shared/presentation/reading-appearance-options';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
+import { ExploreReadingAppearanceWorkflow } from '../../../application/explore-reading-appearance-workflow';
 import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
 import { READING_LIBRARY_SAVE } from '../../../application/ports/reading-library-save.port';
 import { ExploreBrowserPageActions } from './explore-browser-page-actions';
@@ -58,6 +72,7 @@ import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-a
     IonList,
     IonModal,
     IonNote,
+    IonPopover,
     IonProgressBar,
     IonSpinner,
     IonText,
@@ -73,11 +88,21 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly addressInput!: IonInput;
 
   protected readonly browser = inject(ExploreBrowserFacade);
+  private readonly appearanceStore = inject(READING_APPEARANCE_STORE);
   private readonly librarySave = inject(READING_LIBRARY_SAVE);
+  private readonly readingAppearance = new ExploreReadingAppearanceWorkflow({
+    appearanceStore: this.appearanceStore,
+  });
   protected readonly readerSave = new ExploreBrowserReaderSaveActions(
     this.browser,
     this.librarySave,
   );
+  protected readonly appearance = this.readingAppearance.appearance;
+  protected readonly colorSchemeOptions = readingColorSchemeOptions;
+  protected readonly fontOptions = readingFontOptions;
+  protected readonly selectedFont = computed(() => readingFontOption(this.appearance().fontId));
+  protected readonly appearanceMenuOpen = signal(false);
+  protected readonly appearanceMenuEvent = signal<Event | undefined>(undefined);
   private readonly router = inject(Router);
   private readonly platform = inject(Platform);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
@@ -114,6 +139,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
 
   public ngOnInit(): void {
     void this.browser.initialize();
+    void this.readingAppearance.loadAppearance();
   }
 
   public ngAfterViewInit(): void {
@@ -203,6 +229,23 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   protected async navigateChapter(direction: ReadingChapterDirection): Promise<void> {
     await this.browser.navigateReadingChapter(direction);
     this.pageShell.scheduleViewportRectUpdate();
+  }
+
+  protected openAppearanceMenu(event: Event): void {
+    this.appearanceMenuEvent.set(event);
+    this.appearanceMenuOpen.set(true);
+  }
+
+  protected closeAppearanceMenu(): void {
+    this.appearanceMenuOpen.set(false);
+  }
+
+  protected async selectReadingFont(fontId: ReadingFontId): Promise<void> {
+    await this.readingAppearance.selectFont(fontId);
+  }
+
+  protected async selectReadingColorScheme(colorSchemeId: ReadingColorSchemeId): Promise<void> {
+    await this.readingAppearance.selectColorScheme(colorSchemeId);
   }
 
   protected formatPublishedTime(publishedTime: string): string {

@@ -198,7 +198,7 @@ describe('LibraryEntryReaderPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const readerBody = nativeElement.querySelector<HTMLElement>('.library-reader-body');
 
-    expect(readerBody?.style.getPropertyValue('--library-reader-font-family')).toBe(
+    expect(readerBody?.style.getPropertyValue('--buku-reader-font-family')).toBe(
       '"Buku Libron", serif',
     );
   });
@@ -215,7 +215,7 @@ describe('LibraryEntryReaderPage', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const content = nativeElement.querySelector('ion-content');
 
-    expect(content?.classList.contains('library-reader-color-sepia')).toBeTrue();
+    expect(content?.classList.contains('reader-color-sepia')).toBeTrue();
   });
 
   it('persists selected reader fonts and keeps the appearance menu available', async () => {
@@ -228,7 +228,7 @@ describe('LibraryEntryReaderPage', () => {
     const readerBody = nativeElement.querySelector<HTMLElement>('.library-reader-body');
 
     expect(savedReadingAppearances).toEqual([{ fontId: 'sourcerer', colorSchemeId: 'system' }]);
-    expect(readerBody?.style.getPropertyValue('--library-reader-font-family')).toBe(
+    expect(readerBody?.style.getPropertyValue('--buku-reader-font-family')).toBe(
       '"Buku Sourcerer", serif',
     );
     expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
@@ -244,7 +244,7 @@ describe('LibraryEntryReaderPage', () => {
     const content = nativeElement.querySelector('ion-content');
 
     expect(savedReadingAppearances).toEqual([{ fontId: 'nv-charis', colorSchemeId: 'paper' }]);
-    expect(content?.classList.contains('library-reader-color-paper')).toBeTrue();
+    expect(content?.classList.contains('reader-color-paper')).toBeTrue();
     expect(nativeElement.querySelector('ion-popover')).not.toBeNull();
   });
 
