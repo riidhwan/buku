@@ -20,7 +20,7 @@
 </ion-header>
 
 <ion-popover
-  class="library-reader-appearance-popover"
+  class="reader-appearance-popover"
   [isOpen]="appearanceMenuOpen()"
   [event]="appearanceMenuEvent()"
   (didDismiss)="closeAppearanceMenu()"
@@ -34,25 +34,23 @@
 
     <ion-content class="library-reader-appearance-menu">
       <ion-list>
-        <ion-item class="library-reader-appearance-section" lines="none">
+        <ion-item class="reader-appearance-section" lines="none">
           <ion-label>Color</ion-label>
         </ion-item>
         @for (colorScheme of colorSchemeOptions; track colorScheme.id) {
         <ion-item
           button="true"
           [detail]="false"
-          [class.library-reader-appearance-selected]="
-            appearance().colorSchemeId === colorScheme.id
-          "
+          [class.reader-appearance-selected]="appearance().colorSchemeId === colorScheme.id"
           (click)="selectReadingColorScheme(colorScheme.id)"
         >
           <span
-            class="library-reader-color-swatch"
-            [class.library-reader-color-swatch-system]="colorScheme.id === 'system'"
-            [class.library-reader-color-swatch-light]="colorScheme.id === 'light'"
-            [class.library-reader-color-swatch-paper]="colorScheme.id === 'paper'"
-            [class.library-reader-color-swatch-sepia]="colorScheme.id === 'sepia'"
-            [class.library-reader-color-swatch-dark]="colorScheme.id === 'dark'"
+            class="reader-color-swatch"
+            [class.reader-color-swatch-system]="colorScheme.id === 'system'"
+            [class.reader-color-swatch-light]="colorScheme.id === 'light'"
+            [class.reader-color-swatch-paper]="colorScheme.id === 'paper'"
+            [class.reader-color-swatch-sepia]="colorScheme.id === 'sepia'"
+            [class.reader-color-swatch-dark]="colorScheme.id === 'dark'"
             aria-hidden="true"
           ></span>
           <ion-label>{{ colorScheme.label }}</ion-label>
@@ -62,14 +60,14 @@
         </ion-item>
         }
 
-        <ion-item class="library-reader-appearance-section" lines="none">
+        <ion-item class="reader-appearance-section" lines="none">
           <ion-label>Font</ion-label>
         </ion-item>
         @for (font of fontOptions; track font.id) {
         <ion-item
           button="true"
           [detail]="false"
-          [class.library-reader-appearance-selected]="appearance().fontId === font.id"
+          [class.reader-appearance-selected]="appearance().fontId === font.id"
           (click)="selectReadingFont(font.id)"
         >
           <ion-label [style.font-family]="font.cssValue">{{ font.label }}</ion-label>
@@ -85,11 +83,11 @@
 
 <ion-content
   class="library-reader-content"
-  [class.library-reader-color-system]="appearance().colorSchemeId === 'system'"
-  [class.library-reader-color-light]="appearance().colorSchemeId === 'light'"
-  [class.library-reader-color-paper]="appearance().colorSchemeId === 'paper'"
-  [class.library-reader-color-sepia]="appearance().colorSchemeId === 'sepia'"
-  [class.library-reader-color-dark]="appearance().colorSchemeId === 'dark'"
+  [class.reader-color-system]="appearance().colorSchemeId === 'system'"
+  [class.reader-color-light]="appearance().colorSchemeId === 'light'"
+  [class.reader-color-paper]="appearance().colorSchemeId === 'paper'"
+  [class.reader-color-sepia]="appearance().colorSchemeId === 'sepia'"
+  [class.reader-color-dark]="appearance().colorSchemeId === 'dark'"
   [scrollEvents]="true"
   (ionScroll)="updateActiveEntryFromScroll()"
 >
@@ -141,7 +139,7 @@
     <div
       class="library-reader-body"
       tabindex="0"
-      [style.--library-reader-font-family]="selectedFont().cssValue"
+      [style.--buku-reader-font-family]="selectedFont().cssValue"
       [innerHTML]="selectedEntry.effectiveContentHtml"
       (click)="preventReaderLinkNavigation($event)"
       (keydown.enter)="preventReaderLinkNavigation($event)"

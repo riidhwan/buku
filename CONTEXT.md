@@ -31,12 +31,12 @@ _Avoid_: hidden title, content formatting, appearance
 The Library reading experience that starts from a selected Series Entry and continues through adjacent saved Series Entries in the same Series.
 _Avoid_: source chapter discovery, browser reading, reading history
 
-**Series Entry Reading Appearance**:
-The user's persisted comfort preferences for how Series Entry Reading displays saved readable content. These preferences change the reading presentation, not the saved Series Entry content.
+**Reading Appearance**:
+The user's persisted comfort preferences for how Buku reader surfaces display readable content. These preferences apply to both Reading Mode and Series Entry Reading, changing presentation without changing extracted or saved content.
 _Avoid_: entry formatting, content style, theme
 
-**Series Entry Reading Color Scheme**:
-A finite Series Entry Reading Appearance choice that pairs the reading background with readable foreground colors. It may follow the device color scheme or use an explicit reader scheme.
+**Reading Color Scheme**:
+A finite Reading Appearance choice that pairs the reader background with readable foreground colors. It may follow the device color scheme or use an explicit reader scheme.
 _Avoid_: theme, custom color, background-only color
 
 **Explore**:

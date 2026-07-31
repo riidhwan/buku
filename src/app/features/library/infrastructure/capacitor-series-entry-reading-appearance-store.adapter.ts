@@ -1,11 +1,11 @@
 import { inject, InjectionToken, Injectable } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import {
-  defaultSeriesEntryReadingAppearance,
-  normalizeSeriesEntryReadingAppearance,
-  SeriesEntryReadingAppearance,
-} from '../domain/series-entry-reading-appearance';
-import { SeriesEntryReadingAppearanceStore } from '../application/ports/series-entry-reading-appearance-store.port';
+  defaultReadingAppearance,
+  normalizeReadingAppearance,
+  ReadingAppearance,
+} from '../../../shared/domain/reading-appearance';
+import { ReadingAppearanceStore } from '../../../shared/application/reading-appearance-store.port';
 
 interface PreferencesPort {
   get(options: { readonly key: string }): Promise<{ readonly value: string | null }>;
@@ -25,26 +25,26 @@ export const LIBRARY_CAPACITOR_PREFERENCES = new InjectionToken<PreferencesPort>
 const appearanceKey = 'library.seriesEntryReading.appearance';
 
 @Injectable()
-export class CapacitorSeriesEntryReadingAppearanceStoreAdapter implements SeriesEntryReadingAppearanceStore {
+export class CapacitorSeriesEntryReadingAppearanceStoreAdapter implements ReadingAppearanceStore {
   private readonly preferences = inject(LIBRARY_CAPACITOR_PREFERENCES);
 
-  public async readAppearance(): Promise<SeriesEntryReadingAppearance> {
+  public async readAppearance(): Promise<ReadingAppearance> {
     const result = await this.preferences.get({ key: appearanceKey });
     if (result.value === null) {
-      return defaultSeriesEntryReadingAppearance;
+      return defaultReadingAppearance;
     }
 
     try {
-      return normalizeSeriesEntryReadingAppearance(JSON.parse(result.value));
+      return normalizeReadingAppearance(JSON.parse(result.value));
     } catch (_error) {
-      return defaultSeriesEntryReadingAppearance;
+      return defaultReadingAppearance;
     }
   }
 
-  public async saveAppearance(appearance: SeriesEntryReadingAppearance): Promise<void> {
+  public async saveAppearance(appearance: ReadingAppearance): Promise<void> {
     await this.preferences.set({
       key: appearanceKey,
-      value: JSON.stringify(normalizeSeriesEntryReadingAppearance(appearance)),
+      value: JSON.stringify(normalizeReadingAppearance(appearance)),
     });
   }
 }

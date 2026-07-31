@@ -28,15 +28,10 @@
   font-weight: 700;
 }
 
-.browser-controls {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(44px, 1fr));
-  width: 100%;
-}
-
+.browser-controls,
 .reader-controls {
   display: grid;
-  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
   width: 100%;
 }
 
@@ -57,6 +52,10 @@
   min-height: 100%;
 }
 
+.explore-browser-content {
+  --background: var(--buku-reader-background);
+}
+
 .reader-article {
   box-sizing: border-box;
   max-width: 720px;
@@ -74,21 +73,22 @@
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 10px;
-  color: var(--ion-color-medium);
+  color: var(--buku-reader-muted);
   font-size: 0.875rem;
   line-height: 1.4;
 }
 
 .reader-header h1 {
   margin: 0 0 12px;
-  color: var(--ion-color-dark);
+  color: var(--buku-reader-heading);
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.15;
 }
 
 .reader-body {
-  color: var(--ion-color-dark);
+  font-family: var(--buku-reader-font-family, 'Buku NV Charis', serif);
+  color: var(--buku-reader-text);
   font-size: 1.08rem;
   line-height: 1.7;
 }
@@ -106,32 +106,15 @@
 .reader-body h3,
 .reader-body h4 {
   margin: 1.8rem 0 0.8rem;
-  color: var(--ion-color-dark);
+  color: var(--buku-reader-heading);
   font-weight: 700;
   line-height: 1.25;
 }
 
 .reader-body a {
-  color: var(--ion-color-primary);
+  color: var(--buku-reader-link);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.18em;
-}
-
-.reader-body img,
-.reader-body video,
-.reader-body iframe {
-  max-width: 100%;
-  height: auto;
-}
-
-.reader-body blockquote {
-  padding: 0 0 0 16px;
-  border-left: 3px solid var(--ion-color-medium);
-  color: var(--ion-color-medium-shade);
-}
-
-.reader-body li + li {
-  margin-top: 0.35rem;
 }
 
 .reader-save-modal {

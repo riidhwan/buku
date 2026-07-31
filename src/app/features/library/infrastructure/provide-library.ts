@@ -1,11 +1,11 @@
 import { Provider } from '@angular/core';
+import { READING_APPEARANCE_STORE } from '../../../shared/application/reading-appearance-store.port';
 
 import { LibraryFacade } from '../application/library.facade';
 import { LIBRARY_CLOCK } from '../application/ports/library-clock.port';
 import { LIBRARY_CONTENT_SANITIZER } from '../application/ports/library-content-sanitizer.port';
 import { LIBRARY_ID_GENERATOR } from '../application/ports/library-id-generator.port';
 import { LIBRARY_REPOSITORY } from '../application/ports/library-repository.token';
-import { SERIES_ENTRY_READING_APPEARANCE_STORE } from '../application/ports/series-entry-reading-appearance-store.port';
 import { ResetSeriesEntryContentOverrideUseCase } from '../application/reset-series-entry-content-override.use-case';
 import { SaveSeriesEntryContentOverrideUseCase } from '../application/save-series-entry-content-override.use-case';
 import { SaveSeriesEntryEditUseCase } from '../application/save-series-entry-edit.use-case';
@@ -49,7 +49,7 @@ export function provideLibrary(): Provider[] {
       useExisting: BrowserLibraryContentSanitizerAdapter,
     },
     {
-      provide: SERIES_ENTRY_READING_APPEARANCE_STORE,
+      provide: READING_APPEARANCE_STORE,
       useExisting: CapacitorSeriesEntryReadingAppearanceStoreAdapter,
     },
   ];
