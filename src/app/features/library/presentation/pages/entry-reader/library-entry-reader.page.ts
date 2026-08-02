@@ -45,6 +45,7 @@ import {
   LibraryEntryReaderInfiniteScrollEvent,
   LibraryEntryReaderWorkflow,
 } from './library-entry-reader-workflow';
+import { libraryRouteTargets } from '../../library-route-targets';
 
 @Component({
   selector: 'app-library-entry-reader-page',
@@ -73,6 +74,7 @@ export class LibraryEntryReaderPage implements OnInit {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  protected readonly routeTargets = libraryRouteTargets;
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
@@ -130,7 +132,8 @@ export class LibraryEntryReaderPage implements OnInit {
     }
 
     void this.router.navigate(
-      ['/library', 'series', activeEntry.seriesId, 'entries', activeEntry.id, 'edit'],
+      this.routeTargets.entryEdit({ seriesId: activeEntry.seriesId, entryId: activeEntry.id })
+        .commands,
       { replaceUrl: true },
     );
   }

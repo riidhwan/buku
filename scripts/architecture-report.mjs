@@ -38,7 +38,7 @@ export function architectureReportForFiles(files, options = {}) {
   const root = options.root ?? process.cwd();
   const reports = files
     .map((file) => path.relative(root, path.resolve(root, file)))
-    .filter(isReportableTypeScriptFile)
+    .filter(isReportableArchitectureFile)
     .filter((file) => existsSync(path.join(root, file)))
     .map((file) => analyzeFile(root, file));
 
@@ -67,12 +67,18 @@ export function stagedFiles(root = process.cwd()) {
 }
 
 export function allProductionTypeScriptFiles(root = process.cwd()) {
-  return gitFiles(root, ['ls-files', 'src/app/**/*.ts']).filter(isReportableTypeScriptFile);
+  return gitFiles(root, ['ls-files', 'src/app/**/*.ts', 'src/app/**/*.html']).filter(
+    isReportableArchitectureFile,
+  );
 }
 
 function analyzeFile(root, file) {
   const absolutePath = path.join(root, file);
   const sourceText = readFileSync(absolutePath, 'utf8');
+  if (file.endsWith('.html')) {
+    return analyzeTemplateFile(file, sourceText);
+  }
+
   const sourceFile = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, true);
   const kind = classifyFile(file);
   const budget = budgetByKind[kind] ?? null;
@@ -82,6 +88,7 @@ function analyzeFile(root, file) {
   const exports = exportedNames(sourceFile);
   const members = memberNames(sourceFile);
   const signals = detectedResponsibilitySignals([...exports, ...members, ...imports]);
+  const routeTargetWarnings = routeTargetWarningsForTypeScript(sourceFile);
   const warnings = warningsForReport({
     budget,
     exports,
@@ -89,6 +96,7 @@ function analyzeFile(root, file) {
     kind,
     lineCount,
     members,
+    routeTargetWarnings,
     signals,
   });
 
@@ -102,6 +110,33 @@ function analyzeFile(root, file) {
     methodCount: members.length,
     signals,
     warnings,
+  };
+}
+
+function analyzeTemplateFile(file, sourceText) {
+  const lineCount = sourceText.split(/\r?\n/).length;
+  const kind = classifyFile(file);
+  const routeTargetWarnings = routeTargetWarningsForTemplate(sourceText);
+
+  return {
+    file,
+    kind,
+    lineCount,
+    budget: null,
+    exports: [],
+    importedAreas: [],
+    methodCount: 0,
+    signals: detectedResponsibilitySignals([sourceText]),
+    warnings: warningsForReport({
+      budget: null,
+      exports: [],
+      file,
+      kind,
+      lineCount,
+      members: [],
+      routeTargetWarnings,
+      signals: [],
+    }),
   };
 }
 
@@ -130,7 +165,16 @@ function formatFileReport(report) {
   ].join('\n');
 }
 
-function warningsForReport({ budget, exports, file, kind, lineCount, members, signals }) {
+function warningsForReport({
+  budget,
+  exports,
+  file,
+  kind,
+  lineCount,
+  members,
+  routeTargetWarnings,
+  signals,
+}) {
   const warnings = [];
 
   if (budget && lineCount > budget.hard) {
@@ -166,6 +210,8 @@ function warningsForReport({ budget, exports, file, kind, lineCount, members, si
       message: `file exports ${exports.length.toString()} symbols; check for more than one public responsibility`,
     });
   }
+
+  warnings.push(...routeTargetWarnings);
 
   return warnings;
 }
@@ -224,6 +270,132 @@ function classifyFile(file) {
   }
 
   return 'app-shell';
+}
+
+function routeTargetWarningsForTypeScript(sourceFile) {
+  if (sourceFile.fileName.endsWith('-route-targets.ts')) {
+    return [];
+  }
+
+  const warnings = [];
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      isNavigationMethodName(node.expression.name.text) &&
+      isAngularRouterReceiver(node.expression.expression)
+    ) {
+      const routeArgument = node.arguments[0];
+      if (!isRouteTargetArgument(routeArgument, node.expression.name.text)) {
+        warnings.push({
+          severity: 'hard',
+          message: `${formatLocation(sourceFile, node)} route navigation must use RouteTarget ${
+            node.expression.name.text === 'navigate' ? 'commands' : 'url'
+          }`,
+        });
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return warnings;
+}
+
+function isNavigationMethodName(name) {
+  return name === 'navigate' || name === 'navigateByUrl';
+}
+
+function isAngularRouterReceiver(node) {
+  if (ts.isIdentifier(node)) {
+    return node.text === 'router';
+  }
+
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text === 'router';
+  }
+
+  return false;
+}
+
+function isRouteTargetArgument(argument, methodName) {
+  if (!argument) {
+    return false;
+  }
+
+  if (methodName === 'navigate') {
+    return isPropertyNamed(argument, 'commands');
+  }
+
+  return isPropertyNamed(argument, 'url');
+}
+
+function isPropertyNamed(node, name) {
+  return ts.isPropertyAccessExpression(node) && node.name.text === name;
+}
+
+function routeTargetWarningsForTemplate(sourceText) {
+  const warnings = [];
+  const attributePattern =
+    /(\[routerLink\]|\[defaultHref\]|\[href\]|\[attr\.href\]|routerLink|defaultHref|href)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let match;
+
+  while ((match = attributePattern.exec(sourceText)) !== null) {
+    const attributeName = match[1] ?? '';
+    const attributeValue = match[2] ?? match[3] ?? '';
+    if (
+      !isRouteAttribute(attributeName) ||
+      isAllowedRouteTargetBinding(attributeName, attributeValue)
+    ) {
+      continue;
+    }
+
+    warnings.push({
+      severity: 'hard',
+      message: `${formatTextLocation(sourceText, match.index)} ${attributeName} must use RouteTarget ${
+        attributeName.includes('routerLink') ? 'commands' : 'url'
+      }`,
+    });
+  }
+
+  return warnings;
+}
+
+function isRouteAttribute(attributeName) {
+  return (
+    attributeName === '[routerLink]' ||
+    attributeName === 'routerLink' ||
+    attributeName === '[defaultHref]' ||
+    attributeName === 'defaultHref' ||
+    attributeName === '[href]' ||
+    attributeName === '[attr.href]' ||
+    attributeName === 'href'
+  );
+}
+
+function isAllowedRouteTargetBinding(attributeName, attributeValue) {
+  if (attributeName.includes('routerLink')) {
+    return attributeName === '[routerLink]' && /\.commands\b/.test(attributeValue);
+  }
+
+  return attributeName.startsWith('[')
+    ? /\.url\b/.test(attributeValue)
+    : !attributeValue.startsWith('/');
+}
+
+function formatLocation(sourceFile, node) {
+  const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  return `line ${(position.line + 1).toString()}:${(position.character + 1).toString()}`;
+}
+
+function formatTextLocation(sourceText, index) {
+  const prefix = sourceText.slice(0, index);
+  const lines = prefix.split(/\r?\n/);
+  const line = lines.length;
+  const column = lines.at(-1)?.length ?? 0;
+  return `line ${line.toString()}:${(column + 1).toString()}`;
 }
 
 function importSources(sourceFile) {
@@ -358,6 +530,14 @@ function isReportableTypeScriptFile(file) {
     !file.endsWith('.spec.ts') &&
     !file.endsWith('.d.ts')
   );
+}
+
+function isReportableTemplateFile(file) {
+  return file.startsWith('src/app/') && file.endsWith('.html');
+}
+
+function isReportableArchitectureFile(file) {
+  return isReportableTypeScriptFile(file) || isReportableTemplateFile(file);
 }
 
 function gitFiles(root, args) {

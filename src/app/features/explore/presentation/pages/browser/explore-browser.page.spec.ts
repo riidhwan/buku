@@ -438,7 +438,7 @@ describe('ExploreBrowserPage', () => {
     await fixture.whenStable();
 
     expect(browser.hidden).toBe(1);
-    expect(router.navigations).toEqual([['explore', 'browser', 'tabs']]);
+    expect(router.navigations).toEqual([['/explore', 'browser', 'tabs']]);
   });
 
   it('keeps the overflow toolbar menu at the right edge', () => {

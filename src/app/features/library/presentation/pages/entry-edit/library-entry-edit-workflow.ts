@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibraryContentSanitizer } from '../../../application/ports/library-content-sanitizer.port';
 import { LibrarySeriesEntry } from '../../../domain/library-series';
+import { libraryRouteTargets } from '../../library-route-targets';
 
 export type LibraryEntryEditSaveState = 'idle' | 'saving' | 'resetting' | 'failed';
 
@@ -126,7 +127,10 @@ export class LibraryEntryEditWorkflow {
 
   private navigateToReader(): Promise<boolean> {
     return this.dependencies.router.navigate(
-      ['/library', 'series', this.dependencies.seriesId, 'entries', this.dependencies.entryId],
+      libraryRouteTargets.entryReader({
+        seriesId: this.dependencies.seriesId,
+        entryId: this.dependencies.entryId,
+      }).commands,
       { replaceUrl: true },
     );
   }

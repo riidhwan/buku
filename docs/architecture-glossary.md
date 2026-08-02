@@ -140,6 +140,12 @@ Handwritten SQL statements owned by infrastructure code.
 
 Feature SQL lives with the feature infrastructure adapter that executes and maps it. Core storage may expose generic query, run, execute, transaction, and migration primitives, but it must not contain feature table names, row shapes, or business queries.
 
+## Route Target
+
+A destination object that centralizes a route's Angular command array and URL string forms.
+
+Top-level tab Route Targets belong to app-wide routing. Feature-internal Route Targets stay with that feature's presentation routing so callers do not memorize path segment ordering, parameter placement, or URL encoding rules.
+
 ## Shared
 
 Reusable code that has already proven it is generic across multiple features.

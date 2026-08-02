@@ -14,6 +14,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { MoreFacade } from '../../../application/more.facade';
+import { moreRouteTargets } from '../../more-route-targets';
 
 @Component({
   selector: 'app-app-update-page',
@@ -36,6 +37,7 @@ import { MoreFacade } from '../../../application/more.facade';
 })
 export class AppUpdatePage {
   protected readonly more = inject(MoreFacade);
+  protected readonly routeTargets = moreRouteTargets;
 
   protected checkForUpdate(): void {
     void this.more.checkForAppUpdate();
