@@ -1,7 +1,42 @@
 interface BukuExploreWindow extends Window {
   readonly BukuExplore: {
     findChapterLink(direction: 'previous' | 'next'): { href: string; label: string | null } | null;
-    extractArticle(): {
+    findChapterLinkWithManual(
+      direction: 'previous' | 'next',
+      manualChapterNavigation: {
+        readonly previous?: {
+          readonly selectorMode: 'link' | 'container';
+          readonly selector: string;
+          readonly disambiguation: { readonly href: string; readonly label: string | null } | null;
+        };
+        readonly next?: {
+          readonly selectorMode: 'link' | 'container';
+          readonly selector: string;
+          readonly disambiguation: { readonly href: string; readonly label: string | null } | null;
+        };
+      },
+    ): { href: string; label: string | null } | null;
+    previewManualChapterNavigation(input: {
+      readonly direction: 'previous' | 'next';
+      readonly selectorMode: 'link' | 'container';
+      readonly selector: string;
+      readonly selectedHref: string | null;
+    }): {
+      readonly ok: boolean;
+      readonly reason?: string;
+      readonly matches: readonly { readonly href: string; readonly label: string | null }[];
+      readonly selected?: { readonly href: string; readonly label: string | null } | null;
+      readonly automatic: { readonly href: string; readonly label: string | null } | null;
+    };
+    extractArticle(options?: {
+      readonly manualChapterNavigation?: {
+        readonly next?: {
+          readonly selectorMode: 'link' | 'container';
+          readonly selector: string;
+          readonly disambiguation: { readonly href: string; readonly label: string | null } | null;
+        };
+      };
+    }): {
       readonly status: 'ok' | 'unavailable' | 'failed';
       readonly article?: {
         readonly title: string;
@@ -198,6 +233,122 @@ describe('Explore injected scripts', () => {
         nextChapter: { href: '/chapter-3', label: 'Next chapter' },
       }),
     });
+  });
+
+  it('uses valid manual chapter links before automatic detection', async () => {
+    const result = await withScriptWindow(
+      '<article>Readable body.</article>' +
+        '<nav><a href="/automatic">Next chapter</a></nav>' +
+        '<a class="manual-next" href="/manual">Continue</a>',
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.extractArticle({
+          manualChapterNavigation: {
+            next: {
+              selectorMode: 'link',
+              selector: 'a.manual-next',
+              disambiguation: null,
+            },
+          },
+        }),
+    );
+
+    expect(result.article?.nextChapter).toEqual({ href: '/manual', label: 'Continue' });
+  });
+
+  it('falls back to automatic chapter links when a manual selector fails', async () => {
+    const result = await withScriptWindow(
+      '<article>Readable body.</article><nav><a href="/automatic">Next chapter</a></nav>',
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.extractArticle({
+          manualChapterNavigation: {
+            next: {
+              selectorMode: 'link',
+              selector: 'a.missing-next',
+              disambiguation: null,
+            },
+          },
+        }),
+    );
+
+    expect(result.article?.nextChapter).toEqual({ href: '/automatic', label: 'Next chapter' });
+  });
+
+  it('previews link and container selectors using the first visible match', async () => {
+    const container = await withScriptWindow(
+      '<div class="chapter-next"><span><a href="/chapter-2">Next</a></span></div>',
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.previewManualChapterNavigation({
+          direction: 'next',
+          selectorMode: 'container',
+          selector: '.chapter-next',
+          selectedHref: null,
+        }),
+    );
+    const multiple = await withScriptWindow(
+      '<a class="chapter" href="/chapter-2">Next</a><a class="chapter" href="/chapter-3">Next</a>',
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.previewManualChapterNavigation({
+          direction: 'next',
+          selectorMode: 'link',
+          selector: 'a.chapter',
+          selectedHref: null,
+        }),
+    );
+
+    expect(container.ok).toBeTrue();
+    expect(container.selected).toEqual({ href: '/chapter-2', label: 'Next' });
+    expect(multiple).toEqual(
+      jasmine.objectContaining({
+        ok: true,
+        selected: { href: '/chapter-2', label: 'Next' },
+      }),
+    );
+  });
+
+  it('uses the first manual chapter link when a selector matches multiple links', async () => {
+    const result = await withScriptWindow(
+      '<article>Readable body.</article>' +
+        '<a class="manual-next" href="/first">Top next</a>' +
+        '<a class="manual-next" href="/second">Bottom next</a>',
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.extractArticle({
+          manualChapterNavigation: {
+            next: {
+              selectorMode: 'link',
+              selector: 'a.manual-next',
+              disambiguation: null,
+            },
+          },
+        }),
+    );
+
+    expect(result.article?.nextChapter).toEqual({ href: '/first', label: 'Top next' });
+  });
+
+  it('reports invalid and over-broad manual selectors without throwing', async () => {
+    const invalid = await withScriptWindow('', (scriptWindow) =>
+      scriptWindow.BukuExplore.previewManualChapterNavigation({
+        direction: 'next',
+        selectorMode: 'link',
+        selector: 'a[',
+        selectedHref: null,
+      }),
+    );
+    const tooMany = await withScriptWindow(
+      Array.from({ length: 51 }, (_value, index) => `<a href="/${String(index)}">Next</a>`).join(
+        '',
+      ),
+      (scriptWindow) =>
+        scriptWindow.BukuExplore.previewManualChapterNavigation({
+          direction: 'next',
+          selectorMode: 'link',
+          selector: 'a',
+          selectedHref: null,
+        }),
+    );
+
+    expect(invalid.reason).toBe('invalidSelector');
+    expect(tooMany.reason).toBe('tooManyMatches');
   });
 
   it('removes compact trailing chapter navigation from extracted article content', async () => {

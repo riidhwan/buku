@@ -41,6 +41,27 @@ export interface NativeBrowserCapabilityEvent {
   readonly url: string | null;
 }
 
+export interface NativeBrowserSourceLinkAttribute {
+  readonly name: string;
+  readonly value: string;
+}
+
+export interface NativeBrowserSourceLinkAncestor {
+  readonly tagName: string;
+  readonly id: string | null;
+  readonly className: string | null;
+  readonly role: string | null;
+  readonly ariaLabel: string | null;
+}
+
+export interface NativeBrowserSourceLinkLongPressEvent {
+  readonly pageUrl: string;
+  readonly href: string;
+  readonly text: string | null;
+  readonly attributes: readonly NativeBrowserSourceLinkAttribute[];
+  readonly ancestors: readonly NativeBrowserSourceLinkAncestor[];
+}
+
 export interface NativeReadingChapterLink {
   readonly href: string;
   readonly label: string | null;
@@ -85,6 +106,9 @@ export interface ExploreBrowserPlugin {
   copyUrl(options: { readonly url: string }): Promise<void>;
   openExternal(options: { readonly url: string }): Promise<void>;
   extractArticle(options: { readonly script: string }): Promise<NativeArticleExtractionResult>;
+  previewManualChapterNavigation(options: {
+    readonly script: string;
+  }): Promise<import('../application/ports/browser-viewport.port').BrowserViewportSelectorPreview>;
   addListener(
     eventName: 'navigationState',
     listenerFunc: (event: NativeBrowserNavigationState & { readonly committed: boolean }) => void,
@@ -100,6 +124,10 @@ export interface ExploreBrowserPlugin {
   addListener(
     eventName: 'capabilityUnsupported',
     listenerFunc: (event: NativeBrowserCapabilityEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'sourceLinkLongPressed',
+    listenerFunc: (event: NativeBrowserSourceLinkLongPressEvent) => void,
   ): Promise<PluginListenerHandle>;
 }
 
@@ -120,6 +148,8 @@ export const EXPLORE_BROWSER_PLUGIN = new InjectionToken<ExploreBrowserPlugin>(
       copyUrl: (options) => CapacitorExploreBrowser.copyUrl(options),
       openExternal: (options) => CapacitorExploreBrowser.openExternal(options),
       extractArticle: (options) => CapacitorExploreBrowser.extractArticle(options),
+      previewManualChapterNavigation: (options) =>
+        CapacitorExploreBrowser.previewManualChapterNavigation(options),
       addListener: CapacitorExploreBrowser.addListener.bind(CapacitorExploreBrowser),
     }),
   },

@@ -12,4 +12,12 @@ describe('sqliteMigrations', () => {
 
     expect(migration?.statements.join('\n')).toContain('reader_header_visible');
   });
+
+  it('registers Explore Manual Chapter Navigation Rule Sets in migration version 4', () => {
+    const migration = sqliteMigrations.find((candidate) => candidate.version === 4);
+
+    expect(migration?.statements.join('\n')).toContain(
+      'explore_manual_chapter_navigation_rule_sets',
+    );
+  });
 });

@@ -3,6 +3,7 @@ import { Subject } from 'rxjs';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { ExploreBrowserFacade } from './explore-browser.facade';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
+import { ManualChapterNavigationRuleWorkflow } from './manual-chapter-navigation-rule-workflow';
 import {
   BROWSER_SESSION_STORE,
   type BrowserSessionStorePort,
@@ -11,11 +12,17 @@ import {
 import {
   BROWSER_VIEWPORT,
   type BrowserHistoryNavigationResult,
+  type BrowserViewportSelectorPreview,
   type BrowserViewportEvent,
   type BrowserViewportPort,
   type BrowserViewportRect,
 } from './ports/browser-viewport.port';
 import { EXTERNAL_URL_OPENER, type ExternalUrlOpenerPort } from './ports/external-url-opener.port';
+import {
+  MANUAL_CHAPTER_NAVIGATION_RULE_REPOSITORY,
+  type ManualChapterNavigationRuleRepositoryPort,
+} from './ports/manual-chapter-navigation-rule-repository.port';
+import type { ManualChapterNavigationRuleSet } from '../domain/manual-chapter-navigation-rule';
 
 class FakeBrowserSessionStore implements BrowserSessionStorePort {
   public session: BrowserTabSession = { tabs: [], selectedTabId: null };
@@ -38,6 +45,12 @@ class FakeBrowserViewport implements BrowserViewportPort {
   private readonly eventsSubject = new Subject<BrowserViewportEvent>();
   public readonly events$ = this.eventsSubject.asObservable();
   public readonly loadedUrls: string[] = [];
+  public previewResult: BrowserViewportSelectorPreview = {
+    ok: true,
+    matches: [{ href: 'https://example.com/story/2', label: 'Next' }],
+    selected: { href: 'https://example.com/story/2', label: 'Next' },
+    automatic: null,
+  };
 
   public emit(event: BrowserViewportEvent): void {
     this.eventsSubject.next(event);
@@ -83,6 +96,24 @@ class FakeBrowserViewport implements BrowserViewportPort {
   public extractArticle(): Promise<{ readonly status: 'unavailable' }> {
     return Promise.resolve({ status: 'unavailable' });
   }
+
+  public previewManualChapterNavigation(): Promise<BrowserViewportSelectorPreview> {
+    return Promise.resolve(this.previewResult);
+  }
+}
+
+class FakeManualChapterNavigationRuleRepository implements ManualChapterNavigationRuleRepositoryPort {
+  public list(): Promise<readonly ManualChapterNavigationRuleSet[]> {
+    return Promise.resolve([]);
+  }
+
+  public save(): Promise<{ readonly ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  public delete(): Promise<{ readonly ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
 }
 
 class FakeExternalUrlOpener implements ExternalUrlOpenerPort {
@@ -102,10 +133,15 @@ describe('ExploreBrowserFacade', () => {
       providers: [
         BrowserUrlPolicy,
         ExploreReadingChapterNavigator,
+        ManualChapterNavigationRuleWorkflow,
         ExploreBrowserFacade,
         { provide: BROWSER_SESSION_STORE, useClass: FakeBrowserSessionStore },
         { provide: BROWSER_VIEWPORT, useValue: viewport },
         { provide: EXTERNAL_URL_OPENER, useClass: FakeExternalUrlOpener },
+        {
+          provide: MANUAL_CHAPTER_NAVIGATION_RULE_REPOSITORY,
+          useClass: FakeManualChapterNavigationRuleRepository,
+        },
       ],
     });
 
@@ -166,9 +202,60 @@ describe('ExploreBrowserFacade', () => {
     await facade.rememberActiveTabLibrarySeriesTitle('Unread');
     await expectAsync(facade.openReadingModeLink('/next')).toBeResolvedTo({ ok: false });
     await expectAsync(facade.navigateReadingChapter('next')).toBeResolvedTo({ ok: false });
+    await expectAsync(
+      facade.previewManualChapterNavigation({
+        direction: 'next',
+        selectorMode: 'link',
+        selector: 'a.next',
+        selectedHref: null,
+      }),
+    ).toBeResolvedTo(viewport.previewResult);
     facade.dismissNotice();
 
     expect(facade.activeTab()?.url).toBeNull();
     expect(facade.secureNavigationFailure()).toBeNull();
+  });
+
+  it('saves manual chapter navigation rules and dismisses source-link context on success', async () => {
+    viewport.emit({
+      type: 'sourceLinkLongPressed',
+      event: {
+        link: {
+          pageUrl: 'https://example.com/story/1',
+          href: 'https://example.com/story/2',
+          text: 'Next',
+          attributes: [],
+          ancestors: [],
+        },
+      },
+    });
+
+    const result = await facade.saveManualChapterNavigationRule({
+      sourceUrl: 'https://example.com/story/1',
+      direction: 'next',
+      scopePathPrefix: '/story/',
+      selectorMode: 'link',
+      selector: 'a.next',
+      selectedHref: 'https://example.com/story/2',
+    });
+
+    expect(result.ok).toBeTrue();
+    expect(facade.sourceLinkLongPress()).toBeNull();
+
+    viewport.emit({
+      type: 'sourceLinkLongPressed',
+      event: {
+        link: {
+          pageUrl: 'https://example.com/story/1',
+          href: 'https://example.com/story/2',
+          text: 'Next',
+          attributes: [],
+          ancestors: [],
+        },
+      },
+    });
+    facade.dismissSourceLinkLongPress();
+
+    expect(facade.sourceLinkLongPress()).toBeNull();
   });
 });

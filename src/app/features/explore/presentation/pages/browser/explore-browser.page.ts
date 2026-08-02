@@ -27,6 +27,8 @@ import {
   IonNote,
   IonPopover,
   IonProgressBar,
+  IonSegment,
+  IonSegmentButton,
   IonSpinner,
   IonText,
   IonTitle,
@@ -48,6 +50,7 @@ import { ExploreBrowserFacade } from '../../../application/explore-browser.facad
 import { ExploreReadingAppearanceWorkflow } from '../../../application/explore-reading-appearance-workflow';
 import type { ReadingChapterDirection } from '../../../application/explore-browser-reading-mode-policy';
 import { READING_LIBRARY_SAVE } from '../../../application/ports/reading-library-save.port';
+import { ExploreBrowserManualRuleActions } from './explore-browser-manual-rule-actions';
 import { ExploreBrowserPageActions } from './explore-browser-page-actions';
 import { registerExploreBrowserPageIcons } from './explore-browser-page-icons';
 import { ExploreBrowserPageShell } from './explore-browser-page-shell';
@@ -75,6 +78,8 @@ import { exploreRouteTargets } from '../../explore-route-targets';
     IonNote,
     IonPopover,
     IonProgressBar,
+    IonSegment,
+    IonSegmentButton,
     IonSpinner,
     IonText,
     IonTitle,
@@ -104,6 +109,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly selectedFont = computed(() => readingFontOption(this.appearance().fontId));
   protected readonly appearanceMenuOpen = signal(false);
   protected readonly appearanceMenuEvent = signal<Event | undefined>(undefined);
+  protected readonly manualRules = new ExploreBrowserManualRuleActions(this.browser);
   private readonly router = inject(Router);
   private readonly platform = inject(Platform);
   private readonly publishedTimeFormatter = new Intl.DateTimeFormat('en', {
@@ -174,6 +180,11 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
     this.pageActions.closeActions();
     await this.browser.hideViewport();
     await this.router.navigate(exploreRouteTargets.browserTabs().commands);
+  }
+
+  protected closeManualRuleEditor(): void {
+    this.manualRules.closeEditor();
+    this.pageShell.scheduleViewportRectUpdate();
   }
 
   protected async openNoticeUrlExternally(): Promise<void> {

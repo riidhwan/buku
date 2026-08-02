@@ -9,6 +9,10 @@ import {
   AppUpdateReleaseSourceResult,
 } from './ports/app-update-release-source.port';
 import { APP_VERSION, AppVersionPort } from './ports/app-version.port';
+import {
+  MANUAL_CHAPTER_NAVIGATION_MANAGEMENT,
+  ManualChapterNavigationRuleManagementPort,
+} from './ports/manual-chapter-navigation-management.port';
 
 class FakeAppVersion implements AppVersionPort {
   public getInstalledVersion() {
@@ -34,6 +38,37 @@ class FakeInstaller {
   }
 }
 
+class FakeManualChapterNavigationManagement implements ManualChapterNavigationRuleManagementPort {
+  public items = [
+    {
+      id: 'rules-1',
+      host: 'example.com',
+      pathPrefix: '/story/',
+      enabled: true,
+      previousLabel: null,
+      nextLabel: 'Next',
+      unverified: false,
+      lastFailed: false,
+    },
+  ];
+  public enabledCall: { readonly id: string; readonly enabled: boolean } | null = null;
+  public deletedId: string | null = null;
+
+  public list() {
+    return Promise.resolve(this.items);
+  }
+
+  public setEnabled(id: string, enabled: boolean) {
+    this.enabledCall = { id, enabled };
+    return Promise.resolve();
+  }
+
+  public delete(id: string) {
+    this.deletedId = id;
+    return Promise.resolve();
+  }
+}
+
 class Deferred<T> {
   public readonly promise: Promise<T>;
   private resolveValue: (value: T) => void = () => {
@@ -55,10 +90,12 @@ describe('MoreFacade', () => {
   let facade: MoreFacade;
   let releaseSource: FakeReleaseSource;
   let installer: FakeInstaller;
+  let manualChapterNavigation: FakeManualChapterNavigationManagement;
 
   beforeEach(() => {
     releaseSource = new FakeReleaseSource();
     installer = new FakeInstaller();
+    manualChapterNavigation = new FakeManualChapterNavigationManagement();
 
     TestBed.configureTestingModule({
       providers: [
@@ -68,6 +105,10 @@ describe('MoreFacade', () => {
         { provide: APP_VERSION, useClass: FakeAppVersion },
         { provide: APP_UPDATE_RELEASE_SOURCE, useValue: releaseSource },
         { provide: APP_UPDATE_INSTALLER, useValue: installer },
+        {
+          provide: MANUAL_CHAPTER_NAVIGATION_MANAGEMENT,
+          useValue: manualChapterNavigation,
+        },
       ],
     });
 
@@ -148,6 +189,19 @@ describe('MoreFacade', () => {
     await facade.installAppUpdate();
 
     expect(facade.appUpdate().status).toBe('install-started');
+  });
+
+  it('loads, toggles, and deletes manual chapter navigation rules', async () => {
+    await facade.loadManualChapterNavigationRules();
+
+    expect(facade.manualChapterNavigationRules()).toEqual(manualChapterNavigation.items);
+
+    await facade.setManualChapterNavigationRuleEnabled('rules-1', false);
+    await facade.deleteManualChapterNavigationRule('rules-1');
+
+    expect(manualChapterNavigation.enabledCall).toEqual({ id: 'rules-1', enabled: false });
+    expect(manualChapterNavigation.deletedId).toBe('rules-1');
+    expect(facade.manualChapterNavigationRules()).toEqual(manualChapterNavigation.items);
   });
 });
 

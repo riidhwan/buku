@@ -13,6 +13,8 @@ import android.net.NetworkCapabilities;
 import android.os.Message;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.GeolocationPermissions;
@@ -36,6 +38,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
@@ -68,6 +71,8 @@ public class ExploreBrowserPlugin extends Plugin {
     private int httpsUpgradeCount;
     private String latestOriginalHttpUrl;
     private boolean navigationFailed;
+    private float lastTouchCssX;
+    private float lastTouchCssY;
 
     @PluginMethod
     public void show(PluginCall call) {
@@ -239,6 +244,31 @@ public class ExploreBrowserPlugin extends Plugin {
         });
     }
 
+    @PluginMethod
+    public void previewManualChapterNavigation(PluginCall call) {
+        String script = call.getString("script");
+        if (script == null || script.length() == 0) {
+            call.reject("Missing selector preview script.");
+            return;
+        }
+
+        Activity activity = getActivity();
+        activity.runOnUiThread(() -> {
+            if (webView == null) {
+                call.resolve(selectorPreviewStatus("browserUnavailable"));
+                return;
+            }
+
+            webView.evaluateJavascript(script, result -> {
+                try {
+                    call.resolve(toJsonPayload(result, selectorPreviewStatus("browserUnavailable")));
+                } catch (JSONException error) {
+                    call.resolve(selectorPreviewStatus("browserUnavailable"));
+                }
+            });
+        });
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private WebView ensureWebView(Activity activity) {
         if (webView != null) {
@@ -260,8 +290,87 @@ public class ExploreBrowserPlugin extends Plugin {
         browser.setDownloadListener(downloadListener);
         browser.setWebViewClient(new ExploreWebViewClient());
         browser.setWebChromeClient(new ExploreWebChromeClient());
+        installLongPressInspection(browser, activity);
         webView = browser;
         return browser;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private void installLongPressInspection(WebView browser, Activity activity) {
+        GestureDetector detector = new GestureDetector(activity, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDown(MotionEvent event) {
+                recordTouchCoordinates(activity, event);
+                return false;
+            }
+
+            @Override
+            public void onLongPress(MotionEvent event) {
+                recordTouchCoordinates(activity, event);
+                inspectLongPressedLink();
+            }
+        });
+        browser.setOnTouchListener((view, event) -> {
+            detector.onTouchEvent(event);
+            return false;
+        });
+    }
+
+    private void recordTouchCoordinates(Activity activity, MotionEvent event) {
+        float density = activity.getResources().getDisplayMetrics().density;
+        lastTouchCssX = event.getX() / density;
+        lastTouchCssY = event.getY() / density;
+    }
+
+    private void inspectLongPressedLink() {
+        if (webView == null) {
+            return;
+        }
+
+        WebView.HitTestResult hitTestResult = webView.getHitTestResult();
+        String fallbackHref = null;
+        if (
+            hitTestResult != null &&
+            (
+                hitTestResult.getType() == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
+                hitTestResult.getType() == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE
+            )
+        ) {
+            fallbackHref = hitTestResult.getExtra();
+        }
+
+        String script =
+            "(function(){function clean(value){return (value||'').replace(/\\s+/g,' ').trim();}" +
+            "function clip(value,max){value=clean(value);return value.length>max?value.slice(0,max):value;}" +
+            "function sameHref(link,href){try{return new URL(link.href,document.location.href).href===new URL(href,document.location.href).href;}catch(error){return false;}}" +
+            "var element=document.elementFromPoint(" + lastTouchCssX + "," + lastTouchCssY + ");" +
+            "var link=element&&element.closest?element.closest('a[href]'):null;" +
+            "var fallbackHref=" + JSONObject.quote(fallbackHref) + ";" +
+            "if(!link&&fallbackHref){link=Array.prototype.slice.call(document.querySelectorAll('a[href]')).find(function(candidate){return sameHref(candidate,fallbackHref);})||null;}" +
+            "if(!link){return JSON.stringify(null);}" +
+            "var attrs=['id','class','rel','title','aria-label','href'].map(function(name){" +
+            "var value=link.getAttribute(name);return value===null?null:{name:name,value:clip(value,160)};" +
+            "}).filter(Boolean);" +
+            "var ancestors=[];var current=link.parentElement;" +
+            "for(var index=0;current&&index<4;index+=1,current=current.parentElement){" +
+            "ancestors.push({tagName:current.tagName,id:current.id||null,className:clip(current.className||'',80)||null," +
+            "role:current.getAttribute('role'),ariaLabel:current.getAttribute('aria-label')});}" +
+            "return JSON.stringify({pageUrl:document.location.href,href:link.href,text:clip(link.textContent,180)||null," +
+            "attributes:attrs,ancestors:ancestors});})();";
+        webView.evaluateJavascript(script, result -> {
+            try {
+                Object payload = new JSONTokener(result).nextValue();
+                if (!(payload instanceof String)) {
+                    return;
+                }
+                Object decoded = new JSONTokener((String) payload).nextValue();
+                if (decoded instanceof JSONObject) {
+                    notifyListeners("sourceLinkLongPressed", JSObject.fromJSONObject((JSONObject) decoded));
+                }
+            } catch (JSONException ignored) {
+                // Ignore link inspection failures; long-press is an advanced optional action.
+            }
+        });
     }
 
     private final DownloadListener downloadListener = (url, userAgent, contentDisposition, mimeType, contentLength) -> {
@@ -337,14 +446,18 @@ public class ExploreBrowserPlugin extends Plugin {
     }
 
     private JSObject toArticleExtractionPayload(String result) throws JSONException {
+        return toJsonPayload(result, articleStatus("failed", "Article extraction returned invalid data."));
+    }
+
+    private JSObject toJsonPayload(String result, JSObject fallback) throws JSONException {
         Object decodedResult = new JSONTokener(result).nextValue();
         if (!(decodedResult instanceof String)) {
-            return articleStatus("failed", "Article extraction returned invalid data.");
+            return fallback;
         }
 
         Object decodedPayload = new JSONTokener((String) decodedResult).nextValue();
         if (!(decodedPayload instanceof JSONObject)) {
-            return articleStatus("failed", "Article extraction returned invalid data.");
+            return fallback;
         }
 
         return JSObject.fromJSONObject((JSONObject) decodedPayload);
@@ -354,6 +467,15 @@ public class ExploreBrowserPlugin extends Plugin {
         JSObject payload = new JSObject();
         payload.put("status", status);
         payload.put("message", message);
+        return payload;
+    }
+
+    private JSObject selectorPreviewStatus(String reason) {
+        JSObject payload = new JSObject();
+        payload.put("ok", false);
+        payload.put("reason", reason);
+        payload.put("matches", new JSONArray());
+        payload.put("automatic", JSONObject.NULL);
         return payload;
     }
 

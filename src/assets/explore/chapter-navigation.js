@@ -1,5 +1,7 @@
 (function () {
   var namespace = (window.BukuExplore = window.BukuExplore || {});
+  var MAX_SELECTOR_LENGTH = 500;
+  var MAX_SELECTOR_MATCHES = 50;
 
   function cleanChapterText(value) {
     return (value || '').replace(/\s+/g, ' ').trim();
@@ -151,6 +153,115 @@
       .filter(isVisibleChapterAnchor);
   }
 
+  function visibleAnchorFromElement(element) {
+    if (!element) {
+      return null;
+    }
+
+    var anchor = element.matches && element.matches('a[href]') ? element : null;
+    if (!anchor && element.querySelector) {
+      var anchors = Array.prototype.slice.call(element.querySelectorAll('a[href]'));
+      anchor = anchors.find(isVisibleChapterAnchor) || null;
+    }
+
+    return anchor && isVisibleChapterAnchor(anchor) ? anchor : null;
+  }
+
+  function selectorMatches(rule) {
+    if (!rule || typeof rule.selector !== 'string' || rule.selector.length > MAX_SELECTOR_LENGTH) {
+      return { ok: false, reason: 'selectorTooLong', links: [] };
+    }
+
+    var elements;
+    try {
+      elements = Array.prototype.slice.call(document.querySelectorAll(rule.selector));
+    } catch (error) {
+      return { ok: false, reason: 'invalidSelector', links: [] };
+    }
+
+    if (elements.length > MAX_SELECTOR_MATCHES) {
+      return { ok: false, reason: 'tooManyMatches', links: [] };
+    }
+
+    var anchors =
+      rule.selectorMode === 'container'
+        ? elements.map(visibleAnchorFromElement).filter(Boolean)
+        : elements.filter(function (element) {
+            return element.matches && element.matches('a[href]') && isVisibleChapterAnchor(element);
+          });
+
+    var links = anchors.map(toChapterLink).filter(Boolean);
+    if (links.length === 0) {
+      return { ok: false, reason: 'noMatch', links: [] };
+    }
+
+    return { ok: true, links: links };
+  }
+
+  function linkMatchesDisambiguation(link, disambiguation) {
+    if (!disambiguation || !disambiguation.href) {
+      return false;
+    }
+
+    try {
+      return (
+        new URL(link.href, document.location.href).toString() ===
+        new URL(disambiguation.href, document.location.href).toString()
+      );
+    } catch (error) {
+      return link.href === disambiguation.href;
+    }
+  }
+
+  function findManualChapterLink(manualChapterNavigation, direction) {
+    var rule = manualChapterNavigation && manualChapterNavigation[direction];
+    if (!rule) {
+      return null;
+    }
+
+    var result = selectorMatches(rule);
+    if (!result.ok) {
+      return null;
+    }
+
+    return (
+      result.links.find(function (link) {
+        return linkMatchesDisambiguation(link, rule.disambiguation);
+      }) ||
+      result.links[0] ||
+      null
+    );
+  }
+
+  function previewManualChapterNavigation(input) {
+    var automatic = input && input.direction ? findChapterLink(input.direction) : null;
+    var result = selectorMatches({
+      selectorMode: input && input.selectorMode,
+      selector: input && input.selector,
+      disambiguation:
+        input && input.selectedHref ? { href: input.selectedHref, label: null } : null,
+    });
+    if (!result.ok) {
+      return { ok: false, reason: result.reason, matches: result.links, automatic: automatic };
+    }
+
+    if (input && input.selectedHref) {
+      var includesSelectedHref = result.links.some(function (link) {
+        return linkMatchesDisambiguation(link, { href: input.selectedHref, label: null });
+      });
+      if (!includesSelectedHref) {
+        return { ok: false, reason: 'noMatch', matches: result.links, automatic: automatic };
+      }
+    }
+
+    return {
+      ok: true,
+      matches: result.links,
+      selected: result.links[0] || null,
+      automatic: automatic,
+    };
+  }
+
   function findChapterLink(direction) {
     var relLinks = Array.prototype.slice
       .call(document.querySelectorAll('link[href][rel]'))
@@ -196,5 +307,11 @@
     return uniqueChapterCandidate(bareLabelAnchors);
   }
 
+  function findChapterLinkWithManual(direction, manualChapterNavigation) {
+    return findManualChapterLink(manualChapterNavigation, direction) || findChapterLink(direction);
+  }
+
   namespace.findChapterLink = findChapterLink;
+  namespace.findChapterLinkWithManual = findChapterLinkWithManual;
+  namespace.previewManualChapterNavigation = previewManualChapterNavigation;
 })();

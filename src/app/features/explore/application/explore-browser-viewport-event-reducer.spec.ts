@@ -113,4 +113,21 @@ describe('reduceBrowserViewportEvent', () => {
       url: 'https://example.com/file.pdf',
     });
   });
+
+  it('ignores source-link long-press events in the generic reducer', () => {
+    expect(
+      reduceBrowserViewportEvent({
+        type: 'sourceLinkLongPressed',
+        event: {
+          link: {
+            pageUrl: 'https://example.com/story/1',
+            href: 'https://example.com/story/2',
+            text: 'Next',
+            attributes: [],
+            ancestors: [],
+          },
+        },
+      }),
+    ).toEqual({});
+  });
 });

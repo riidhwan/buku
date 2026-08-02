@@ -9,8 +9,10 @@ import {
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
   NativeBrowserSecureNavigationFailureEvent,
+  NativeBrowserSourceLinkLongPressEvent,
   NativeBrowserViewportRect,
 } from './capacitor-explore-browser';
+import { BrowserViewportSelectorPreview } from '../application/ports/browser-viewport.port';
 import { CapacitorBrowserViewportAdapter } from './capacitor-browser-viewport.adapter';
 
 interface ListenerMap {
@@ -18,6 +20,7 @@ interface ListenerMap {
   loadFailed?: (event: NativeBrowserLoadFailedEvent) => void;
   capabilityUnsupported?: (event: NativeBrowserCapabilityEvent) => void;
   secureNavigationFailed?: (event: NativeBrowserSecureNavigationFailureEvent) => void;
+  sourceLinkLongPressed?: (event: NativeBrowserSourceLinkLongPressEvent) => void;
 }
 
 class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
@@ -27,6 +30,8 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public loadedUrl: string | null = null;
   public copiedUrl: string | null = null;
   public script: string | null = null;
+  public previewScript: string | null = null;
+  public previewError: Error | null = null;
   public backResult: NativeBrowserHistoryNavigationResult = { didNavigate: true };
   public articleExtractionResult: NativeArticleExtractionResult = {
     status: 'unavailable',
@@ -93,6 +98,23 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     return Promise.resolve(this.articleExtractionResult);
   }
 
+  public previewManualChapterNavigation(options: {
+    readonly script: string;
+  }): Promise<BrowserViewportSelectorPreview> {
+    if (this.previewError !== null) {
+      return Promise.reject(this.previewError);
+    }
+
+    this.calls.push('previewManualChapterNavigation');
+    this.previewScript = options.script;
+    return Promise.resolve({
+      ok: true,
+      matches: [{ href: '/next', label: 'Next' }],
+      selected: { href: '/next', label: 'Next' },
+      automatic: null,
+    });
+  }
+
   public addListener(
     eventName: 'secureNavigationFailed',
     listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
@@ -110,12 +132,17 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     listenerFunc: (event: NativeBrowserCapabilityEvent) => void,
   ): Promise<{ remove(): Promise<void> }>;
   public addListener(
+    eventName: 'sourceLinkLongPressed',
+    listenerFunc: (event: NativeBrowserSourceLinkLongPressEvent) => void,
+  ): Promise<{ remove(): Promise<void> }>;
+  public addListener(
     eventName: keyof ListenerMap,
     listenerFunc:
       | ((event: NativeBrowserNavigationState & { readonly committed: boolean }) => void)
       | ((event: NativeBrowserLoadFailedEvent) => void)
       | ((event: NativeBrowserSecureNavigationFailureEvent) => void)
-      | ((event: NativeBrowserCapabilityEvent) => void),
+      | ((event: NativeBrowserCapabilityEvent) => void)
+      | ((event: NativeBrowserSourceLinkLongPressEvent) => void),
   ): Promise<{ remove(): Promise<void> }> {
     if (eventName === 'navigationState') {
       this.listeners.navigationState = listenerFunc as (
@@ -126,6 +153,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     } else if (eventName === 'capabilityUnsupported') {
       this.listeners.capabilityUnsupported = listenerFunc as (
         event: NativeBrowserCapabilityEvent,
+      ) => void;
+    } else if (eventName === 'sourceLinkLongPressed') {
+      this.listeners.sourceLinkLongPressed = listenerFunc as (
+        event: NativeBrowserSourceLinkLongPressEvent,
       ) => void;
     } else {
       this.listeners.secureNavigationFailed = listenerFunc as (
@@ -249,8 +280,26 @@ describe('CapacitorBrowserViewportAdapter', () => {
     expect(plugin.script).toContain('readability script');
     expect(plugin.script).toContain('chapter navigation script');
     expect(plugin.script).toContain('article extraction script');
-    expect(plugin.script).toContain('window.BukuExplore.extractArticle()');
+    expect(plugin.script).toContain(
+      'window.BukuExplore.extractArticle({manualChapterNavigation:null})',
+    );
     expect(result).toEqual(plugin.articleExtractionResult);
+  });
+
+  it('injects manual chapter navigation payloads into article extraction', async () => {
+    await adapter.extractArticle({
+      manualChapterNavigation: {
+        next: {
+          selectorMode: 'link',
+          selector: 'a.next',
+          disambiguation: null,
+        },
+      },
+    });
+
+    expect(plugin.script).toContain(
+      'window.BukuExplore.extractArticle({manualChapterNavigation:{"next":{"selectorMode":"link","selector":"a.next","disambiguation":null}}})',
+    );
   });
 
   it('maps successful article extraction when native chapter links are absent', async () => {
@@ -352,6 +401,45 @@ describe('CapacitorBrowserViewportAdapter', () => {
     });
   });
 
+  it('previews manual chapter navigation selectors in the native viewport', async () => {
+    await expectAsync(
+      adapter.previewManualChapterNavigation({
+        direction: 'next',
+        selectorMode: 'link',
+        selector: 'a.next',
+        selectedHref: '/next',
+      }),
+    ).toBeResolvedTo({
+      ok: true,
+      matches: [{ href: '/next', label: 'Next' }],
+      selected: { href: '/next', label: 'Next' },
+      automatic: null,
+    });
+
+    expect(plugin.previewScript).toContain('chapter navigation script');
+    expect(plugin.previewScript).toContain(
+      'window.BukuExplore.previewManualChapterNavigation({"direction":"next","selectorMode":"link","selector":"a.next","selectedHref":"/next"})',
+    );
+  });
+
+  it('maps manual chapter navigation preview failures to browser unavailable', async () => {
+    plugin.previewError = new Error('Preview failed');
+
+    await expectAsync(
+      adapter.previewManualChapterNavigation({
+        direction: 'next',
+        selectorMode: 'link',
+        selector: 'a.next',
+        selectedHref: null,
+      }),
+    ).toBeResolvedTo({
+      ok: false,
+      reason: 'browserUnavailable',
+      matches: [],
+      automatic: null,
+    });
+  });
+
   it('maps native events to application viewport events', () => {
     plugin.listeners.navigationState?.({
       url: 'https://example.com/',
@@ -382,6 +470,13 @@ describe('CapacitorBrowserViewportAdapter', () => {
     plugin.listeners.capabilityUnsupported?.({
       capability: 'nativeShare',
       url: null,
+    });
+    plugin.listeners.sourceLinkLongPressed?.({
+      pageUrl: 'https://example.com/story/1',
+      href: 'https://example.com/story/2',
+      text: 'Next',
+      attributes: [{ name: 'class', value: 'next' }],
+      ancestors: [],
     });
 
     expect(events).toEqual([
@@ -431,6 +526,18 @@ describe('CapacitorBrowserViewportAdapter', () => {
         event: {
           capability: 'unknown',
           url: null,
+        },
+      },
+      {
+        type: 'sourceLinkLongPressed',
+        event: {
+          link: {
+            pageUrl: 'https://example.com/story/1',
+            href: 'https://example.com/story/2',
+            text: 'Next',
+            attributes: [{ name: 'class', value: 'next' }],
+            ancestors: [],
+          },
         },
       },
     ]);

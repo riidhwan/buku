@@ -13,6 +13,7 @@ import {
 import type { BrowserNotice } from './explore-browser-notice-policy';
 import type { ExploreBrowserSecureNavigationFailure } from './explore-browser-secure-navigation-failure';
 import type { ExploreBrowserTab } from './ports/browser-session-store.port';
+import type { BrowserSourceLinkContext } from './ports/browser-viewport.port';
 
 export class ExploreBrowserWorkflowState {
   public readonly inputValueSignal = signal('');
@@ -29,6 +30,7 @@ export class ExploreBrowserWorkflowState {
   public readonly readingModeActiveSignal = signal(false);
   public readonly readingArticleSignal = signal<ReadingArticleSnapshot | null>(null);
   public readonly chapterNavigationLoadingSignal = signal(false);
+  public readonly sourceLinkLongPressSignal = signal<BrowserSourceLinkContext | null>(null);
   public backNavigationState: ExploreBrowserBackNavigationState =
     initialExploreBrowserBackNavigationState();
 
@@ -52,6 +54,7 @@ export class ExploreBrowserWorkflowState {
   public readonly readingModeActive = this.readingModeActiveSignal.asReadonly();
   public readonly readingArticle = this.readingArticleSignal.asReadonly();
   public readonly chapterNavigationLoading = this.chapterNavigationLoadingSignal.asReadonly();
+  public readonly sourceLinkLongPress = this.sourceLinkLongPressSignal.asReadonly();
   public readonly isSecure = computed(
     () => this.currentUrlSignal()?.startsWith('https://') ?? false,
   );

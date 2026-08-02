@@ -134,3 +134,16 @@
   --padding-start: 12px;
   --padding-end: 8px;
 }
+
+.manual-chapter-rule-modal {
+  --height: 82%;
+}
+
+.manual-chapter-rule-code {
+  overflow-wrap: anywhere;
+}
+
+.manual-chapter-rule-candidates {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}

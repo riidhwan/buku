@@ -3,6 +3,8 @@ import { Subject } from 'rxjs';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import { ExploreBrowserWorkflow } from './explore-browser-workflow';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
+import { ManualChapterNavigationRuleWorkflow } from './manual-chapter-navigation-rule-workflow';
+import type { ManualChapterNavigationRuleSet } from '../domain/manual-chapter-navigation-rule';
 import {
   BROWSER_SESSION_STORE,
   BrowserSessionStorePort,
@@ -11,13 +13,19 @@ import {
 } from './ports/browser-session-store.port';
 import {
   BrowserArticleExtractionResult,
+  BrowserViewportExtractArticleOptions,
   BROWSER_VIEWPORT,
   BrowserHistoryNavigationResult,
+  BrowserViewportSelectorPreview,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
 } from './ports/browser-viewport.port';
 import { EXTERNAL_URL_OPENER, ExternalUrlOpenerPort } from './ports/external-url-opener.port';
+import {
+  MANUAL_CHAPTER_NAVIGATION_RULE_REPOSITORY,
+  ManualChapterNavigationRuleRepositoryPort,
+} from './ports/manual-chapter-navigation-rule-repository.port';
 
 class FakeBrowserSessionStore implements BrowserSessionStorePort {
   public session: BrowserTabSession = { tabs: [], selectedTabId: null };
@@ -58,6 +66,7 @@ class FakeBrowserViewport implements BrowserViewportPort {
   };
   public articleExtractionPromise: Promise<BrowserArticleExtractionResult> | null = null;
   public extractCount = 0;
+  public extractOptions: BrowserViewportExtractArticleOptions | undefined;
 
   public emit(event: BrowserViewportEvent): void {
     this.eventsSubject.next(event);
@@ -112,9 +121,16 @@ class FakeBrowserViewport implements BrowserViewportPort {
     return Promise.resolve();
   }
 
-  public extractArticle(): Promise<BrowserArticleExtractionResult> {
+  public extractArticle(
+    options?: BrowserViewportExtractArticleOptions,
+  ): Promise<BrowserArticleExtractionResult> {
     this.extractCount += 1;
+    this.extractOptions = options;
     return this.articleExtractionPromise ?? Promise.resolve(this.articleExtractionResult);
+  }
+
+  public previewManualChapterNavigation(): Promise<BrowserViewportSelectorPreview> {
+    return Promise.resolve({ ok: false, reason: 'noMatch', matches: [], automatic: null });
   }
 }
 
@@ -124,6 +140,22 @@ class FakeExternalUrlOpener implements ExternalUrlOpenerPort {
   public open(url: string): Promise<void> {
     this.openedUrl = url;
     return Promise.resolve();
+  }
+}
+
+class FakeManualChapterNavigationRuleRepository implements ManualChapterNavigationRuleRepositoryPort {
+  public ruleSets: readonly ManualChapterNavigationRuleSet[] = [];
+
+  public list(): Promise<readonly ManualChapterNavigationRuleSet[]> {
+    return Promise.resolve(this.ruleSets);
+  }
+
+  public save(): Promise<{ readonly ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  public delete(): Promise<{ readonly ok: true }> {
+    return Promise.resolve({ ok: true });
   }
 }
 
@@ -192,9 +224,14 @@ describe('ExploreBrowserWorkflow', () => {
       providers: [
         BrowserUrlPolicy,
         ExploreReadingChapterNavigator,
+        ManualChapterNavigationRuleWorkflow,
         { provide: BROWSER_SESSION_STORE, useValue: store },
         { provide: BROWSER_VIEWPORT, useValue: viewport },
         { provide: EXTERNAL_URL_OPENER, useValue: opener },
+        {
+          provide: MANUAL_CHAPTER_NAVIGATION_RULE_REPOSITORY,
+          useClass: FakeManualChapterNavigationRuleRepository,
+        },
       ],
     });
 
@@ -204,6 +241,7 @@ describe('ExploreBrowserWorkflow', () => {
       viewport,
       externalUrlOpener: opener,
       chapterNavigator: TestBed.inject(ExploreReadingChapterNavigator),
+      manualChapterNavigation: TestBed.inject(ManualChapterNavigationRuleWorkflow),
     });
   });
 
@@ -1172,6 +1210,123 @@ describe('ExploreBrowserWorkflow', () => {
     expect(workflow.readingArticle()).toEqual(articleSnapshot);
     expect(viewport.extractCount).toBe(1);
     expect(viewport.hideCount).toBe(1);
+  });
+
+  it('passes applicable manual chapter navigation rules into article extraction', async () => {
+    const repository = TestBed.inject(
+      MANUAL_CHAPTER_NAVIGATION_RULE_REPOSITORY,
+    ) as FakeManualChapterNavigationRuleRepository;
+    repository.ruleSets = [
+      {
+        id: 'rules-1',
+        scope: { host: 'example.com', pathPrefix: '/article' },
+        enabled: true,
+        previous: null,
+        next: {
+          direction: 'next',
+          selectorMode: 'link',
+          selector: 'a.next',
+          disambiguation: null,
+          sampleLabel: 'Next',
+          sampleHref: '/next',
+          verifiedAt: '2026-08-02T00:00:00.000Z',
+          lastFailedAt: null,
+          failureReason: null,
+        },
+        createdAt: '2026-08-02T00:00:00.000Z',
+        updatedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ];
+    viewport.emit({
+      type: 'navigation',
+      committed: false,
+      state: {
+        url: 'https://example.com/article',
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      },
+    });
+    viewport.articleExtractionResult = {
+      status: 'ok',
+      article: articleSnapshot,
+    };
+
+    await workflow.openReadingMode();
+
+    expect(viewport.extractOptions).toEqual({
+      manualChapterNavigation: {
+        next: {
+          selectorMode: 'link',
+          selector: 'a.next',
+          disambiguation: null,
+        },
+      },
+    });
+  });
+
+  it('stores source-link long-press context and hides the native viewport', async () => {
+    viewport.emit({
+      type: 'sourceLinkLongPressed',
+      event: {
+        link: {
+          pageUrl: 'https://example.com/story/1',
+          href: 'https://example.com/story/2',
+          text: 'Next',
+          attributes: [],
+          ancestors: [],
+        },
+      },
+    });
+    await Promise.resolve();
+
+    expect(workflow.sourceLinkLongPress()).toEqual({
+      pageUrl: 'https://example.com/story/1',
+      href: 'https://example.com/story/2',
+      text: 'Next',
+      attributes: [],
+      ancestors: [],
+    });
+    expect(viewport.hideCount).toBe(1);
+  });
+
+  it('dismisses source-link long-press context', () => {
+    viewport.emit({
+      type: 'sourceLinkLongPressed',
+      event: {
+        link: {
+          pageUrl: 'https://example.com/story/1',
+          href: 'https://example.com/story/2',
+          text: 'Next',
+          attributes: [],
+          ancestors: [],
+        },
+      },
+    });
+
+    workflow.dismissSourceLinkLongPress();
+
+    expect(workflow.sourceLinkLongPress()).toBeNull();
+  });
+
+  it('keeps the native viewport hidden while source-link long-press context is active', async () => {
+    viewport.emit({
+      type: 'sourceLinkLongPressed',
+      event: {
+        link: {
+          pageUrl: 'https://example.com/story/1',
+          href: 'https://example.com/story/2',
+          text: 'Next',
+          attributes: [],
+          ancestors: [],
+        },
+      },
+    });
+
+    await workflow.showViewport({ left: 1, top: 2, width: 3, height: 4 });
+
+    expect(viewport.shownRect).toBeNull();
+    expect(viewport.hideCount).toBe(2);
   });
 
   it('keeps the native viewport hidden when the browser page reports its rectangle during Reading Mode', async () => {
