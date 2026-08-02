@@ -1,4 +1,4 @@
-import { Router } from '@angular/router';
+import { NavigationExtras, Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
 import { LibraryFacade } from '../../../application/library.facade';
 import {
@@ -60,6 +60,7 @@ describe('LibraryEntryEditWorkflow', () => {
     expect(router.navigateCalls).toEqual([
       ['/library', 'series', 'series-1', 'entries', 'entry-1'],
     ]);
+    expect(router.navigateOptions).toEqual([{ replaceUrl: true }]);
   });
 
   it('saves changed header visibility without creating a content override', async () => {
@@ -230,9 +231,11 @@ class FakeLibraryFacade {
 
 class FakeRouter {
   public readonly navigateCalls: string[][] = [];
+  public readonly navigateOptions: NavigationExtras[] = [];
 
-  public navigate(commands: string[]): Promise<boolean> {
+  public navigate(commands: string[], extras: NavigationExtras = {}): Promise<boolean> {
     this.navigateCalls.push(commands);
+    this.navigateOptions.push(extras);
     return Promise.resolve(true);
   }
 }

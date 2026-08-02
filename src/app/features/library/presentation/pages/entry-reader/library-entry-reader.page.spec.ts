@@ -471,14 +471,10 @@ describe('LibraryEntryReaderPage', () => {
     component.updateActiveEntryFromScroll();
     component.editActiveEntry();
 
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-2',
-      'edit',
-    ]);
+    expect(navigateSpy).toHaveBeenCalledOnceWith(
+      ['/library', 'series', 'series-1', 'entries', 'entry-2', 'edit'],
+      { replaceUrl: true },
+    );
   });
 
   it('does not navigate to edit when no entry is active', async () => {

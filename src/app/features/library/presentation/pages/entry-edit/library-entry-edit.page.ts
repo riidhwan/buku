@@ -101,10 +101,17 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
     void this.loadEntry();
   }
 
+  public ionViewWillEnter(): void {
+    this.registerBackButtonHandler();
+  }
+
+  public ionViewWillLeave(): void {
+    this.unregisterBackButtonHandler();
+  }
+
   public ngOnDestroy(): void {
     this.document.removeEventListener('selectionchange', this.selectionChangeListener);
-    this.backButtonSubscription?.unsubscribe();
-    this.backButtonSubscription = null;
+    this.unregisterBackButtonHandler();
   }
 
   protected async save(): Promise<void> {
@@ -188,9 +195,18 @@ export class LibraryEntryEditPage implements OnInit, OnDestroy {
   }
 
   private registerBackButtonHandler(): void {
+    if (this.backButtonSubscription !== null) {
+      return;
+    }
+
     this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => {
       void this.requestLeave();
     });
+  }
+
+  private unregisterBackButtonHandler(): void {
+    this.backButtonSubscription?.unsubscribe();
+    this.backButtonSubscription = null;
   }
 
   private currentDraftHtml(): string {

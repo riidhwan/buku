@@ -129,14 +129,10 @@ export class LibraryEntryReaderPage implements OnInit {
       return;
     }
 
-    void this.router.navigate([
-      '/library',
-      'series',
-      activeEntry.seriesId,
-      'entries',
-      activeEntry.id,
-      'edit',
-    ]);
+    void this.router.navigate(
+      ['/library', 'series', activeEntry.seriesId, 'entries', activeEntry.id, 'edit'],
+      { replaceUrl: true },
+    );
   }
 
   protected preventReaderLinkNavigation(event: Event): void {
