@@ -162,13 +162,7 @@ describe('LibraryEntryEditPage', () => {
         contentHtml: '<p>Edited content.</p>',
       },
     ]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('saves header visibility without creating a content override', async () => {
@@ -191,13 +185,7 @@ describe('LibraryEntryEditPage', () => {
         contentHtml: null,
       },
     ]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('saves a title-only edit without creating a content override', async () => {
@@ -220,13 +208,7 @@ describe('LibraryEntryEditPage', () => {
         contentHtml: null,
       },
     ]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('treats a null title input value as an empty title draft', async () => {
@@ -489,13 +471,7 @@ describe('LibraryEntryEditPage', () => {
     await fixture.whenStable();
 
     expect(savedEditInputs).toEqual([]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('shows reset only for entries with overrides', async () => {
@@ -537,13 +513,7 @@ describe('LibraryEntryEditPage', () => {
     await fixture.whenStable();
 
     expect(resetInputs).toEqual([{ seriesId: 'series-1', entryId: 'entry-1' }]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('leaves the draft unchanged when reset is cancelled', async () => {
@@ -610,13 +580,7 @@ describe('LibraryEntryEditPage', () => {
     await flushAlertPresentation();
     await fixture.whenStable();
 
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('asks before discarding changed header visibility', async () => {
@@ -638,13 +602,7 @@ describe('LibraryEntryEditPage', () => {
     await fixture.whenStable();
 
     expect(savedEditInputs).toEqual([]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('asks before discarding a changed title', async () => {
@@ -666,13 +624,7 @@ describe('LibraryEntryEditPage', () => {
     await fixture.whenStable();
 
     expect(savedEditInputs).toEqual([]);
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
   });
 
   it('keeps the editor open when discard is dismissed', async () => {
@@ -704,13 +656,31 @@ describe('LibraryEntryEditPage', () => {
     await flushAlertPresentation();
     await fixture.whenStable();
 
-    expect(navigateSpy).toHaveBeenCalledOnceWith([
-      '/library',
-      'series',
-      'series-1',
-      'entries',
-      'entry-1',
-    ]);
+    expectNavigatedToReader();
+  });
+
+  it('stops handling Android back after the edit page leaves Ionic view', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    editorBody(fixture).innerHTML = '<p>Changed content.</p>';
+    const component = fixture.componentInstance as unknown as LibraryEntryEditPageHarness;
+
+    component.ionViewWillLeave();
+    await platform.backButton.trigger();
+    await flushAlertPresentation();
+
+    expect(alerts.latest).toBeNull();
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(platform.backButton.unsubscribed).toBeTrue();
+  });
+
+  it('does not register duplicate Android back handlers when entering Ionic view again', async () => {
+    await fixture.whenStable();
+    const component = fixture.componentInstance as unknown as LibraryEntryEditPageHarness;
+
+    component.ionViewWillEnter();
+
+    expect(platform.backButton.subscribeCalls).toBe(1);
   });
 
   it('selects and deletes existing media from the draft', async () => {
@@ -911,6 +881,8 @@ describe('LibraryEntryEditPage', () => {
 });
 
 interface LibraryEntryEditPageHarness {
+  ionViewWillEnter(): void;
+  ionViewWillLeave(): void;
   save(): Promise<void>;
   selectMedia(event: Event): void;
 }
@@ -999,14 +971,17 @@ type BackButtonCallback = (processNextHandler: () => void) => void | Promise<voi
 class FakeBackButton {
   private callback: BackButtonCallback | null = null;
   public priority: number | null = null;
+  public subscribeCalls = 0;
   public unsubscribed = false;
 
   public subscribeWithPriority(priority: number, callback: BackButtonCallback) {
+    this.subscribeCalls += 1;
     this.priority = priority;
     this.callback = callback;
     return {
       unsubscribe: () => {
         this.unsubscribed = true;
+        this.callback = null;
       },
     };
   }
@@ -1104,6 +1079,13 @@ function cancelButton(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLIonB
 
 function backButton(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLIonButtonElement {
   return toolbarButton(fixture, '.library-entry-edit-back');
+}
+
+function expectNavigatedToReader(): void {
+  expect(navigateSpy).toHaveBeenCalledOnceWith(
+    ['/library', 'series', 'series-1', 'entries', 'entry-1'],
+    { replaceUrl: true },
+  );
 }
 
 function resetButton(fixture: ComponentFixture<LibraryEntryEditPage>): HTMLIonButtonElement {

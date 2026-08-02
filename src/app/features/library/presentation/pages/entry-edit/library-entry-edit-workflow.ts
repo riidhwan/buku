@@ -125,13 +125,10 @@ export class LibraryEntryEditWorkflow {
   }
 
   private navigateToReader(): Promise<boolean> {
-    return this.dependencies.router.navigate([
-      '/library',
-      'series',
-      this.dependencies.seriesId,
-      'entries',
-      this.dependencies.entryId,
-    ]);
+    return this.dependencies.router.navigate(
+      ['/library', 'series', this.dependencies.seriesId, 'entries', this.dependencies.entryId],
+      { replaceUrl: true },
+    );
   }
 
   private hasUnsavedChanges(
