@@ -12,6 +12,7 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 import { AppComponent } from './app/app.component';
 import { routes } from './app/app.routes';
 import { provideAppConfig } from './app/core/config/provide-app-config';
+import { provideComposition } from './app/composition/provide-composition';
 import { GlobalErrorHandler } from './app/core/errors/global-error-handler';
 import { ERROR_REPORTER } from './app/core/errors/error-reporter.token';
 import { NoopErrorReporter } from './app/core/errors/noop-error-reporter';
@@ -31,6 +32,7 @@ void bootstrapApplication(AppComponent, {
     { provide: LOGGER, useClass: ConsoleLogger },
     { provide: READING_LIBRARY_SAVE, useClass: ReadingLibrarySaveAdapter },
     provideLibrary(),
+    provideComposition(),
     provideSqliteStorage(),
     provideAppConfig(environment.appConfig),
     provideHttpClient(),

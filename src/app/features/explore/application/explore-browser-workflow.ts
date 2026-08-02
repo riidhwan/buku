@@ -34,11 +34,13 @@ import {
 import { reduceBrowserViewportEvent } from './explore-browser-viewport-event-reducer';
 import { ExploreBrowserWorkflowState } from './explore-browser-workflow-state';
 import type { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
+import type { ManualChapterNavigationRuleWorkflow } from './manual-chapter-navigation-rule-workflow';
 import type {
   BrowserSessionStorePort,
   BrowserTabSession,
 } from './ports/browser-session-store.port';
 import type {
+  BrowserViewportExtractArticleOptions,
   BrowserHistoryNavigationResult,
   BrowserViewportPort,
   BrowserViewportRect,
@@ -51,6 +53,7 @@ export interface ExploreBrowserWorkflowDependencies {
   readonly viewport: BrowserViewportPort;
   readonly externalUrlOpener: ExternalUrlOpenerPort;
   readonly chapterNavigator: ExploreReadingChapterNavigator;
+  readonly manualChapterNavigation: ManualChapterNavigationRuleWorkflow;
 }
 
 export class ExploreBrowserWorkflow {
@@ -72,11 +75,18 @@ export class ExploreBrowserWorkflow {
   public readonly readingModeActive = this.state.readingModeActive;
   public readonly readingArticle = this.state.readingArticle;
   public readonly chapterNavigationLoading = this.state.chapterNavigationLoading;
+  public readonly sourceLinkLongPress = this.state.sourceLinkLongPress;
   public readonly isSecure = this.state.isSecure;
   public readonly isInsecure = this.state.isInsecure;
 
   public constructor(private readonly dependencies: ExploreBrowserWorkflowDependencies) {
     this.viewportSubscription = dependencies.viewport.events$.subscribe((event) => {
+      if (event.type === 'sourceLinkLongPressed') {
+        this.state.sourceLinkLongPressSignal.set(event.event.link);
+        void this.dependencies.viewport.hide();
+        return;
+      }
+
       const reduction = reduceBrowserViewportEvent(event);
       this.state.inputValueSignal.set(reduction.inputValue ?? this.state.inputValueSignal());
       this.state.currentUrlSignal.set(reduction.currentUrl ?? this.state.currentUrlSignal());
@@ -231,7 +241,8 @@ export class ExploreBrowserWorkflow {
   public async showViewport(rect: BrowserViewportRect): Promise<void> {
     if (
       this.state.readingModeActiveSignal() ||
-      this.state.secureNavigationFailureSignal() !== null
+      this.state.secureNavigationFailureSignal() !== null ||
+      this.state.sourceLinkLongPressSignal() !== null
     ) {
       await this.dependencies.viewport.hide();
       return;
@@ -354,7 +365,11 @@ export class ExploreBrowserWorkflow {
       return { ok: false };
     }
 
-    const result = await this.dependencies.viewport.extractArticle();
+    const result = await this.dependencies.viewport.extractArticle(
+      toExtractArticleOptions(
+        await this.dependencies.manualChapterNavigation.selectedPayloadForUrl(currentUrl),
+      ),
+    );
     switch (result.status) {
       case 'ok':
         this.state.readingArticleSignal.set(result.article);
@@ -446,6 +461,10 @@ export class ExploreBrowserWorkflow {
 
   public dismissNotice(): void {
     this.state.noticeSignal.set(null);
+  }
+
+  public dismissSourceLinkLongPress(): void {
+    this.state.sourceLinkLongPressSignal.set(null);
   }
 
   private async openRawValue(value: string, target: 'active' | 'new'): Promise<BrowserOpenResult> {
@@ -590,4 +609,10 @@ export class ExploreBrowserWorkflow {
 
     return error.message;
   }
+}
+
+function toExtractArticleOptions(
+  manualChapterNavigation: BrowserViewportExtractArticleOptions['manualChapterNavigation'],
+): BrowserViewportExtractArticleOptions {
+  return manualChapterNavigation === undefined ? {} : { manualChapterNavigation };
 }

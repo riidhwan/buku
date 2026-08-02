@@ -75,6 +75,34 @@ _Avoid_: reader overlay, simplified page, live page restyling
 The optional previous-chapter and next-chapter targets that Reading Mode can expose when the source page provides high-confidence chapter links.
 _Avoid_: pagination, page navigation
 
+**Manual Chapter Navigation Rule**:
+A user-created, source-domain-specific instruction that tells Reading Mode which source-page link should be treated as previous or next Chapter Navigation when automatic detection is not enough.
+_Avoid_: manual extraction logic, DOM rule, selector rule
+
+**Manual Chapter Navigation Selector**:
+The user-editable CSS selector inside a Manual Chapter Navigation Rule that identifies candidate source-page links for one Chapter Navigation direction on a source domain.
+_Avoid_: raw DOM, extraction script, custom JavaScript
+
+**Manual Chapter Navigation Disambiguation**:
+Legacy persisted rule data that can identify a specific Chapter Navigation link when a Manual Chapter Navigation Selector matches more than one visible link. New rule authoring uses first visible match order instead.
+_Avoid_: required choice, best match, fallback
+
+**Manual Chapter Navigation Scope**:
+The host and optional path prefix where a Manual Chapter Navigation Rule applies.
+_Avoid_: site-wide rule, global selector, exact page rule
+
+**Manual Chapter Navigation Rule Set**:
+The saved group of optional previous and next Manual Chapter Navigation Rules for one Manual Chapter Navigation Scope.
+_Avoid_: rule list, extractor config, site script
+
+**Manual Chapter Navigation Preview**:
+The rule-authoring check that shows which visible source-page links a Manual Chapter Navigation Selector would match before the user saves it.
+_Avoid_: dry run, test extraction, DOM viewer
+
+**Unverified Manual Chapter Navigation Rule**:
+A saved Manual Chapter Navigation Rule whose selector has been edited without successfully validating against a loaded source page.
+_Avoid_: broken rule, draft rule, disabled rule
+
 **More**:
 The overflow area for additional app menus that do not belong in Library or Explore.
 

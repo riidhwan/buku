@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { SQLITE_DATABASE } from '@core/storage/sqlite/sqlite-database.token';
+import { SqliteDatabase } from '@core/storage/sqlite/sqlite-database';
 import { ExploreBrowserFacade } from '../application/explore-browser.facade';
 import { BROWSER_SESSION_STORE } from '../application/ports/browser-session-store.port';
 import { BROWSER_VIEWPORT } from '../application/ports/browser-viewport.port';
@@ -15,7 +17,9 @@ import {
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
   NativeBrowserSecureNavigationFailureEvent,
+  NativeBrowserSourceLinkLongPressEvent,
 } from './capacitor-explore-browser';
+import { BrowserViewportSelectorPreview } from '../application/ports/browser-viewport.port';
 import { provideExplore } from './provide-explore';
 
 class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
@@ -56,6 +60,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     });
   }
 
+  public previewManualChapterNavigation(): Promise<BrowserViewportSelectorPreview> {
+    return Promise.resolve({ ok: false, reason: 'noMatch', matches: [], automatic: null });
+  }
+
   public addListener(
     _eventName: 'secureNavigationFailed',
     _listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
@@ -72,10 +80,32 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     _eventName: 'capabilityUnsupported',
     _listenerFunc: (event: NativeBrowserCapabilityEvent) => void,
   ): Promise<{ remove(): Promise<void> }>;
+  public addListener(
+    _eventName: 'sourceLinkLongPressed',
+    _listenerFunc: (event: NativeBrowserSourceLinkLongPressEvent) => void,
+  ): Promise<{ remove(): Promise<void> }>;
   public addListener(): Promise<{ remove(): Promise<void> }> {
     return Promise.resolve({
       remove: () => Promise.resolve(),
     });
+  }
+}
+
+class FakeSqliteDatabase implements SqliteDatabase {
+  public query<Row>(): Promise<readonly Row[]> {
+    return Promise.resolve([]);
+  }
+
+  public run(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public execute(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public transaction<Result>(work: (database: SqliteDatabase) => Promise<Result>): Promise<Result> {
+    return work(this);
   }
 }
 
@@ -85,6 +115,7 @@ describe('provideExplore', () => {
       providers: [
         ...provideExplore(),
         { provide: EXPLORE_BROWSER_PLUGIN, useClass: FakeExploreBrowserPlugin },
+        { provide: SQLITE_DATABASE, useClass: FakeSqliteDatabase },
       ],
     });
 

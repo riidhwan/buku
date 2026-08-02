@@ -4,15 +4,19 @@ import {
   BrowserArticleExtractionResult,
   BrowserCapability,
   BrowserHistoryNavigationResult,
+  BrowserViewportExtractArticleOptions,
   BrowserViewportEvent,
   BrowserViewportPort,
   BrowserViewportRect,
   BrowserSecureNavigationFailureReason,
+  BrowserViewportSelectorPreview,
+  ManualChapterNavigationPreviewInput,
 } from '../application/ports/browser-viewport.port';
 import {
   EXPLORE_BROWSER_PLUGIN,
   NativeArticleExtractionResult,
   NativeBrowserCapabilityEvent,
+  NativeBrowserSourceLinkLongPressEvent,
 } from './capacitor-explore-browser';
 
 const browserCapabilities = new Set<BrowserCapability>([
@@ -85,7 +89,9 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
     await this.plugin.copyUrl({ url });
   }
 
-  public async extractArticle(): Promise<BrowserArticleExtractionResult> {
+  public async extractArticle(
+    options: BrowserViewportExtractArticleOptions = {},
+  ): Promise<BrowserArticleExtractionResult> {
     try {
       const [readabilityScript, chapterNavigationScript, articleExtractionScript] =
         await Promise.all([
@@ -99,6 +105,7 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
             readabilityScript,
             chapterNavigationScript,
             articleExtractionScript,
+            options.manualChapterNavigation,
           ),
         }),
       );
@@ -107,6 +114,19 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
         status: 'failed',
         message: error instanceof Error ? error.message : 'Article extraction failed.',
       };
+    }
+  }
+
+  public async previewManualChapterNavigation(
+    input: ManualChapterNavigationPreviewInput,
+  ): Promise<BrowserViewportSelectorPreview> {
+    try {
+      const chapterNavigationScript = await this.loadChapterNavigationScript();
+      return await this.plugin.previewManualChapterNavigation({
+        script: this.toInjectedManualChapterNavigationPreviewScript(chapterNavigationScript, input),
+      });
+    } catch (_error) {
+      return { ok: false, reason: 'browserUnavailable', matches: [], automatic: null };
     }
   }
 
@@ -154,6 +174,15 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
         event: {
           capability: this.toBrowserCapability(event),
           url: event.url,
+        },
+      });
+    });
+
+    await this.plugin.addListener('sourceLinkLongPressed', (event) => {
+      this.eventsSubject.next({
+        type: 'sourceLinkLongPressed',
+        event: {
+          link: this.toSourceLinkContext(event),
         },
       });
     });
@@ -206,14 +235,30 @@ export class CapacitorBrowserViewportAdapter implements BrowserViewportPort {
     readabilityScript: string,
     chapterNavigationScript: string,
     articleExtractionScript: string,
+    manualChapterNavigation:
+      BrowserViewportExtractArticleOptions['manualChapterNavigation'] | undefined,
   ): string {
+    const manualRulesJson = JSON.stringify(manualChapterNavigation ?? null);
     return `(function(){try{
 ${readabilityScript}
 ${chapterNavigationScript}
 ${articleExtractionScript}
-return JSON.stringify(window.BukuExplore.extractArticle());
+return JSON.stringify(window.BukuExplore.extractArticle({manualChapterNavigation:${manualRulesJson}}));
 }catch(error){
 return JSON.stringify({status:'failed',message:error&&error.message?error.message:'Article extraction failed.'});
+}})();`;
+  }
+
+  private toInjectedManualChapterNavigationPreviewScript(
+    chapterNavigationScript: string,
+    input: ManualChapterNavigationPreviewInput,
+  ): string {
+    const inputJson = JSON.stringify(input);
+    return `(function(){try{
+${chapterNavigationScript}
+return JSON.stringify(window.BukuExplore.previewManualChapterNavigation(${inputJson}));
+}catch(error){
+return JSON.stringify({ok:false,reason:'browserUnavailable',matches:[],automatic:null});
 }})();`;
   }
 
@@ -236,5 +281,15 @@ return JSON.stringify({status:'failed',message:error&&error.message?error.messag
           message: result.message,
         };
     }
+  }
+
+  private toSourceLinkContext(event: NativeBrowserSourceLinkLongPressEvent) {
+    return {
+      pageUrl: event.pageUrl,
+      href: event.href,
+      text: event.text,
+      attributes: event.attributes,
+      ancestors: event.ancestors,
+    };
   }
 }

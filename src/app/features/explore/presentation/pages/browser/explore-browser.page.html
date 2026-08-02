@@ -215,6 +215,143 @@
   </ng-template>
 </ion-popover>
 
+<ion-modal
+  class="manual-chapter-rule-modal"
+  [isOpen]="browser.sourceLinkLongPress() !== null"
+  (didDismiss)="closeManualRuleEditor()"
+>
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Chapter Link Rule</ion-title>
+        <ion-buttons slot="end">
+          <ion-button aria-label="Close rule editor" (click)="closeManualRuleEditor()">
+            <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="manual-chapter-rule-editor">
+      @if (browser.sourceLinkLongPress(); as sourceLink) {
+      <ion-list>
+        <ion-item lines="full">
+          <ion-label>
+            <h2>{{ sourceLink.text ?? sourceLink.href }}</h2>
+            <p>{{ sourceLink.href }}</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item>
+          <ion-label>
+            <h3>Selected Element</h3>
+            <p class="manual-chapter-rule-code">{{ manualRules.linkElementSummary(sourceLink) }}</p>
+          </ion-label>
+        </ion-item>
+
+        @if (sourceLink.ancestors.length > 0) {
+        <ion-item>
+          <ion-label>
+            <h3>Ancestors</h3>
+            @for (ancestor of sourceLink.ancestors; track manualRules.ancestorSummary(ancestor)) {
+            <p class="manual-chapter-rule-code">
+              {{ manualRules.ancestorElementSummary(ancestor) }}
+            </p>
+            }
+          </ion-label>
+        </ion-item>
+        } @if (manualRules.selectorCandidates(sourceLink).length > 0) {
+        <ion-item>
+          <ion-label>
+            <h3>Selector Candidates</h3>
+            <div class="manual-chapter-rule-candidates">
+              @for (candidate of manualRules.selectorCandidates(sourceLink); track
+              candidate.selector) {
+              <ion-button
+                fill="outline"
+                size="small"
+                (click)="manualRules.useSelectorCandidate(candidate.selector)"
+              >
+                {{ candidate.label }}
+              </ion-button>
+              <p class="manual-chapter-rule-code">{{ candidate.selector }}</p>
+              }
+            </div>
+          </ion-label>
+        </ion-item>
+        }
+
+        <ion-item>
+          <ion-label>Direction</ion-label>
+          <ion-segment
+            [value]="manualRules.direction()"
+            (ionChange)="manualRules.updateDirection($event.detail.value)"
+          >
+            <ion-segment-button value="previous">Previous</ion-segment-button>
+            <ion-segment-button value="next">Next</ion-segment-button>
+          </ion-segment>
+        </ion-item>
+
+        <ion-item>
+          <ion-label>Selector Mode</ion-label>
+          <ion-segment
+            [value]="manualRules.selectorMode()"
+            (ionChange)="manualRules.updateSelectorMode($event.detail.value)"
+          >
+            <ion-segment-button value="link">Link</ion-segment-button>
+            <ion-segment-button value="container">Container</ion-segment-button>
+          </ion-segment>
+        </ion-item>
+
+        <ion-item>
+          <ion-input
+            label="CSS selector"
+            labelPlacement="stacked"
+            [value]="manualRules.selector()"
+            (ionInput)="manualRules.updateSelector($event.detail.value)"
+          ></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-input
+            label="Path prefix"
+            labelPlacement="stacked"
+            placeholder="/story/"
+            [value]="manualRules.scopePathPrefix() ?? ''"
+            (ionInput)="manualRules.updateScopePathPrefix($event.detail.value)"
+          ></ion-input>
+        </ion-item>
+
+        <ion-item lines="none">
+          <ion-buttons>
+            <ion-button fill="outline" (click)="manualRules.previewRule()">Preview</ion-button>
+            <ion-button (click)="manualRules.saveRule()">Save</ion-button>
+          </ion-buttons>
+        </ion-item>
+
+        @if (manualRules.saveError(); as error) {
+        <ion-item lines="none">
+          <ion-note color="danger">{{ error }}</ion-note>
+        </ion-item>
+        } @if (manualRules.preview(); as preview) {
+        <ion-item>
+          <ion-label>
+            <h3>Preview</h3>
+            <p>{{ preview.ok ? 'Selected target is valid.' : preview.reason }}</p>
+            @for (match of preview.matches; track match.href) {
+            <p>{{ match.label ?? match.href }} · {{ match.href }}</p>
+            } @if (preview.automatic) {
+            <p>Automatic: {{ preview.automatic.label ?? preview.automatic.href }}</p>
+            }
+          </ion-label>
+        </ion-item>
+        }
+      </ion-list>
+      }
+    </ion-content>
+  </ng-template>
+</ion-modal>
+
 <ion-content
   class="explore-browser-content"
   [class.reader-color-system]="appearance().colorSchemeId === 'system'"

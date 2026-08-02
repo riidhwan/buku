@@ -12,7 +12,11 @@ import {
   READING_LIBRARY_SAVE,
   ReadingLibrarySeriesOption,
 } from '../../../application/ports/reading-library-save.port';
-import { BrowserViewportRect } from '../../../application/ports/browser-viewport.port';
+import {
+  BrowserSourceLinkContext,
+  BrowserViewportRect,
+  BrowserViewportSelectorPreview,
+} from '../../../application/ports/browser-viewport.port';
 import { ReadingArticleSnapshot } from '../../../domain/reading-article';
 import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
 import { ExploreBrowserPage } from './explore-browser.page';
@@ -46,6 +50,7 @@ class FakeExploreBrowserFacade {
   public readonly readingModeActive = signal(false);
   public readonly readingArticle = signal<ReadingArticleSnapshot | null>(null);
   public readonly chapterNavigationLoading = signal(false);
+  public readonly sourceLinkLongPress = signal<BrowserSourceLinkContext | null>(null);
   public readonly tabs = signal<readonly ExploreBrowserTab[]>([
     {
       id: 'tab-1',
@@ -190,6 +195,18 @@ class FakeExploreBrowserFacade {
 
   public dismissNotice(): void {
     this.dismissed += 1;
+  }
+
+  public dismissSourceLinkLongPress(): void {
+    this.sourceLinkLongPress.set(null);
+  }
+
+  public previewManualChapterNavigation(): Promise<BrowserViewportSelectorPreview> {
+    return Promise.resolve({ ok: false, reason: 'noMatch', matches: [], automatic: null });
+  }
+
+  public saveManualChapterNavigationRule(): Promise<{ readonly ok: true }> {
+    return Promise.resolve({ ok: true });
   }
 }
 
@@ -586,6 +603,27 @@ describe('ExploreBrowserPage', () => {
 
     expect(browser.shownRect).not.toBeNull();
     expect(browser.hidden).toBe(1);
+  });
+
+  it('reschedules the native viewport after the manual rule editor is dismissed', async () => {
+    const initialShowCount = browser.showCount;
+    browser.sourceLinkLongPress.set({
+      pageUrl: 'https://example.com/story/1',
+      href: 'https://example.com/story/2',
+      text: 'Next',
+      attributes: [],
+      ancestors: [],
+    });
+    fixture.detectChanges();
+
+    const modal = (fixture.nativeElement as HTMLElement).querySelector(
+      '.manual-chapter-rule-modal',
+    );
+    modal?.dispatchEvent(new CustomEvent('didDismiss', { bubbles: true }));
+    await waitForViewportTimer();
+
+    expect(browser.sourceLinkLongPress()).toBeNull();
+    expect(browser.showCount).toBeGreaterThan(initialShowCount);
   });
 
   it('subscribes to Android back above route navigation while the browser page exists', () => {

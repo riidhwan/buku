@@ -132,9 +132,14 @@
     };
   }
 
-  function toSnapshot(article) {
-    var previousChapter = namespace.findChapterLink('previous');
-    var nextChapter = namespace.findChapterLink('next');
+  function toSnapshot(article, options) {
+    var manualChapterNavigation = options && options.manualChapterNavigation;
+    var previousChapter = namespace.findChapterLinkWithManual
+      ? namespace.findChapterLinkWithManual('previous', manualChapterNavigation)
+      : namespace.findChapterLink('previous');
+    var nextChapter = namespace.findChapterLinkWithManual
+      ? namespace.findChapterLinkWithManual('next', manualChapterNavigation)
+      : namespace.findChapterLink('next');
     var content = cleanArticleContent(article.content);
     var snapshot = {
       url: document.location.href,
@@ -158,7 +163,7 @@
     return snapshot;
   }
 
-  function extractArticle() {
+  function extractArticle(options) {
     try {
       var clonedDocument = document.cloneNode(true);
       var article = new Readability(clonedDocument).parse();
@@ -168,7 +173,7 @@
 
       return {
         status: 'ok',
-        article: toSnapshot(article),
+        article: toSnapshot(article, options || {}),
       };
     } catch (error) {
       return articleFailed(error);

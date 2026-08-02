@@ -5,6 +5,7 @@ import { MoreFacade } from '../application/more.facade';
 import { APP_UPDATE_INSTALLER } from '../application/ports/app-update-installer.port';
 import { APP_UPDATE_RELEASE_SOURCE } from '../application/ports/app-update-release-source.port';
 import { APP_VERSION } from '../application/ports/app-version.port';
+import { MANUAL_CHAPTER_NAVIGATION_MANAGEMENT } from '../application/ports/manual-chapter-navigation-management.port';
 import { provideMore } from './provide-more';
 
 describe('provideMore', () => {
@@ -23,6 +24,14 @@ describe('provideMore', () => {
               githubRepo: 'buku',
               apkAssetPrefix: 'buku',
             },
+          },
+        },
+        {
+          provide: MANUAL_CHAPTER_NAVIGATION_MANAGEMENT,
+          useValue: {
+            list: () => Promise.resolve([]),
+            setEnabled: () => Promise.resolve(),
+            delete: () => Promise.resolve(),
           },
         },
       ],

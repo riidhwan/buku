@@ -3,6 +3,11 @@ import { AppUpdateRelease } from '../domain/app-update';
 import { CheckForAppUpdateUseCase } from './check-for-app-update.use-case';
 import { AppUpdateInstallResult } from './ports/app-update-installer.port';
 import { InstallAppUpdateUseCase } from './install-app-update.use-case';
+import {
+  MANUAL_CHAPTER_NAVIGATION_MANAGEMENT,
+  ManualChapterNavigationRuleManagementItem,
+  ManualChapterNavigationRuleManagementPort,
+} from './ports/manual-chapter-navigation-management.port';
 
 type AppUpdateCheckFailureReason =
   | 'network-unavailable'
@@ -52,9 +57,17 @@ export type AppUpdateViewState =
 export class MoreFacade {
   private readonly checkForAppUpdateUseCase = inject(CheckForAppUpdateUseCase);
   private readonly installAppUpdateUseCase = inject(InstallAppUpdateUseCase);
+  private readonly manualChapterNavigation = inject<ManualChapterNavigationRuleManagementPort>(
+    MANUAL_CHAPTER_NAVIGATION_MANAGEMENT,
+  );
   private readonly appUpdateSignal = signal<AppUpdateViewState>({ status: 'idle' });
+  private readonly manualChapterNavigationRulesSignal = signal<
+    readonly ManualChapterNavigationRuleManagementItem[]
+  >([]);
 
   public readonly appUpdate = this.appUpdateSignal.asReadonly();
+  public readonly manualChapterNavigationRules =
+    this.manualChapterNavigationRulesSignal.asReadonly();
   public readonly appUpdateBusy = computed(() => {
     const status = this.appUpdateSignal().status;
     return status === 'checking' || status === 'installing';
@@ -103,6 +116,20 @@ export class MoreFacade {
       installedVersion: state.installedVersion,
       release: state.release,
     });
+  }
+
+  public async loadManualChapterNavigationRules(): Promise<void> {
+    this.manualChapterNavigationRulesSignal.set(await this.manualChapterNavigation.list());
+  }
+
+  public async setManualChapterNavigationRuleEnabled(id: string, enabled: boolean): Promise<void> {
+    await this.manualChapterNavigation.setEnabled(id, enabled);
+    await this.loadManualChapterNavigationRules();
+  }
+
+  public async deleteManualChapterNavigationRule(id: string): Promise<void> {
+    await this.manualChapterNavigation.delete(id);
+    await this.loadManualChapterNavigationRules();
   }
 }
 

@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { filter, firstValueFrom, take } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ReadingArticleSnapshot } from '../domain/reading-article';
 import { BrowserUrlPolicy } from './browser-url-policy';
 import {
@@ -12,7 +12,15 @@ import {
   resolveReadingModeTargetUrl,
   type ReadingChapterDirection,
 } from './explore-browser-reading-mode-policy';
+import { ManualChapterNavigationRuleWorkflow } from './manual-chapter-navigation-rule-workflow';
 import { BROWSER_VIEWPORT, type BrowserViewportPort } from './ports/browser-viewport.port';
+import type { BrowserViewportExtractArticleOptions } from './ports/browser-viewport.port';
+
+type BrowserArticleExtractionResult = Awaited<ReturnType<BrowserViewportPort['extractArticle']>>;
+type BrowserArticleExtractionSuccess = Extract<BrowserArticleExtractionResult, { status: 'ok' }>;
+
+const MANUAL_CHAPTER_NAVIGATION_RETRY_DELAY_MS = 150;
+const MANUAL_CHAPTER_NAVIGATION_SETTLE_DELAY_MS = 250;
 
 export type ReadingChapterNavigationResult =
   | {
@@ -34,6 +42,7 @@ export type ReadingChapterNavigationResult =
 export class ExploreReadingChapterNavigator {
   private readonly urlPolicy = inject(BrowserUrlPolicy);
   private readonly viewport = inject<BrowserViewportPort>(BROWSER_VIEWPORT);
+  private readonly manualChapterNavigation = inject(ManualChapterNavigationRuleWorkflow);
 
   public async navigate(
     article: ReadingArticleSnapshot,
@@ -53,11 +62,11 @@ export class ExploreReadingChapterNavigator {
       const navigationResultPromise = this.waitForChapterNavigation();
       await this.viewport.load(targetUrl.url);
       const navigationResult = await navigationResultPromise;
-      if (navigationResult === 'failed') {
+      if (navigationResult.status === 'failed') {
         return { ok: true, destination: 'browser', notice: null };
       }
 
-      return await this.articleFromCurrentPage(targetUrl.url);
+      return await this.articleFromCurrentPage(navigationResult.url);
     } catch (error) {
       return {
         ok: true,
@@ -67,23 +76,59 @@ export class ExploreReadingChapterNavigator {
     }
   }
 
-  private waitForChapterNavigation(): Promise<'loaded' | 'failed'> {
-    return firstValueFrom(
-      this.viewport.events$.pipe(
-        filter(
-          (event) =>
-            event.type === 'loadFailed' ||
-            (event.type === 'navigation' && event.committed && !event.state.loading),
-        ),
-        take(1),
-      ),
-    ).then((event) => (event.type === 'loadFailed' ? 'failed' : 'loaded'));
+  private waitForChapterNavigation(): Promise<
+    { readonly status: 'loaded'; readonly url: string } | { readonly status: 'failed' }
+  > {
+    return new Promise<
+      { readonly status: 'loaded'; readonly url: string } | { readonly status: 'failed' }
+    >((resolve) => {
+      let subscription: Subscription | null = null;
+      let settleTimeout: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+      const finish = (
+        result: { readonly status: 'loaded'; readonly url: string } | { readonly status: 'failed' },
+      ): void => {
+        if (settleTimeout !== null) {
+          globalThis.clearTimeout(settleTimeout);
+          settleTimeout = null;
+        }
+        subscription?.unsubscribe();
+        resolve(result);
+      };
+
+      subscription = this.viewport.events$.subscribe((event) => {
+        if (event.type === 'loadFailed') {
+          finish({ status: 'failed' });
+          return;
+        }
+
+        if (event.type !== 'navigation') {
+          return;
+        }
+
+        if (settleTimeout !== null) {
+          globalThis.clearTimeout(settleTimeout);
+          settleTimeout = null;
+        }
+
+        if (!event.committed || event.state.loading) {
+          return;
+        }
+
+        const committedUrl = event.state.url;
+        settleTimeout = globalThis.setTimeout(() => {
+          finish({ status: 'loaded', url: committedUrl });
+        }, MANUAL_CHAPTER_NAVIGATION_SETTLE_DELAY_MS);
+      });
+    });
   }
 
   private async articleFromCurrentPage(
     fallbackUrl: string,
   ): Promise<ReadingChapterNavigationResult> {
-    const result = await this.viewport.extractArticle();
+    const manualChapterNavigation =
+      await this.manualChapterNavigation.selectedPayloadForUrl(fallbackUrl);
+    const result = await this.extractArticleAfterNavigation(fallbackUrl, manualChapterNavigation);
     switch (result.status) {
       case 'ok':
         return { ok: true, destination: 'reader', article: result.article };
@@ -97,6 +142,23 @@ export class ExploreReadingChapterNavigator {
     }
   }
 
+  private async extractArticleAfterNavigation(
+    targetUrl: string,
+    manualChapterNavigation: BrowserViewportExtractArticleOptions['manualChapterNavigation'],
+  ) {
+    const options = toExtractArticleOptions(manualChapterNavigation);
+    const initialResult = await this.viewport.extractArticle(options);
+    if (
+      manualChapterNavigation === undefined ||
+      !shouldRetryManualChapterExtraction(initialResult, targetUrl)
+    ) {
+      return initialResult;
+    }
+
+    await delay(MANUAL_CHAPTER_NAVIGATION_RETRY_DELAY_MS);
+    return this.viewport.extractArticle(options);
+  }
+
   private loadFailureMessage(error: unknown): string {
     /* istanbul ignore if */
     if (!(error instanceof Error)) {
@@ -105,4 +167,42 @@ export class ExploreReadingChapterNavigator {
 
     return error.message;
   }
+}
+
+function shouldRetryManualChapterExtraction(
+  result: BrowserArticleExtractionResult,
+  targetUrl: string,
+): boolean {
+  return result.status !== 'ok' || isStaleArticleExtractionResult(result, targetUrl);
+}
+
+function isStaleArticleExtractionResult(
+  result: BrowserArticleExtractionSuccess,
+  targetUrl: string,
+): boolean {
+  return !sameResolvedUrl(result.article.url, targetUrl);
+}
+
+function sameResolvedUrl(left: string, right: string): boolean {
+  try {
+    const leftUrl = new URL(left);
+    const rightUrl = new URL(right);
+    leftUrl.hash = '';
+    rightUrl.hash = '';
+    return leftUrl.href === rightUrl.href;
+  } catch (_error) {
+    return left === right;
+  }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, milliseconds);
+  });
+}
+
+function toExtractArticleOptions(
+  manualChapterNavigation: BrowserViewportExtractArticleOptions['manualChapterNavigation'],
+): BrowserViewportExtractArticleOptions {
+  return manualChapterNavigation === undefined ? {} : { manualChapterNavigation };
 }

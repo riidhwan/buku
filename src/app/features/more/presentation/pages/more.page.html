@@ -12,5 +12,34 @@
         <p>Check for a new Buku release.</p>
       </ion-label>
     </ion-item>
+    @for (rule of more.manualChapterNavigationRules(); track rule.id) {
+    <ion-item>
+      <ion-label>
+        <h2>{{ rule.host }}{{ rule.pathPrefix ?? '' }}</h2>
+        <p>
+          Previous: {{ rule.previousLabel ?? 'Not set' }} · Next: {{ rule.nextLabel ?? 'Not set' }}
+        </p>
+        @if (rule.unverified || rule.lastFailed) {
+        <ion-note color="warning">
+          {{ rule.lastFailed ? 'Last preview failed' : 'Unverified edit' }}
+        </ion-note>
+        }
+      </ion-label>
+      <ion-buttons slot="end">
+        <ion-button
+          [attr.aria-label]="rule.enabled ? 'Disable rule set' : 'Enable rule set'"
+          (click)="toggleRule(rule.id, rule.enabled)"
+        >
+          <ion-icon
+            [name]="rule.enabled ? 'pause-circle-outline' : 'play-circle-outline'"
+            aria-hidden="true"
+          ></ion-icon>
+        </ion-button>
+        <ion-button aria-label="Delete rule set" (click)="deleteRule(rule.id)">
+          <ion-icon name="trash-outline" aria-hidden="true"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+    </ion-item>
+    }
   </ion-list>
 </ion-content>

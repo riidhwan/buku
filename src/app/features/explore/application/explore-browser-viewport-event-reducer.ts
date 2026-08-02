@@ -62,5 +62,7 @@ export function reduceBrowserViewportEvent(
       return {
         notice: browserNoticeForUnsupportedCapability(event.event.capability, event.event.url),
       };
+    case 'sourceLinkLongPressed':
+      return {};
   }
 }

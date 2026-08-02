@@ -8,7 +8,9 @@ import {
   NativeBrowserLoadFailedEvent,
   NativeBrowserNavigationState,
   NativeBrowserSecureNavigationFailureEvent,
+  NativeBrowserSourceLinkLongPressEvent,
 } from './capacitor-explore-browser';
+import { BrowserViewportSelectorPreview } from '../application/ports/browser-viewport.port';
 import { CapacitorExternalUrlOpenerAdapter } from './capacitor-external-url-opener.adapter';
 
 class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
@@ -53,6 +55,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
     });
   }
 
+  public previewManualChapterNavigation(): Promise<BrowserViewportSelectorPreview> {
+    return Promise.resolve({ ok: false, reason: 'noMatch', matches: [], automatic: null });
+  }
+
   public addListener(
     _eventName: 'secureNavigationFailed',
     _listenerFunc: (event: NativeBrowserSecureNavigationFailureEvent) => void,
@@ -68,6 +74,10 @@ class FakeExploreBrowserPlugin implements ExploreBrowserPlugin {
   public addListener(
     _eventName: 'capabilityUnsupported',
     _listenerFunc: (event: NativeBrowserCapabilityEvent) => void,
+  ): Promise<{ remove(): Promise<void> }>;
+  public addListener(
+    _eventName: 'sourceLinkLongPressed',
+    _listenerFunc: (event: NativeBrowserSourceLinkLongPressEvent) => void,
   ): Promise<{ remove(): Promise<void> }>;
   public addListener(): Promise<{ remove(): Promise<void> }> {
     return Promise.resolve({

@@ -8,6 +8,11 @@ import type {
 } from './explore-browser-results';
 import { ExploreBrowserWorkflow } from './explore-browser-workflow';
 import { ExploreReadingChapterNavigator } from './explore-reading-chapter-navigator';
+import { ManualChapterNavigationRuleWorkflow } from './manual-chapter-navigation-rule-workflow';
+import type {
+  ManualChapterRuleDraft,
+  SaveManualChapterRuleResult,
+} from './manual-chapter-navigation-rule-workflow';
 import {
   BROWSER_SESSION_STORE,
   type BrowserSessionStorePort,
@@ -15,19 +20,23 @@ import {
 import {
   BROWSER_VIEWPORT,
   type BrowserHistoryNavigationResult,
+  type BrowserViewportSelectorPreview,
   type BrowserViewportPort,
   type BrowserViewportRect,
+  type ManualChapterNavigationPreviewInput,
 } from './ports/browser-viewport.port';
 import { EXTERNAL_URL_OPENER, type ExternalUrlOpenerPort } from './ports/external-url-opener.port';
 
 @Injectable()
 export class ExploreBrowserFacade implements OnDestroy {
+  private readonly manualChapterNavigation = inject(ManualChapterNavigationRuleWorkflow);
   private readonly workflow = new ExploreBrowserWorkflow({
     urlPolicy: inject(BrowserUrlPolicy),
     sessionStore: inject<BrowserSessionStorePort>(BROWSER_SESSION_STORE),
     viewport: inject<BrowserViewportPort>(BROWSER_VIEWPORT),
     externalUrlOpener: inject<ExternalUrlOpenerPort>(EXTERNAL_URL_OPENER),
     chapterNavigator: inject(ExploreReadingChapterNavigator),
+    manualChapterNavigation: this.manualChapterNavigation,
   });
 
   public readonly inputValue = this.workflow.inputValue;
@@ -45,6 +54,7 @@ export class ExploreBrowserFacade implements OnDestroy {
   public readonly readingModeActive = this.workflow.readingModeActive;
   public readonly readingArticle = this.workflow.readingArticle;
   public readonly chapterNavigationLoading = this.workflow.chapterNavigationLoading;
+  public readonly sourceLinkLongPress = this.workflow.sourceLinkLongPress;
   public readonly isSecure = this.workflow.isSecure;
   public readonly isInsecure = this.workflow.isInsecure;
 
@@ -156,5 +166,29 @@ export class ExploreBrowserFacade implements OnDestroy {
 
   public dismissNotice(): void {
     this.workflow.dismissNotice();
+  }
+
+  public dismissSourceLinkLongPress(): void {
+    this.workflow.dismissSourceLinkLongPress();
+  }
+
+  public previewManualChapterNavigation(
+    input: ManualChapterNavigationPreviewInput,
+  ): Promise<BrowserViewportSelectorPreview> {
+    return this.manualChapterNavigation.previewCurrentPage(input);
+  }
+
+  public async saveManualChapterNavigationRule(
+    draft: ManualChapterRuleDraft,
+  ): Promise<SaveManualChapterRuleResult> {
+    const result = await this.manualChapterNavigation.saveFromLivePreview(
+      draft,
+      this.sourceLinkLongPress(),
+    );
+    if (result.ok) {
+      this.dismissSourceLinkLongPress();
+    }
+
+    return result;
   }
 }
