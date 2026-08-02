@@ -16,6 +16,7 @@ import { addIcons } from 'ionicons';
 import { addOutline, checkmarkCircleOutline, closeOutline } from 'ionicons/icons';
 import { ExploreBrowserFacade } from '../../../application/explore-browser.facade';
 import type { ExploreBrowserTab } from '../../../application/ports/browser-session-store.port';
+import { exploreRouteTargets } from '../../explore-route-targets';
 
 type ExploreBrowserTabsTab = Pick<ExploreBrowserTab, 'id' | 'url' | 'pageTitle'>;
 
@@ -58,12 +59,12 @@ export class ExploreBrowserTabsPage {
 
   protected async createBlankTab(): Promise<void> {
     await this.browser.createBlankTab();
-    await this.router.navigate(['explore']);
+    await this.router.navigate(exploreRouteTargets.browser().commands);
   }
 
   protected async selectTab(tabId: string): Promise<void> {
     await this.browser.selectTab(tabId);
-    await this.router.navigate(['explore']);
+    await this.router.navigate(exploreRouteTargets.browser().commands);
   }
 
   protected async closeTab(event: Event, tabId: string): Promise<void> {
@@ -72,7 +73,7 @@ export class ExploreBrowserTabsPage {
   }
 
   protected async close(): Promise<void> {
-    await this.router.navigate(['explore']);
+    await this.router.navigate(exploreRouteTargets.browser().commands);
   }
 
   protected tabLabel(tab: Pick<ExploreBrowserTabsTab, 'url' | 'pageTitle'>): string {

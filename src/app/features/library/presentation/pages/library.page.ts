@@ -14,6 +14,7 @@ import {
 } from '@ionic/angular/standalone';
 import { LibraryFacade } from '../../application/library.facade';
 import { LibrarySeriesSummary } from '../../domain/library-series';
+import { libraryRouteTargets } from '../library-route-targets';
 
 @Component({
   selector: 'app-library-page',
@@ -35,6 +36,7 @@ import { LibrarySeriesSummary } from '../../domain/library-series';
 })
 export class LibraryPage {
   private readonly library = inject(LibraryFacade);
+  protected readonly routeTargets = libraryRouteTargets;
 
   @ViewChild(IonContent)
   private readonly content?: IonContent;

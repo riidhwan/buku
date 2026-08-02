@@ -1,7 +1,9 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button [defaultHref]="['/library', 'series', seriesId].join('/')"></ion-back-button>
+      <ion-back-button
+        [defaultHref]="routeTargets.seriesDetail({ seriesId }).url"
+      ></ion-back-button>
     </ion-buttons>
     <ion-title>{{ activeEntry()?.displayTitle ?? 'Entry not found' }}</ion-title>
     <ion-buttons slot="end">

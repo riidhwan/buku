@@ -16,6 +16,7 @@ import {
 } from '@ionic/angular/standalone';
 import { LibraryFacade } from '../../../application/library.facade';
 import { LibrarySeries } from '../../../domain/library-series';
+import { libraryRouteTargets } from '../../library-route-targets';
 
 @Component({
   selector: 'app-library-series-detail-page',
@@ -40,6 +41,7 @@ import { LibrarySeries } from '../../../domain/library-series';
 export class LibrarySeriesDetailPage {
   private readonly library = inject(LibraryFacade);
   private readonly route = inject(ActivatedRoute);
+  protected readonly routeTargets = libraryRouteTargets;
   private readonly dateTimeFormatter = new Intl.DateTimeFormat('en', {
     day: 'numeric',
     hour: '2-digit',

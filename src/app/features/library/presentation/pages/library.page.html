@@ -11,7 +11,10 @@
 
   <ion-list>
     @for (seriesItem of series(); track seriesItem.id) {
-    <ion-item [routerLink]="['/library', 'series', seriesItem.id]" detail="true">
+    <ion-item
+      [routerLink]="routeTargets.seriesDetail({ seriesId: seriesItem.id }).commands"
+      detail="true"
+    >
       <ion-label>
         <h2>{{ seriesItem.title }}</h2>
         <p>{{ formatSeriesSummary(seriesItem.entryCount, seriesItem.lastSavedAt) }}</p>

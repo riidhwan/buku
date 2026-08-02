@@ -52,6 +52,7 @@ import { ExploreBrowserPageActions } from './explore-browser-page-actions';
 import { registerExploreBrowserPageIcons } from './explore-browser-page-icons';
 import { ExploreBrowserPageShell } from './explore-browser-page-shell';
 import { ExploreBrowserReaderSaveActions } from './explore-browser-reader-save-actions';
+import { exploreRouteTargets } from '../../explore-route-targets';
 
 @Component({
   selector: 'app-explore-browser-page',
@@ -172,7 +173,7 @@ export class ExploreBrowserPage implements OnInit, AfterViewInit, OnDestroy {
   protected async openTabs(): Promise<void> {
     this.pageActions.closeActions();
     await this.browser.hideViewport();
-    await this.router.navigate(['explore', 'browser', 'tabs']);
+    await this.router.navigate(exploreRouteTargets.browserTabs().commands);
   }
 
   protected async openNoticeUrlExternally(): Promise<void> {
