@@ -2,6 +2,10 @@
   display: block;
 }
 
+.tab-list-content {
+  --padding-bottom: calc(72px + var(--ion-safe-area-bottom, 0px));
+}
+
 .tab-list {
   margin-top: 12px;
 }
