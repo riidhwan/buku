@@ -77,8 +77,10 @@ describe('ExploreBrowserTabsPage', () => {
 
   it('renders tabs as a vertical list with URL-derived labels', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
+    const content = nativeElement.querySelector('ion-content');
     const rows = nativeElement.querySelectorAll('.tab-list ion-item');
 
+    expect(content?.classList.contains('tab-list-content')).toBeTrue();
     expect(rows.length).toBe(3);
     expect(rows.item(0).textContent).toContain('example.com');
     expect(rows.item(1).textContent).toContain('Buku Articles');
