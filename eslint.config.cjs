@@ -55,7 +55,16 @@ const fileSizeBudget = (max) => [
 
 module.exports = [
   {
-    ignores: ['android/**', 'coverage/**', 'dist/**', 'node_modules/**', 'out-tsc/**', 'www/**'],
+    ignores: [
+      '.pi/**',
+      'tools/pi-extensions/**',
+      'android/**',
+      'coverage/**',
+      'dist/**',
+      'node_modules/**',
+      'out-tsc/**',
+      'www/**',
+    ],
   },
   {
     files: ['**/*.ts'],

@@ -1,0 +1,16 @@
+{
+  "permission": {
+    "*": "ask",
+    "find *": "allow",
+    "git diff *": "allow",
+    "git log *": "allow",
+    "git show *": "allow",
+    "git status *": "allow",
+    "node --test *": "allow",
+    "pnpm format:check": "allow",
+    "pnpm lint": "allow",
+    "pnpm lint:styles": "allow",
+    "pnpm test": "allow",
+    "rm *": "ask"
+  }
+}
