@@ -101,7 +101,7 @@
   "lint-staged": {
     "*.{ts,html,scss,json,md}": "prettier --write",
     "*.ts": [
-      "eslint --max-warnings=0",
+      "eslint --max-warnings=0 --no-warn-ignored",
       "node scripts/architecture-report.mjs",
       "node scripts/test-obligation.mjs"
     ],
